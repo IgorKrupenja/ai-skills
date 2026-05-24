@@ -24,6 +24,8 @@ Automate the annual LHV investment account tax report (Investeerimiskonto aruann
 
 Send LinkedIn connection requests (without a note) to people in search results, page by page, until the weekly limit is reached.
 
+This is the **main** skill that should be used before weekly limit is hit.
+
 | Variable               | Description                                |
 | ---------------------- | ------------------------------------------ |
 | `LINKEDIN_CONNECT_URL` | LinkedIn people search URL to iterate over |
@@ -31,6 +33,8 @@ Send LinkedIn connection requests (without a note) to people in search results, 
 ### linkedin-grow
 
 Send LinkedIn connection requests (without a note) to matching people in the "People you may know" section on the grow page, filtered by job title keywords.
+
+Use as a fallback when `linkedin-connect` hits the weekly limit — "People you may know" invites are throttled separately and often still go through.
 
 | Variable                 | Description                                                                                   |
 | ------------------------ | --------------------------------------------------------------------------------------------- |
