@@ -1,7 +1,7 @@
 ---
 name: volta-sales-crawl
 description: Crawls all Endover Volta apartment buildings (Uus-Volta, Tööstuse 47, Mootori 2, Krulli 10 / Volta Skai), counts sold vs unsold apartments per building and per apartment type, and presents the results as tables. Overall stats are given in two flavours — WITH and WITHOUT Volta Skai (Krulli 10).
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_evaluate, mcp__playwright__browser_snapshot
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_evaluate, mcp__playwright__browser_snapshot, Read, Write, Bash
 ---
 
 # Volta Sales Crawl Skill
@@ -128,18 +128,72 @@ Always give the overall stats **twice**:
 
 (One row per building, UV ascending then Skai / Hub / Villa.)
 
-#### 4c. Per apartment type (rooms)
+#### 4c. Per apartment type (rooms) — two flavours
 
+Always give the per-type table **twice** (same WITH/WITHOUT Skai split as the overall stats):
+
+```
+### Per apartment type — WITH Skai (all buildings)
 | Type | Sold | Unsold | Total | % Sold |
 
+### Per apartment type — without Skai (excludes Krulli 10)
+| Type | Sold | Unsold | Total | % Sold |
+```
+
 Rows: `1-room`, `2-room`, `3-room`, `4-room`, `5-room`, `Commercial/other`.
-The "without Skai" totals here are optional — only add a second type table if the user asks;
-otherwise the per-type table is WITH Skai (all buildings).
+Krulli 10 (Skai) holds the only `Commercial/other` units, so that row drops to all-zeros in
+the WITHOUT-Skai table — keep the row anyway for consistency.
 
 ### 5. Verify the math
 
 Cross-check that the per-building totals and per-type totals both sum to the same overall
 Sold / Unsold / Total. If they don't reconcile, re-crawl the offending page.
+
+### 6. Compare to the previous run
+
+History lives in **`history.ndjson`** in this skill's own directory (alongside `SKILL.md`):
+one JSON record per line, oldest first. Each line is the schema in step 7.
+
+1. `Read` `history.ndjson`. If it's missing or empty, this is the **first run** — note
+   "no previous run to compare against" and skip to step 7.
+2. Otherwise take the **last line** (most recent prior run) as the baseline.
+3. Print a **"Changes since last run"** section comparing the new run to the baseline:
+
+   - **Overall** (both WITH and WITHOUT Skai): show `sold` and `unsold` deltas, e.g.
+     `Sold WITH Skai: 119 → 121 (+2)`. A `0` delta is fine to show as `(±0)`.
+   - **Per building** and **per type**: list **only rows whose sold or unsold changed**,
+     formatted `UV 10/3: sold 20 → 22 (+2), unsold 13 → 11 (-2)`. If nothing changed in a
+     section, say "no changes".
+   - Flag any **new or vanished** building/type keys (e.g. a new commercial unit appears)
+     so a layout change on the site doesn't get silently swallowed.
+4. Quote the baseline's timestamp so it's clear what "since last run" means.
+
+### 7. Save this run
+
+Append one record to `history.ndjson` so the next run can diff against it.
+
+1. Get a UTC timestamp via `Bash`: `date -u +%Y-%m-%dT%H:%M:%SZ`.
+2. Build this exact record (single line of JSON, no pretty-printing):
+
+   ```json
+   {
+     "ts": "<UTC timestamp>",
+     "overall": {
+       "withSkai":    { "sold": 0, "unsold": 0, "total": 0 },
+       "withoutSkai": { "sold": 0, "unsold": 0, "total": 0 }
+     },
+     "byBuilding": { "UV 6/1": { "sold": 0, "unsold": 0 }, "...": {} },
+     "byType":     { "1": { "sold": 0, "unsold": 0 }, "...": {}, "Commercial/other": { "sold": 0, "unsold": 0 } }
+   }
+   ```
+
+   - `byBuilding` keys are the display names from the buildings table (UV 6/1 … Krulli 10 (Skai),
+     Mootori 2 (Hub), Tööstuse 47 (Villa)). `byType` keys are `1`–`5` and `Commercial/other`.
+     Keep keys stable across runs — that's what makes the diff in step 6 work.
+3. Append it: `Read` the current `history.ndjson` (empty string if it doesn't exist yet),
+   add the new line at the end, and `Write` the whole file back. Append-only — never edit or
+   reorder past lines.
+4. Confirm to the user: "Saved run `<ts>` (`<N>` total records in history)."
 
 ## Notes
 
