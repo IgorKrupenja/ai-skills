@@ -41,6 +41,12 @@ Use as a fallback when `linkedin-connect` hits the weekly limit — "People you 
 | `LINKEDIN_GROW_KEYWORDS` | Comma-separated job title keywords to match (case-insensitive)                                |
 | `LINKEDIN_GROW_LOCATION` | Location name for the "People you may know in ..." section (e.g. `Tallinn Metropolitan Area`) |
 
+### volta-sales-crawl
+
+Crawl all Endover Volta apartment buildings (the 8 Uus-Volta houses, Tööstuse 47, Mootori 2, and Krulli 10 / Volta Skai), then report **sold vs unsold** apartments with percentages — overall, per building, and per apartment type. Overall stats are given in two flavours: **with** and **without** Volta Skai (Krulli 10).
+
+No env vars required — all source pages are public.
+
 ## Security disclaimer
 
 All secrets should be in env variables. Please check skills content and run them at your own risk.
