@@ -1,3 +1,8 @@
 .env
 .playwright-mcp/
 .claude
+
+# Symlinked skills that live in other repos (machine-specific targets)
+events-add
+events-coda
+events-crawl
