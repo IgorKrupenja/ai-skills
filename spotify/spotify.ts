@@ -31,25 +31,23 @@
  * open.spotify.com/... URL. add-* skip tracks already in the playlist unless
  * --allow-dupes, and append in the given order.
  */
-import { existsSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
-import { join } from "node:path";
+import { chmodSync } from "node:fs"; // only chmod has no Bun-native equivalent
 
 const HERE = import.meta.dir;
-const TOKEN_FILE = join(HERE, ".spotify_token.json");
+const TOKEN_FILE = `${HERE}/.spotify_token.json`;
 const API = "https://api.spotify.com/v1";
 const ACCOUNTS = "https://accounts.spotify.com";
 
 // ---------------------------------------------------------------- env / config
 /** Load .env (skill-dir parent or $SKILLS_DIR). Real env vars win over .env. */
-function loadDotenv(): void {
+async function loadDotenv(): Promise<void> {
   const home = process.env.HOME ?? "";
-  const candidates = [
-    join(HERE, "..", ".env"),
-    join(process.env.SKILLS_DIR ?? join(home, ".claude/skills"), ".env"),
-  ];
+  const skillsDir = process.env.SKILLS_DIR ?? `${home}/.claude/skills`;
+  const candidates = [`${HERE}/../.env`, `${skillsDir}/.env`];
   for (const path of candidates) {
-    if (!existsSync(path)) continue;
-    for (const raw of readFileSync(path, "utf8").split("\n")) {
+    const file = Bun.file(path);
+    if (!(await file.exists())) continue;
+    for (const raw of (await file.text()).split("\n")) {
       const line = raw.trim();
       if (!line || line.startsWith("#") || !line.includes("=")) continue;
       const eq = line.indexOf("=");
@@ -61,7 +59,7 @@ function loadDotenv(): void {
     break;
   }
 }
-loadDotenv();
+await loadDotenv();
 
 function reqEnv(name: string): string {
   const v = process.env[name];
@@ -131,17 +129,18 @@ async function postToken(form: Record<string, string>): Promise<RawToken> {
   return (await res.json()) as RawToken;
 }
 
-function saveToken(tok: RawToken): Token {
+async function saveToken(tok: RawToken): Promise<Token> {
   const out: Token = { ...tok, expires_at: Date.now() / 1000 + (tok.expires_in ?? 3600) - 60 };
-  if (!out.refresh_token && existsSync(TOKEN_FILE)) {
+  const cache = Bun.file(TOKEN_FILE);
+  if (!out.refresh_token && (await cache.exists())) {
     try {
-      out.refresh_token = (JSON.parse(readFileSync(TOKEN_FILE, "utf8")) as Token).refresh_token;
+      out.refresh_token = ((await cache.json()) as Token).refresh_token;
     } catch {
       /* ignore unreadable cache */
     }
   }
-  writeFileSync(TOKEN_FILE, JSON.stringify(out));
-  chmodSync(TOKEN_FILE, 0o600);
+  await Bun.write(TOKEN_FILE, JSON.stringify(out));
+  chmodSync(TOKEN_FILE, 0o600); // restrict the refresh-token file to the owner
   return out;
 }
 
@@ -177,7 +176,7 @@ function interactiveAuth(): Promise<Token> {
           return html("Authorization failed. You can close this tab.");
         }
         try {
-          const tok = saveToken(
+          const tok = await saveToken(
             await postToken({ grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI }),
           );
           console.log(`TOKEN_OK scopes=${tok.scope ?? ""}`);
@@ -207,9 +206,9 @@ async function refresh(refreshToken: string): Promise<RawToken> {
 /** valid cached access token -> refresh (env SPOTIFY_REFRESH_TOKEN, else cached) -> browser. */
 async function getToken(force = false): Promise<Token> {
   let cached: Token | null = null;
-  if (!force && existsSync(TOKEN_FILE)) {
+  if (!force && (await Bun.file(TOKEN_FILE).exists())) {
     try {
-      cached = JSON.parse(readFileSync(TOKEN_FILE, "utf8")) as Token;
+      cached = (await Bun.file(TOKEN_FILE).json()) as Token;
     } catch {
       cached = null;
     }
@@ -219,7 +218,7 @@ async function getToken(force = false): Promise<Token> {
     const rt = process.env.SPOTIFY_REFRESH_TOKEN || cached?.refresh_token;
     if (rt) {
       try {
-        return saveToken(await refresh(rt));
+        return await saveToken(await refresh(rt));
       } catch (e) {
         console.error(`Token refresh failed; re-authorizing... (${e})`);
       }
