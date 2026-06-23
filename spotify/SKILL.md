@@ -106,6 +106,11 @@ in `.env` — no code change needed.
    track of each release, dedups against the playlist, appends, and reports counts.
 3. Report what was added / skipped and the new playlist total.
 
+**Cycles / box sets:** if a link is a full cycle or box set (e.g. a complete-symphonies
+album) but the user is curating one specific work, add **only that work's tracks** — use
+`album-tracks` to find them, then `add-tracks` — not the whole set. (Confirmed preference:
+adding just the 9th from a complete-Beethoven-cycle link was correct.)
+
 ## Notes & gotchas
 
 - **Scopes:** the token is minted with the **full** user-facing Web API scope set
