@@ -2,6 +2,9 @@
 .playwright-mcp/
 .claude
 
+# spotify cached user token (contains a refresh token)
+.spotify_token.json
+
 # Symlinked skills that live in other repos (machine-specific targets)
 events-add
 events-coda

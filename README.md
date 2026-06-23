@@ -47,6 +47,18 @@ Crawl all Endover Volta apartment buildings (the 8 Uus-Volta houses, Tööstuse 
 
 No env vars required — all source pages are public.
 
+### spotify
+
+Manage Spotify playlists via the Web API — search and add full albums or individual tracks to a playlist, and inspect playlists. Uses a registered-app **user** token (cached and auto-refreshed); the first run authorizes once via the browser. All operations go through `spotify/spotify.py` (Python stdlib only).
+
+| Variable                | Description                                                              |
+| ----------------------- | ------------------------------------------------------------------------ |
+| `SPOTIFY_CLIENT_ID`     | Spotify app Client ID (Developer Dashboard)                              |
+| `SPOTIFY_CLIENT_SECRET` | Spotify app Client Secret                                                |
+| `SPOTIFY_REDIRECT_URI`  | Registered OAuth redirect URI (default `http://127.0.0.1:8888/callback`) |
+| `SPOTIFY_PLAYLIST_ID`   | Default playlist to edit (override per call with `--playlist`)           |
+| `SPOTIFY_REFRESH_TOKEN` | Long-lived refresh token; set once via `auth`, then no browser ever      |
+
 ## Security disclaimer
 
 All secrets should be in env variables. Please check skills content and run them at your own risk.
