@@ -293,11 +293,21 @@ async function addUris(pid: string, uris: string[]): Promise<void> {
   }
 }
 
+async function removeUris(pid: string, uris: string[]): Promise<void> {
+  for (let i = 0; i < uris.length; i += 100) {
+    await api("DELETE", `/playlists/${pid}/tracks`, undefined, {
+      tracks: uris.slice(i, i + 100).map((uri) => ({ uri })),
+    });
+  }
+}
+
 const pad = (s: unknown, n: number) => String(s).padStart(n);
 
 // ---------------------------------------------------------------- commands
 interface Flags {
   playlist?: string;
+  from?: string;
+  to?: string;
   type?: string;
   limit?: string;
   "allow-dupes"?: boolean;
@@ -396,6 +406,29 @@ const commands: Record<string, (pos: string[], flags: Flags) => Promise<void> | 
     await addUris(pid, toAdd);
     const pl = await api("GET", `/playlists/${pid}`, { fields: "tracks(total),name" });
     console.log(`Added ${toAdd.length} tracks (${skipped} skipped). '${pl.name}' now has ${pl.tracks.total}.`);
+  },
+
+  "remove-tracks": async (pos, flags) => {
+    const pid = needPlaylist(flags.playlist);
+    const uris = pos.map((raw) => `spotify:track:${spotifyId(raw, "track")}`);
+    await removeUris(pid, uris);
+    const pl = await api("GET", `/playlists/${pid}`, { fields: "tracks(total),name" });
+    console.log(`Removed ${uris.length} track(s). '${pl.name}' now has ${pl.tracks.total}.`);
+  },
+
+  // Move tracks between playlists: add to --to (dedup), then remove from --from.
+  move: async (pos, flags) => {
+    if (!flags.from || !flags.to) die("move needs --from <id|name> and --to <id|name>.");
+    const from = needPlaylist(flags.from);
+    const to = needPlaylist(flags.to);
+    const uris = pos.map((raw) => `spotify:track:${spotifyId(raw, "track")}`);
+    const have = flags["allow-dupes"] ? new Set<string>() : await existingUris(to);
+    const toAdd = uris.filter((u) => !have.has(u));
+    await addUris(to, toAdd); // destination first, so nothing is lost if it fails
+    await removeUris(from, uris);
+    const src = await api("GET", `/playlists/${from}`, { fields: "tracks(total),name" });
+    const dst = await api("GET", `/playlists/${to}`, { fields: "tracks(total),name" });
+    console.log(`Moved ${uris.length} track(s): '${src.name}' (${src.tracks.total}) -> '${dst.name}' (${dst.tracks.total}); ${toAdd.length} added, ${uris.length - toAdd.length} already in dest.`);
   },
 };
 

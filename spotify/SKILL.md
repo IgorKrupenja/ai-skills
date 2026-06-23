@@ -73,6 +73,8 @@ bun spotify.ts search "QUERY" [--type album|track] [--limit N]
 bun spotify.ts album-tracks ALBUM                     # list a release's tracks
 bun spotify.ts add-album  ALBUM [ALBUM ...] [--playlist ID|name] [--allow-dupes]
 bun spotify.ts add-tracks TRACK [TRACK ...] [--playlist ID|name] [--allow-dupes]
+bun spotify.ts remove-tracks TRACK [TRACK ...] [--playlist ID|name]
+bun spotify.ts move TRACK [TRACK ...] --from ID|name --to ID|name [--allow-dupes]
 bun spotify.ts token                                  # print a valid access token (for ad-hoc curl)
 ```
 
