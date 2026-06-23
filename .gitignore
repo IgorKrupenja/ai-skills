@@ -2,6 +2,9 @@
 .playwright-mcp/
 .claude
 
+# Bun / TypeScript
+node_modules/
+
 # spotify cached user token (contains a refresh token)
 .spotify_token.json
 

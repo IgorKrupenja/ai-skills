@@ -6,6 +6,7 @@ A collection of AI agent skills for automating personal workflows. Uses the comm
 
 1. Clone this repo into a folder your agentic AI tool uses for skills.
 2. Run `cp .env.example .env` and fill in your values in the `.env` file.
+3. TypeScript skills (e.g. `spotify`) run with [Bun](https://bun.sh) — install it, then run `bun install` for dev type definitions.
 
 ## Skills
 
@@ -49,15 +50,16 @@ No env vars required — all source pages are public.
 
 ### spotify
 
-Manage Spotify playlists via the Web API — search and add full albums or individual tracks to a playlist, and inspect playlists. Uses a registered-app **user** token (cached and auto-refreshed); the first run authorizes once via the browser. All operations go through `spotify/spotify.py` (Python stdlib only).
+Manage Spotify playlists via the Web API — search and add full albums or individual tracks to a playlist, and inspect playlists. Uses a registered-app **user** token (cached and auto-refreshed); the first run authorizes once via the browser. All operations go through `spotify/spotify.ts`, run with [Bun](https://bun.sh) (`bun spotify.ts <cmd>`).
 
-| Variable                | Description                                                              |
-| ----------------------- | ------------------------------------------------------------------------ |
-| `SPOTIFY_CLIENT_ID`     | Spotify app Client ID (Developer Dashboard)                              |
-| `SPOTIFY_CLIENT_SECRET` | Spotify app Client Secret                                                |
-| `SPOTIFY_REDIRECT_URI`  | Registered OAuth redirect URI (default `http://127.0.0.1:8888/callback`) |
-| `SPOTIFY_PLAYLIST_ID`   | Default playlist to edit (override per call with `--playlist`)           |
-| `SPOTIFY_REFRESH_TOKEN` | Long-lived refresh token; set once via `auth`, then no browser ever      |
+| Variable                  | Description                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| `SPOTIFY_CLIENT_ID`       | Spotify app Client ID (Developer Dashboard)                                      |
+| `SPOTIFY_CLIENT_SECRET`   | Spotify app Client Secret                                                        |
+| `SPOTIFY_REDIRECT_URI`    | Registered OAuth redirect URI (default `http://127.0.0.1:8888/callback`)         |
+| `SPOTIFY_PLAYLIST_ID`     | Default playlist to edit (override per call with `--playlist`)                   |
+| `SPOTIFY_PLAYLIST_<NAME>` | Named playlists, each usable as `--playlist <name>` (e.g. `_SPORT`, `_CLASSICS`) |
+| `SPOTIFY_REFRESH_TOKEN`   | Long-lived refresh token; set once via `auth`, then no browser ever              |
 
 ## Security disclaimer
 
