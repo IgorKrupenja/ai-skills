@@ -68,4 +68,5 @@ Skills are built for local use, but some can also run in cloud agents (headless)
 
 ## Security disclaimer
 
-All secrets should be in env variables. Please check skills content and run them at your own risk.
+- All secrets should be in env variables.
+- Please check skills content and run them at your own risk.
