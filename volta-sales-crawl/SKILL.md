@@ -1,7 +1,7 @@
 ---
 name: volta-sales-crawl
 description: Crawls all Endover Volta apartment buildings (Uus-Volta, Tööstuse 47, Mootori 2, Krulli 10 / Volta Skai), counts sold vs unsold apartments per building and per apartment type, and presents the results as tables. Overall stats are given in two flavours — WITH and WITHOUT Volta Skai (Krulli 10).
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_evaluate, mcp__playwright__browser_snapshot, Read, Write, Bash
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_evaluate, mcp__playwright__browser_snapshot, mcp__playwright-headless__browser_navigate, mcp__playwright-headless__browser_evaluate, mcp__playwright-headless__browser_snapshot, Read, Write, Bash
 ---
 
 # Volta Sales Crawl Skill

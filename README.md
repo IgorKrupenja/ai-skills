@@ -62,7 +62,7 @@ Manage Spotify playlists via the Web API — search and add full albums or indiv
 
 ## Cloud agents
 
-Skills are built for local use, but some can also run in cloud agents (headless). Each skill's `SKILL.md` has a **"Runs in:"** line (local / cloud). See [`cloud/`](cloud/README.md) for the headless setup, the `SKILLS_CLOUD` install gate, and the matrix of which skills are cloud-viable (`volta-sales-crawl` is the reference example).
+Skills are built for local use, but some can also run in cloud agents (headless). Each skill's `SKILL.md` has a **"Runs in:"** line (local / cloud). See [`cloud/`](cloud/README.md) for the headless setup (committed `.mcp.json` + a Chromium install step) and the matrix of which skills are cloud-viable (`volta-sales-crawl` is the reference example).
 
 ## Security disclaimer
 
