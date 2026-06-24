@@ -49,7 +49,9 @@ Browser-free: runs via `python3 volta-sales-crawl/volta.py` (HTTP + HTML parse, 
 
 ### spotify
 
-Manage Spotify playlists via the Web API — search and add full albums or individual tracks to a playlist, and inspect playlists. Uses a registered-app **user** token (cached and auto-refreshed); the first run authorizes once via the browser. All operations go through `spotify/spotify.py` — Python 3, standard library only (`python3 spotify.py <cmd>`).
+Manage Spotify playlists via the Web API — search and add full albums or individual tracks to a playlist, and inspect playlists. Uses a registered-app **user** token (cached and auto-refreshed); the first run authorizes once via the browser. 
+
+All operations go through `spotify/spotify.py` — Python 3, standard library only (`python3 spotify.py <cmd>`).
 
 | Variable                  | Description                                                                      |
 | ------------------------- | -------------------------------------------------------------------------------- |
