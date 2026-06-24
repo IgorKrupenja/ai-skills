@@ -40,7 +40,12 @@ is at the working directory, so a repo path won't resolve there):
 
 ```bash
 #!/bin/bash
-npx -y playwright@latest install --with-deps chromium || npx -y playwright@latest install chromium
+# Install the browser @playwright/mcp expects — use ITS OWN installer so the build matches
+# the MCP version (a plain `playwright install chromium` fetches a different build and the
+# MCP errors with: Browser "chrome-for-testing" is not installed).
+npx -y @playwright/mcp@latest install-browser chrome-for-testing
+# OS libraries headless Chrome needs (best-effort; needs root — skip if it can't).
+npx -y playwright@latest install-deps 2>/dev/null || true
 ```
 
 Network access **Full**. No environment variables are needed for volta. **Don't put secrets
