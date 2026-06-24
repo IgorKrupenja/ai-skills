@@ -20,6 +20,7 @@ if [[ -n "${HTTPS_PROXY:-}" ]]; then
   proxy_args=(--proxy-server "$HTTPS_PROXY")
 fi
 
+# @playwright/mcp has no CLI flag for raw Chromium args, so the TLS-1.2 cap is passed via --config:
 exec npx -y @playwright/mcp@latest \
   --headless --isolated --browser chromium \
   "${proxy_args[@]}" \
