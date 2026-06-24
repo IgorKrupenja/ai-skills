@@ -45,7 +45,7 @@ Use as a fallback when `linkedin-connect` hits the weekly limit — "People you 
 
 Crawl all Endover Volta apartment buildings (the 8 Uus-Volta houses, Tööstuse 47, Mootori 2, and Krulli 10 / Volta Skai), then report **sold vs unsold** apartments with percentages — overall, per building, and per apartment type. Overall stats are given in two flavours: **with** and **without** Volta Skai (Krulli 10).
 
-No env vars required — all source pages are public.
+Browser-free: runs via `python3 volta-sales-crawl/volta.py` (HTTP + HTML parse, Python stdlib). No env vars — all source pages are public.
 
 ### spotify
 
