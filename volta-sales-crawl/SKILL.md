@@ -197,6 +197,29 @@ Append one record to `history.ndjson` so the next run can diff against it.
    reorder past lines.
 4. Confirm to the user: "Saved run `<ts>` (`<N>` total records in history)."
 
+### 8. Commit and push the history
+
+After the record is appended, **always** commit and push `history.ndjson` so the log is
+persisted and available to the next run (including cloud runs). Stage **only** that file —
+never sweep in unrelated working-tree changes:
+
+```bash
+git -C /Users/igor/.claude/skills add volta-sales-crawl/history.ndjson
+git -C /Users/igor/.claude/skills commit -m "volta-sales-crawl: log run <ts>"
+git -C /Users/igor/.claude/skills push
+```
+
+- `history.ndjson` lives in this skill's directory, inside the `~/.claude/skills` git repo.
+  `git -C <repo>` avoids `cd` (which can trip the Bash tool's permission prompt).
+- Commit directly to the current branch (`main`) — this is an append-only data log, not a
+  code change, so no feature branch or PR. Use the run's UTC `<ts>` (from step 7) in the
+  message.
+- Commit/push **only** if the append in step 7 actually added a record. If the crawl was
+  aborted or no record was written, skip this step.
+- If `push` fails (e.g. no network / missing credentials in a cloud sandbox), report the
+  failure but don't treat the crawl as failed — the record is already saved locally and will
+  push on a later run.
+
 ## Notes
 
 - Column layouts differ between pages (some have a balcony column, UV-6 has a building
