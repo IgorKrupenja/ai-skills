@@ -34,7 +34,7 @@ mcp__playwright-headless__browser_take_screenshot
 ```
 
 If the user wants a different region in view (e.g. lower on the page), scroll
-first, then screenshot — still viewport-only, never `fullPage: true`.
+first, then screenshot — **still viewport-only, never `fullPage: true`**.
 
 ### 3. Deliver
 
