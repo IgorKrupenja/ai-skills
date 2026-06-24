@@ -4,6 +4,8 @@ description: Automates the LHV investment account tax report (Investeerimiskonto
 allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_click, mcp__playwright__browser_type, mcp__playwright__browser_evaluate, mcp__playwright__browser_wait_for, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_select_option
 ---
 
+> **Runs in:** local only — logs in via Smart-ID (interactive phone approval), so it can't run headless/unattended in a cloud agent.
+
 Automate the LHV investment account report for tax purposes (Investeerimiskonto aruanne).
 
 ## Prerequisites

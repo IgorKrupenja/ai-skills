@@ -1,0 +1,12 @@
+{
+  "//": "Reference Playwright MCP config for CLOUD agents (headless). Paste into the cloud agent's MCP config — do NOT commit as the repo's .mcp.json (that would also apply locally and launch a second, profile-less browser). Local stays on your global headed config in ~/.claude.json.",
+  "//login": "For a future skill that needs a saved login, add: \"--storage-state\", \"/path/to/state.json\" (export it locally with Playwright, store the file as a cloud secret).",
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--headless", "--isolated", "--browser", "chromium"],
+      "env": {}
+    }
+  }
+}

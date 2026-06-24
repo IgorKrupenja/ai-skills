@@ -6,6 +6,8 @@ allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_snaps
 
 # LinkedIn Connect Skill
 
+> **Runs in:** local only — needs your logged-in LinkedIn session; running from datacenter IPs with automation risks account restriction/ban (a real personal-account risk).
+
 Automatically send connection requests (without a note) to people in LinkedIn search results, page by page, until LinkedIn's weekly invitation limit is reached.
 
 ## Steps

@@ -6,6 +6,8 @@ allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_snaps
 
 # LinkedIn Grow Skill
 
+> **Runs in:** local only — same as `linkedin-connect`: uses your LinkedIn session, and cloud/datacenter IPs risk an account ban.
+
 Send connection requests (without a note) to people in LinkedIn's "People you may know based on your recent activity" modal, filtered by configurable job title keywords.
 
 ## Steps

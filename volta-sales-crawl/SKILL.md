@@ -6,6 +6,8 @@ allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_evalu
 
 # Volta Sales Crawl Skill
 
+> **Runs in:** local + cloud — crawls only **public** pages, no login. Reference skill for cloud agents (needs headless Chromium; see [/cloud](../cloud/README.md)).
+
 Crawl every Endover Volta building, read its apartment table, and report **sold vs unsold** counts with percentages — overall, per building, and per apartment type (rooms).
 
 ## Buildings to crawl

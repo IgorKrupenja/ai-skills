@@ -6,6 +6,8 @@ allowed-tools: Bash, Read, mcp__playwright__browser_navigate, mcp__playwright__b
 
 # Spotify
 
+> **Runs in:** local + cloud — uses the Spotify Web API with a token; no browser except the one-time local auth bootstrap. For cloud, the `.env` secrets must be provisioned in the cloud agent (see [/cloud](../cloud/README.md)).
+
 Manage the user's Spotify playlists through the **official Web API** using a
 registered-app **user** token. This is the preferred way to add/remove/list
 tracks — it is reliable and not throttled like the scraped web-player token.
