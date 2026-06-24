@@ -19,7 +19,8 @@ logins, datacenter IP). Every `SKILL.md` has a **"Runs in:"** line stating which
    unset, so the setup script is a **no-op** — your headed setup is never disturbed.
 2. **Setup step:** run [`setup.sh`](setup.sh) as the agent's install/setup command.
    Gated on `SKILLS_CLOUD`, it installs **headless Chromium** for Playwright
-   (`playwright install --with-deps chromium`) and, best-effort, Bun + repo deps.
+   (`playwright install --with-deps chromium`). Nothing else to install — the skills are
+   pure-stdlib Python and `python3` is preinstalled on the sandbox.
 3. **MCP:** add the Playwright server from [`mcp.headless.json`](mcp.headless.json) to the
    agent's MCP config — it runs `@playwright/mcp --headless --isolated`.
 4. **Secrets:** `.env` is gitignored and is **not** cloned into the cloud env. Provide any

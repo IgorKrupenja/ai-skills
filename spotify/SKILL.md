@@ -12,13 +12,13 @@ Manage the user's Spotify playlists through the **official Web API** using a
 registered-app **user** token. This is the preferred way to add/remove/list
 tracks — it is reliable and not throttled like the scraped web-player token.
 
-All operations go through the helper `spotify.ts` in this skill's directory, run with
-**Bun** (`bun spotify.ts <cmd>`, no build step). It auto-loads `.env`, manages the OAuth
-token (cache + refresh + first-time auth), and exposes simple subcommands.
+All operations go through the helper `spotify.py` in this skill's directory — **Python 3,
+standard library only** (`python3 spotify.py <cmd>`, no install or build step). It auto-loads
+`.env`, manages the OAuth token (cache + refresh + first-time auth), and exposes simple subcommands.
 
 ## Prerequisites
 
-Env vars live in `.env` (see `.env.example`). `spotify.ts` reads them itself, so
+Env vars live in `.env` (see `.env.example`). `spotify.py` reads them itself, so
 no manual export is needed.
 
 - `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` — from the user's app in the
@@ -53,7 +53,7 @@ To mint the refresh token:
 
 1. Run auth in the **background** (serves a local callback, prints `AUTH_URL <url>`):
    ```bash
-   bun spotify.ts auth
+   python3 spotify.py auth
    ```
 2. Drive the Playwright browser to that URL (`browser_navigate`); the user must be logged
    into the right Spotify account there. If already authorized it redirects straight
@@ -68,16 +68,16 @@ avoid a refresh call on every command; safe to delete anytime.
 ## Commands
 
 ```bash
-bun spotify.ts me                                     # verify token + whoami
-bun spotify.ts playlists                              # list named playlists (main, classics, sport)
-bun spotify.ts playlist [ID|name]                     # name / owner / track total
-bun spotify.ts search "QUERY" [--type album|track] [--limit N]
-bun spotify.ts album-tracks ALBUM                     # list a release's tracks
-bun spotify.ts add-album  ALBUM [ALBUM ...] [--playlist ID|name] [--allow-dupes]
-bun spotify.ts add-tracks TRACK [TRACK ...] [--playlist ID|name] [--allow-dupes]
-bun spotify.ts remove-tracks TRACK [TRACK ...] [--playlist ID|name]
-bun spotify.ts move TRACK [TRACK ...] --from ID|name --to ID|name [--allow-dupes]
-bun spotify.ts token                                  # print a valid access token (for ad-hoc curl)
+python3 spotify.py me                                 # verify token + whoami
+python3 spotify.py playlists                          # list named playlists (main, classics, sport)
+python3 spotify.py playlist [ID|name]                 # name / owner / track total
+python3 spotify.py search "QUERY" [--type album|track] [--limit N]
+python3 spotify.py album-tracks ALBUM                 # list a release's tracks
+python3 spotify.py add-album  ALBUM [ALBUM ...] [--playlist ID|name] [--allow-dupes]
+python3 spotify.py add-tracks TRACK [TRACK ...] [--playlist ID|name] [--allow-dupes]
+python3 spotify.py remove-tracks TRACK [TRACK ...] [--playlist ID|name]
+python3 spotify.py move TRACK [TRACK ...] --from ID|name --to ID|name [--allow-dupes]
+python3 spotify.py token                              # print a valid access token (for ad-hoc curl)
 ```
 
 `ALBUM` / `TRACK` accept a raw id, a `spotify:album:`/`spotify:track:` URI, or an
@@ -97,7 +97,7 @@ so they're not committed here.
 | `sport`    | "Fun run" — sport / running  |
 
 Synonyms: `running` / `run` → `sport`, `todo` → `main`. So **"add X to sport"** (or "to
-running") → `bun spotify.ts add-album <id> --playlist sport`. Run `bun spotify.ts playlists`
+running") → `python3 spotify.py add-album <id> --playlist sport`. Run `python3 spotify.py playlists`
 to list them with live names + counts. Add another by putting `SPOTIFY_PLAYLIST_<NAME>=<id>`
 in `.env` — no code change needed.
 

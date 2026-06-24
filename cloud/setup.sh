@@ -13,20 +13,14 @@ fi
 
 echo "== ai-skills cloud setup (SKILLS_CLOUD=1) =="
 
-# 1) Headless Chromium for the Playwright MCP (the sandbox is headless Ubuntu, no display).
-#    --with-deps also installs the OS libraries Chromium needs (requires apt/root);
-#    fall back to a plain browser install if that step is not permitted.
+# Headless Chromium for the Playwright MCP (the sandbox is headless Ubuntu, no display).
+# --with-deps also installs the OS libraries Chromium needs (requires apt/root); fall
+# back to a plain browser install if that step is not permitted.
 echo "Installing headless Chromium for Playwright..."
 npx -y playwright@latest install --with-deps chromium \
   || npx -y playwright@latest install chromium
 
-# 2) Bun + repo deps — best-effort. Needed by TypeScript skills (e.g. spotify); NOT by
-#    volta (the first cloud test), so a failure here does not block browser-only skills.
-if ! command -v bun >/dev/null 2>&1; then
-  echo "Installing Bun..."
-  curl -fsSL https://bun.sh/install | bash || echo "WARN: bun install failed (only TS skills need it)."
-  export PATH="$HOME/.bun/bin:$PATH"
-fi
-command -v bun >/dev/null 2>&1 && { bun install || echo "WARN: bun install failed."; }
+# Nothing else to install: the skills are pure-stdlib Python and python3 is preinstalled
+# on the sandbox.
 
 echo "== cloud setup done — headless Chromium ready for the Playwright MCP =="
