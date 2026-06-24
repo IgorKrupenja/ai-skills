@@ -110,8 +110,7 @@ in `.env` — no code change needed.
 
 **Cycles / box sets:** if a link is a full cycle or box set (e.g. a complete-symphonies
 album) but the user is curating one specific work, add **only that work's tracks** — use
-`album-tracks` to find them, then `add-tracks` — not the whole set. (Confirmed preference:
-adding just the 9th from a complete-Beethoven-cycle link was correct.)
+`album-tracks` to find them, then `add-tracks` — not the whole set.
 
 ## Notes & gotchas
 
