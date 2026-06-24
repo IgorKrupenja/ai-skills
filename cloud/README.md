@@ -16,9 +16,14 @@ and the Setup script can't run `claude mcp add` — the `claude` CLI isn't on it
 repo ships one:
 
 ```json
-{ "mcpServers": { "playwright-headless": { "type": "stdio", "command": "npx",
-  "args": ["-y","@playwright/mcp@latest","--headless","--isolated","--browser","chromium"] } } }
+{ "mcpServers": { "playwright-headless": { "type": "stdio", "command": "bash",
+  "args": ["cloud/playwright-mcp-launch.sh"] } } }
 ```
+
+It runs through a small wrapper, [`cloud/playwright-mcp-launch.sh`](playwright-mcp-launch.sh),
+rather than calling `npx @playwright/mcp` directly — the wrapper wires Chromium up to the
+agent proxy (see [§3](#3-playwright-through-the-agent-proxy) below). The wrapper still ends in
+the same `npx -y @playwright/mcp@latest --headless --isolated --browser chromium`.
 
 It's named **`playwright-headless`** (not `playwright`) on purpose: a committed `.mcp.json`
 also loads **locally** when you open this repo, and reusing the name `playwright` would
@@ -50,6 +55,37 @@ npx -y playwright@latest install-deps 2>/dev/null || true
 
 Network access **Full**. No environment variables are needed for volta. **Don't put secrets
 in the env-vars box** — it's plaintext and shared with anyone using the environment.
+
+## 3. Playwright through the agent proxy
+
+Cloud sessions have **no direct internet** — all outbound HTTPS goes through Claude Code's
+agent proxy (`$HTTPS_PROXY`, e.g. `http://127.0.0.1:35415`, with a re-terminating CA at
+`/root/.ccr/ca-bundle.crt`). `curl`/`git` are pre-configured for it, but headless Chromium is
+**not**, and a raw `npx @playwright/mcp` fails every navigation with `net::ERR_CONNECTION_CLOSED`.
+Two distinct fixes are needed — both live in the wrapper / config this repo ships:
+
+1. **Point Chromium at the proxy.** Chromium ignores the `HTTPS_PROXY` env var; it needs an
+   explicit `--proxy-server`. The wrapper passes `--proxy-server "$HTTPS_PROXY"` — but only
+   when `HTTPS_PROXY` is set, so locally (no proxy) it connects directly and the headless
+   server stays a harmless no-op. Without this, Chromium tries a direct connection that the
+   egress policy drops.
+
+2. **Cap TLS at 1.2** (`--ssl-version-max=tls1.2`, in [`playwright-mcp-config.json`](playwright-mcp-config.json)
+   via `--config`). Once the proxy CONNECT succeeds, Chrome starts its own TLS handshake to the
+   site *through* the tunnel and it dies mid-handshake (`SSL_HANDSHAKE_ERROR`, `net_error=-100`).
+   Cause: Chrome's TLS 1.3 ClientHello carries the **post-quantum key share**
+   (`X25519MLKEM768`), which is large and fragmented across TCP segments, and the proxy's TLS
+   frontend resets on it. `curl --tlsv1.3` over the *same* proxy works, so the proxy itself
+   speaks 1.3 fine — it's specific to Chrome's ClientHello. The PQ key share **can't** be
+   turned off with `--disable-features=PostQuantumKyber,X25519MLKEM768,…` in the Playwright
+   Chromium build (the field-trial testing config forces it on, even with
+   `--disable-field-trial-config`), so capping the TLS version is the reliable lever. 1.2 is
+   universally supported and fine for crawling public pages.
+
+> Diagnosing this yourself: `curl -sS "$HTTPS_PROXY/__agentproxy/status"` shows recent
+> proxy-side failures, and launching Chrome with `--log-net-log=…` reveals the
+> `HTTP/1.1 200 Connection Established` (proxy OK) followed by the `SSL_HANDSHAKE_ERROR`
+> (TLS step failing) — that split is what tells the two fixes apart. See `/root/.ccr/README.md`.
 
 ## Which skills run in cloud?
 

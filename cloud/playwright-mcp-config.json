@@ -1,0 +1,9 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": {
+      "//": "Cap TLS at 1.2. Chrome's TLS 1.3 ClientHello carries the post-quantum key share (X25519MLKEM768), which is large/fragmented; the agent proxy's TLS frontend resets on it (SSL_HANDSHAKE_ERROR / ERR_CONNECTION_CLOSED). curl over the same proxy negotiates TLS 1.3 fine, so this is Chrome-specific. The PQ feature can't be disabled via --disable-features in the Playwright Chromium build (baked-in field-trial config), so we cap the version instead. Harmless for crawling public pages.",
+      "args": ["--ssl-version-max=tls1.2"]
+    }
+  }
+}
