@@ -1,6 +1,9 @@
 .env
 .playwright-mcp/
-.claude
+# Ignore local Claude Code state, but DO commit the skill symlinks so cloud
+# sessions auto-load <repo>/.claude/skills/ (see cloud/sync-skills.sh).
+.claude/*
+!.claude/skills/
 
 # spotify cached user token (contains a refresh token)
 .spotify_token.json
