@@ -1,0 +1,25 @@
+{
+  "added": [
+    {
+      "url": "https://www.facebook.com/events/1234567890/",
+      "title": "Example concert",
+      "date": "2026-07-15",
+      "added_at": "2026-06-27"
+    }
+  ],
+  "declined": [
+    {
+      "url": "https://example.com/some-event",
+      "title": "Something I'm not into",
+      "declined_at": "2026-06-27"
+    }
+  ],
+  "banned_series": [
+    {
+      "match": "open mic",
+      "label": "Open Mic @ Erinevate Tubade Klubi",
+      "source": "https://www.facebook.com/erinevatetubadeklubi/",
+      "banned_at": "2026-06-27"
+    }
+  ]
+}

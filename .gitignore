@@ -9,3 +9,6 @@
 events-add
 events-coda
 events-crawl
+
+# new-life local state (added / declined / banned-series — personal, never published)
+new-life/state.json
