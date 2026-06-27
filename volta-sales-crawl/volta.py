@@ -10,6 +10,7 @@ Pure Python 3 standard library. Run:
     python3 volta.py            # crawl, report, and append to history.ndjson
     python3 volta.py --dry-run  # crawl + report + diff, but do NOT write history
 """
+import gzip
 import json
 import os
 import re
@@ -20,7 +21,10 @@ from html.parser import HTMLParser
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HISTORY = os.path.join(HERE, "history.ndjson")
-UA = {"User-Agent": "Mozilla/5.0 (volta-sales-crawl)"}
+# Request gzip: these pages are ~2.2 MB uncompressed, and some proxies/CDNs truncate
+# the plain transfer mid-stream (urllib then raises IncompleteRead). The gzipped body
+# (~290 KB) fits in one read and decompresses to the full page with stdlib only.
+UA = {"User-Agent": "Mozilla/5.0 (volta-sales-crawl)", "Accept-Encoding": "gzip"}
 
 # (url, display_name, is_skai, combined)
 #   combined=True -> one page holding several buildings, split by the "House" column;
@@ -70,7 +74,11 @@ class TableRows(HTMLParser):
 def fetch_rows(url):
     try:
         req = urllib.request.Request(url, headers=UA)
-        html = urllib.request.urlopen(req, timeout=25).read().decode("utf-8", "replace")
+        resp = urllib.request.urlopen(req, timeout=25)
+        raw = resp.read()
+        if resp.headers.get("Content-Encoding", "").lower() == "gzip":
+            raw = gzip.decompress(raw)
+        html = raw.decode("utf-8", "replace")
     except Exception as e:
         sys.exit(f"Failed to fetch {url}: {e}")
     p = TableRows()
