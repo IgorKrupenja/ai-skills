@@ -45,10 +45,8 @@ the DB had Rotermann on even weeks only and Hipodroomi biweekly; both bios say e
 
 ## From schedule to candidates
 
-- One candidate per run from today **through the first Sunday on or after today + 7 days**.
-  The user reviews about once a week, and the window must always include the coming weekend: a
-  flat 7 days on a Saturday crawl cut off every Sunday run (2026-09-26). Title
-  `<Club>: <run>`, e.g. `Buns Run Club: Track`, `Kopli Sörk: 10K`. Where = the start point the club
+- One candidate per run inside the crawl window: today through today + 14 days (SKILL.md, step
+  A3). Title `<Club>: <run>`, e.g. `Buns Run Club: Track`, `Kopli Sörk: 10K`. Where = the start point the club
   names.
 - **URL:** the run's own page when there is one (its Luma event, or a post announcing that
   particular run). Otherwise use the club's profile URL with the run's date as a fragment:

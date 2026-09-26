@@ -33,6 +33,7 @@ set -a && source "${SKILLS_DIR:-$HOME/.claude/skills}/.env" && set +a
 | `GOOGLE_PLACES_API_KEY`            | Google Places key for `goplaces` (venue name → full address)       |
 
 State file: **`social-calendar/state.json`** (git-ignored). If missing, create it from `state.example.json`.
+`kokandus.py` keeps its own snapshot in `social-calendar/kokandus.json` (git-ignored); when it's missing, the next run saves a baseline.
 
 The calendar was created once with `gog calendar create-calendar "<name>" --timezone "Europe/Tallinn"` and colored in the sidebar with `gog calendar subscribe "$SOCIAL_CALENDAR_ID" --color-id 6`. You don't need to recreate it.
 
@@ -68,7 +69,11 @@ The calendar was created once with `gog calendar create-calendar "<name>" --time
 3. **Crawl every source.** Open each URL in the browser, dismiss cookie/login popups, read the snapshot, and extract event candidates based on what's actually on the page (don't hardcode per-site logic).
    - **Never skip a source** because it's noisy or you "already have enough". Every bookmark is there on purpose. If a page needs login, ask the user to log in.
    - **Every candidate MUST have a URL.** If you can see a title/date but no link, click into it / read the `href` before moving on.
+   - **Window: today through today + 14 days**, for every source (a Saturday 26.09 crawl covers
+     events through Saturday 10.10). Leave out anything later: the user wants exactly two weeks
+     ahead (2026-09-26). The only exception is the cooking listing below, which has no window.
    - **Sources in the `Running` category are run clubs**, not event pages: there's a weekly schedule to find, not a listing to read. Read [`run-clubs.md`](run-clubs.md) and follow it.
+   - **The Tallinna Rahvaülikool cooking listing** (`kultuur.ee/valdkond/kokandus`) is watched, not windowed: its courses sell out within days of appearing. Instead of reading the page, run [`kokandus.py`](kokandus.py). It compares every upcoming course with the previous run and prints what is NEW, where spots OPENED again, every upcoming ITALIAN course (the user's priority) and all courses that still have spots. Report the NEW, OPENED and ITALIAN blocks in their own section after the table, whatever their dates; courses with spots inside the crawl window also go into the table as usual.
    - Collect across ALL sources before showing anything:
      ```
      candidate = { title, date, url, source_url, location? }
@@ -315,7 +320,8 @@ Use `date +%F` for the `*_at` stamps. Edit the file directly (read → modify JS
 A last pass over the rules above:
 
 - **Crawl:** `sync_sources.py` ran and its diff was reported; every source was crawled, none
-  skipped for "enough candidates"; every candidate has a URL; what was hidden was reported.
+  skipped for "enough candidates" (the cooking listing through `kokandus.py`, with its NEW,
+  OPENED and ITALIAN blocks reported); every candidate is inside the 14-day window and has a URL; what was hidden was reported.
 - **Table:** plain rows only (no bold, stars or reordering), and no word about time overlaps.
 - **Each event:** canonical URL, date and time with `--timezone`, resolved address, a
   `· <price>` title (`[BOOK]` only when attending needs booking), the language / price / URL

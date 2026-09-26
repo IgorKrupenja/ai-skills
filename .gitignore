@@ -16,6 +16,8 @@ events-crawl
 
 # social-calendar local state (added / declined / banned series; personal, never published)
 social-calendar/state.json
+# kokandus.py's snapshot of the cooking courses (crawl state, rewritten on every run)
+social-calendar/kokandus.json
 
 # Claude Code's auto-sync of claude.ai account skills, and its discard pile (machine-managed)
 synced/
