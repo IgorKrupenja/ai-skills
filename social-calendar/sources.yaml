@@ -110,3 +110,7 @@ sources:
     category: ""
     url: "https://tallinn.fotografiska.com/en/whats-on"
     notes: "Read this What's On page (the /en/events page lists nothing). Plain HTML: current exhibitions plus dated events, each event page with time, language and tickets. Recurring: free guided tours of the current exhibition (ENG Fri 19:00, FIN Sat 14:00, EST Sun 14:00, RUS first Sunday 15:00; exhibition ticket needed), Night Shift every Friday from 20:00 (10 €, open until midnight), House of Palagan cabaret about monthly (in Estonian)."
+  - name: "Sündmused | Soome Instituut Eestis"
+    category: ""
+    url: "https://finst.ee/sundmused/"
+    notes: "Finnish Institute. The page shows the nearest days only: press 'Järgmised päevad' at the bottom until the button disappears (about 5 clicks), then keep the Tallinn events; many are in Tartu. Recurring in Tallinn: Soome keele klubi monthly at Theatrumi kohvik AIT (Vene 14) at 17:00, any language level; Kirjandusklubi SIKK monthly at Apollo Plaza (Hobujaama 5) at 17:30; Kaurismäki kolmapäevad at Kino Sõprus, a mid-month Wednesday."
