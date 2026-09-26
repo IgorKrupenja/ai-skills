@@ -1,9 +1,9 @@
 ---
-name: new-life
-description: Personal "New Life" events for the soul (culture/leisure, NOT work). Crawl Igor's bookmarked sources, list candidates in chat, add events to the private "New Life" Google Calendar, and remember what to skip — both single events and whole banned series. Use when Igor asks to show / review "new life" events; when he pastes ANY event link (Facebook, Instagram, tiks.me, Fienta, …) and asks to add it to his personal / private / "личный" calendar — including a bare "добавь в личный календарь <ссылка>"; or when he wants to ban an event series.
+name: social-calendar
+description: Personal social calendar with events for the soul (culture, leisure, run clubs; NOT work). Crawls the sources Igor bookmarks, lists candidates in chat, adds his picks to a private Google Calendar and remembers what to skip, single events and whole banned series alike. Use when Igor asks to show or review his events (he may still call them "new life" events, the skill's old name); when he pastes ANY event link (Facebook, Instagram, tiks.me, Fienta, …) and asks to add it to his personal / private / "личный" calendar, including a bare "добавь в личный календарь <ссылка>"; or when he wants to ban an event series.
 ---
 
-# New Life — Personal Events Skill
+# Social Calendar: Personal Events Skill
 
 Runs in: **local** (needs the browser + the local Vivaldi bookmarks file).
 
@@ -13,7 +13,7 @@ A dead-simple, personal counterpart to the tallinn.dev event skills — but for 
 
 Plus a standalone entry point that needs no crawl: **Igor pastes an event link → it lands on the calendar, fully filled in.** Same calendar, same formatting rules, same `state.json` bookkeeping — that's exactly why it lives in this skill and not a separate one.
 
-Everything is private: a personal Google Calendar and a git-ignored `state.json`. Nothing is published anywhere.
+Picks and rejects stay private: a personal Google Calendar and a git-ignored `state.json`. The sources live in [`sources.yaml`](sources.yaml), synced from the bookmarks (step A2).
 
 ## Prerequisites
 
@@ -23,55 +23,52 @@ Always load env first (some values contain spaces, so use `set -a`, not `export 
 set -a && source "${SKILLS_DIR:-$HOME/.claude/skills}/.env" && set +a
 ```
 
-| Variable                    | Meaning                                                              |
-| --------------------------- | ------------------------------------------------------------------- |
-| `BOOKMARKS_FILE`            | Path to the Chromium/Vivaldi bookmarks JSON                         |
-| `NEW_LIFE_BOOKMARKS_FOLDER` | Folder path inside bookmarks, `/`-separated (e.g. `New Life/Events`) |
-| `NEW_LIFE_CALENDAR_ID`      | Target Google Calendar ID (the private "New Life" calendar)          |
-| `NEW_LIFE_EVENT_COLOR`      | `gog` event color id 1–11 (so events stand out). `6` = Tangerine     |
-| `NEW_LIFE_TIMEZONE`         | IANA timezone, e.g. `Europe/Tallinn`                                 |
-| `GOOGLE_PLACES_API_KEY`     | Google Places key for `goplaces` (venue name → full address)         |
+| Variable                           | Meaning                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `BOOKMARKS_FILE`                   | Path to the Chromium/Vivaldi bookmarks JSON                        |
+| `SOCIAL_CALENDAR_BOOKMARKS_FOLDER` | Folder path inside bookmarks, `/`-separated (e.g. `Social/Events`) |
+| `SOCIAL_CALENDAR_ID`               | Target Google Calendar ID (a private calendar)                     |
+| `SOCIAL_CALENDAR_EVENT_COLOR`      | `gog` event color id 1-11 (so events stand out). `6` = Tangerine   |
+| `SOCIAL_CALENDAR_TIMEZONE`         | IANA timezone, e.g. `Europe/Tallinn`                               |
+| `GOOGLE_PLACES_API_KEY`            | Google Places key for `goplaces` (venue name → full address)       |
 
-State file: **`new-life/state.json`** (git-ignored). If missing, create it from `state.example.json`.
+State file: **`social-calendar/state.json`** (git-ignored). If missing, create it from `state.example.json`.
 
-The calendar was created once with:
-`gog calendar create-calendar "New Life" --timezone "Europe/Tallinn"`
-and colored in the sidebar with `gog calendar subscribe "$NEW_LIFE_CALENDAR_ID" --color-id 6`. You don't need to recreate it.
+The calendar was created once with `gog calendar create-calendar "<name>" --timezone "Europe/Tallinn"` and colored in the sidebar with `gog calendar subscribe "$SOCIAL_CALENDAR_ID" --color-id 6`. You don't need to recreate it.
 
 ---
 
 ## The three things Igor will ask
 
-### A) "Show / review new life events" → crawl
+### A) "Show / review events" → crawl
 
 1. **Get today's date first** (avoid year mistakes):
    ```bash
    date +"%Y-%m-%d %A %Z"
    ```
 
-2. **Read source URLs fresh** from the bookmarks folder **and all its subfolders** (the list changes between runs):
+2. **Sync the sources, then read them.** Bookmarks are Igor's inbox: he adds and deletes sources
+   there while browsing. [`sources.yaml`](sources.yaml) is the copy next to this file, with a
+   `notes` field per source. Sync it at the start of **every** crawl:
    ```bash
-   FIRST="${NEW_LIFE_BOOKMARKS_FOLDER%%/*}"   # e.g. "New Life"
-   LAST="${NEW_LIFE_BOOKMARKS_FOLDER##*/}"    # e.g. "Events"
-   jq -r --arg first "$FIRST" --arg last "$LAST" '
-     def urls($prefix):
-       .children[]?
-       | if .type == "folder" then urls($prefix + .name + "/")
-         elif .type == "url" then "\($prefix)\(.name)\t\(.url)"
-         else empty end;
-     [.. | objects | select(.type=="folder" and .name==$first)][0]
-     | [.. | objects | select(.type=="folder" and .name==$last)][0]
-     | urls("")
-   ' "$BOOKMARKS_FILE"
+   python3 "${SKILLS_DIR:-$HOME/.claude/skills}/social-calendar/sync_sources.py"
    ```
-   Igor groups sources into subfolders (e.g. `Running/` for run clubs). Those are sources like any
-   other: the walk recurses, and the `Running/…` prefix on the name is only a category hint. An
-   earlier version read the top level only and silently skipped every subfolder (fixed 2026-09-26).
+   It walks the bookmarks folder recursively (a subfolder becomes the `category`, e.g. `Running`),
+   adds new bookmarks, **removes every source whose bookmark Igor deleted**, keeps `notes`, and
+   carries the notes over when only a URL changed. It prints the diff, then the synced list as
+   TSV. Report the diff in one line (e.g. `Источники: добавлен 1 (X), удалён 1 (Y)`).
+
+   Read a source's `notes` before crawling it: they hold what earlier crawls learned (meeting
+   points, API shortcuts, traps). When a crawl teaches you something durable about a source,
+   update its `notes` in the same run, keeping each value one double-quoted line.
+
+   Subfolders matter: an earlier version read only the top level and silently skipped the whole
+   `Running/` folder (fixed 2026-09-26).
 
 3. **Crawl every source.** Open each URL in the browser, dismiss cookie/login popups, read the snapshot, and extract event candidates based on what's actually on the page (don't hardcode per-site logic).
    - **Never skip a source** because it's noisy or you "already have enough". Every bookmark is there on purpose. If a page needs login, ask Igor to log in.
    - **Every candidate MUST have a URL.** If you can see a title/date but no link, click into it / read the `href` before moving on.
-   - **`Running/` bookmarks are run clubs**, not event pages: there's a weekly schedule to find, not a listing to read. Follow [Run clubs](#run-clubs-running-bookmarks).
+   - **Sources in the `Running` category are run clubs**, not event pages: there's a weekly schedule to find, not a listing to read. Follow [Run clubs](#run-clubs-running-bookmarks).
    - Collect across ALL sources before showing anything:
      ```
      candidate = { title, date, url, source_url, location? }
@@ -189,7 +186,7 @@ Use the `address` field. Sanity-check the `name` in the result actually matches 
 
 **5. Check for duplicates** before creating:
 ```bash
-gog calendar events "$NEW_LIFE_CALENDAR_ID" --from 2026-09-01 --to 2026-09-02 --all-pages --json
+gog calendar events "$SOCIAL_CALENDAR_ID" --from 2026-09-01 --to 2026-09-02 --all-pages --json
 ```
 Compare start time (few-minutes tolerance) + title. Also check the URL against `state.json` `added`. If it's a duplicate → report it and **stop**, don't create a second copy.
 
@@ -219,13 +216,13 @@ Always a middot `·`, never an em dash; always a numeric price, never the word `
 ```
 
 ```bash
-gog calendar create "$NEW_LIFE_CALENDAR_ID" \
+gog calendar create "$SOCIAL_CALENDAR_ID" \
   --summary "Event Title · 15€" \
   --from "YYYY-MM-DDTHH:MM:SS" \
   --to   "YYYY-MM-DDTHH:MM:SS" \
-  --timezone "$NEW_LIFE_TIMEZONE" \
+  --timezone "$SOCIAL_CALENDAR_TIMEZONE" \
   --location "Telliskivi tn 62, 10412 Tallinn, Estonia" \
-  --event-color "$NEW_LIFE_EVENT_COLOR" \
+  --event-color "$SOCIAL_CALENDAR_EVENT_COLOR" \
   --source-url "<CANONICAL_EVENT_URL>" \
   --description "EE
 15€
@@ -246,6 +243,15 @@ gog calendar create "$NEW_LIFE_CALENDAR_ID" \
 his calendar nor between his picks. Igor adds overlapping options on purpose and decides on the
 day, so pointing it out is patronising (his call, 2026-09-26: "I'm not five"). This is separate
 from step 5: a *duplicate* (the same event twice) is still caught and reported.
+
+#### Igor's own entries (no event link): write them in English
+
+When Igor asks for something that isn't an event from a link or the crawl, write the title and
+description **in English**, whatever language he asked in. That covers a reminder to buy tickets
+or a plan of his own. The six mandatory fields, the `· <price>` title and `state.json` don't
+apply here. Use a short timed slot with `--reminder popup:0m --transparency free`, so it pings
+him without blocking the time. Real events keep their own language: never translate an event
+(step 2).
 
 ### C) "Not interested in 2, 4" / "Ban series 6" → remember the skip
 
@@ -292,7 +298,13 @@ Look in this order, and keep going after the first hit, because these sources of
 4. **Registration link in the bio.** If it points to Luma (CULT, Long Run Tallinn, We Run Volta),
    open it. A Luma calendar lists each run as its own page with the exact time and start, and that
    page becomes the candidate URL. If registration is needed to attend, the run is `[BOOK]`. A
-   Strava "join the club" is optional and doesn't count.
+   Strava "join the club" is optional and doesn't count. When next week's run isn't on Luma
+   yet, list the calendar's past events (`period=past`): they show the usual start. The event
+   description often names the exact meeting point, e.g. CULT: "Meet at Linnahall Circle K".
+5. **`@ TBA` in a bio means the start really rotates.** Buns' Sunday 10K has started from Kalma
+   plats, Cafe Tempo, Balta Karjane, Varav (Volta) and Brick, announced a day or two ahead in a
+   post and in their Instagram broadcast channel. List it as "start TBA" and don't dig for a fixed
+   point that doesn't exist (checked 120 posts, 2026-09-26).
 
 **Post dates without opening posts.** "näeme homme" is useless until you know when it was
 posted, and the grid doesn't show dates. The shortcode (last URL segment) encodes the timestamp:
@@ -305,7 +317,9 @@ the DB had Rotermann on even weeks only and Hipodroomi biweekly; both bios say e
 
 ### From schedule to candidates
 
-- One candidate per run in the **next 7 days** (Igor reviews about once a week). Title
+- One candidate per run from today **through the first Sunday on or after today + 7 days**.
+  Igor reviews about once a week, and the window must always include the coming weekend: a
+  flat 7 days on a Saturday crawl cut off every Sunday run (2026-09-26). Title
   `<Club>: <run>`, e.g. `Buns Run Club: Track`, `Kopli Sörk: 10K`. Where = the start point the club
   names.
 - **URL:** the run's own page when there is one (its Luma event, or a post announcing that
@@ -431,7 +445,8 @@ Use `date +%F` for the `*_at` stamps. Edit the file directly (read → modify JS
 
 **Crawling (A):**
 - ✅ Sourced env; ran `date` first
-- ✅ Read bookmarks **fresh**, subfolders included; crawled **every** source; no source skipped
+- ✅ Ran `sync_sources.py` and reported the diff (added / removed); crawled **every** source; no source skipped
+- ✅ Updated a source's `notes` when the crawl taught something durable about it
 - ✅ Every candidate has a URL
 - ✅ Filtered against `added` + `declined` + `banned_series`
 - ✅ Reported how many were hidden and why (no silent drops)
@@ -446,18 +461,20 @@ Use `date +%F` for the `*_at` stamps. Edit the file directly (read → modify JS
 - ✅ Duplicate check done (calendar for that day + `state.json` `added`)
 - ✅ Title is ` · <price>` (numeric, `0€` not `tasuta`), with ` [BOOK]` only if attending needs booking
 - ✅ Description header is language / price / URL, then a blank line, then the full text
-- ✅ Created with `--event-color "$NEW_LIFE_EVENT_COLOR"` and `--timezone "$NEW_LIFE_TIMEZONE"`
+- ✅ Created with `--event-color "$SOCIAL_CALENDAR_EVENT_COLOR"` and `--timezone "$SOCIAL_CALENDAR_TIMEZONE"`
 - ✅ Recorded adds/declines/bans back into `state.json`
 - ✅ Reported `htmlLink` + every assumption made
 
 ## Pitfalls
 
 - ❌ Skipping a source because there are "enough" candidates already
+- ❌ Crawling without syncing `sources.yaml` first, or keeping a source whose bookmark Igor deleted
 - ❌ A candidate with no URL
 - ❌ Reading a truncated IG bio, or writing off a pinned post because its caption has no time — the time is on the image
 - ❌ Storing a weekly run under the bare profile URL: one add then hides every future week
 - ❌ **Asking Igor what the price is** — he explicitly doesn't want the question; unfindable means `0€`
 - ❌ **Pointing out time overlaps** with his calendar or between his picks. He knows, and doesn't want to hear it
+- ❌ Writing Igor's own reminders or plans in Russian (they go in English), or translating a real event (it keeps its language)
 - ❌ Writing `tasuta` / `free` in the title instead of `0€`, or joining with `—` instead of ` · `
 - ❌ Forgetting the language line — it's line 1 of every description
 - ❌ **Tagging `[BOOK]` off vendor-side booking** (`Müügikoha broneerimine`) or a host Page's own `Get tickets` button — neither applies to attending

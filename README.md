@@ -62,19 +62,19 @@ All operations go through `spotify/spotify.py` — Python 3, standard library on
 | `SPOTIFY_PLAYLIST_<NAME>` | Named playlists, each usable as `--playlist <name>` (e.g. `_SPORT`, `_CLASSICS`) |
 | `SPOTIFY_REFRESH_TOKEN`   | Long-lived refresh token; set once via `auth`, then no browser ever              |
 
-### new-life
+### social-calendar
 
-Personal events **"for the soul"** (culture & leisure, not work) — a simple counterpart to the tallinn.dev event skills. Crawl bookmarked sources → list candidates in chat → add the chosen ones to a private **New Life** Google Calendar (events colored so they stand out next to mundane entries) → remember the rejects, including whole **banned series** so they never get suggested again. Local-only; nothing is published.
+Personal events **"for the soul"** (culture, leisure, run clubs; not work), a simple counterpart to the tallinn.dev event skills. Crawl bookmarked sources → list candidates in chat → add the chosen ones to a private Google Calendar (events colored so they stand out next to mundane entries) → remember the rejects, including whole **banned series** so they never get suggested again. Runs locally.
 
-Uses the `gog` Google Calendar CLI. The reject/added/ban memory lives in a git-ignored `new-life/state.json` (see `new-life/state.example.json` for the shape).
+Uses the `gog` Google Calendar CLI. On every crawl `sync_sources.py` syncs the bookmarks folder into `social-calendar/sources.yaml`: new bookmarks are added, deleted ones removed, per-source notes kept. The reject/added/ban memory lives in a git-ignored `social-calendar/state.json` (see `social-calendar/state.example.json` for the shape).
 
-| Variable                    | Description                                                          |
-| --------------------------- | -------------------------------------------------------------------- |
-| `BOOKMARKS_FILE`            | Path to the Chromium/Vivaldi bookmarks JSON                          |
-| `NEW_LIFE_BOOKMARKS_FOLDER` | Folder path inside bookmarks, `/`-separated (e.g. `New Life/Events`) |
-| `NEW_LIFE_CALENDAR_ID`      | Target Google Calendar ID (the private "New Life" calendar)          |
-| `NEW_LIFE_EVENT_COLOR`      | `gog` event color id 1-11 so events stand out (`6` = Tangerine)      |
-| `NEW_LIFE_TIMEZONE`         | IANA timezone, e.g. `Europe/Tallinn`                                 |
+| Variable                           | Description                                                        |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `BOOKMARKS_FILE`                   | Path to the Chromium/Vivaldi bookmarks JSON                        |
+| `SOCIAL_CALENDAR_BOOKMARKS_FOLDER` | Folder path inside bookmarks, `/`-separated (e.g. `Social/Events`) |
+| `SOCIAL_CALENDAR_ID`               | Target Google Calendar ID (a private calendar)                     |
+| `SOCIAL_CALENDAR_EVENT_COLOR`      | `gog` event color id 1-11 so events stand out (`6` = Tangerine)    |
+| `SOCIAL_CALENDAR_TIMEZONE`         | IANA timezone, e.g. `Europe/Tallinn`                               |
 
 ## Cloud agents
 

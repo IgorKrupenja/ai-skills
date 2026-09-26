@@ -14,8 +14,8 @@ events-add
 events-coda
 events-crawl
 
-# new-life local state (added / declined / banned-series — personal, never published)
-new-life/state.json
+# social-calendar local state (added / declined / banned series; personal, never published)
+social-calendar/state.json
 
 # Claude Code's auto-sync of claude.ai account skills, and its discard pile (machine-managed)
 synced/
