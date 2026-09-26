@@ -49,20 +49,29 @@ and colored in the sidebar with `gog calendar subscribe "$NEW_LIFE_CALENDAR_ID" 
    date +"%Y-%m-%d %A %Z"
    ```
 
-2. **Read source URLs fresh** from the bookmarks folder (the list changes between runs):
+2. **Read source URLs fresh** from the bookmarks folder **and all its subfolders** (the list changes between runs):
    ```bash
    FIRST="${NEW_LIFE_BOOKMARKS_FOLDER%%/*}"   # e.g. "New Life"
    LAST="${NEW_LIFE_BOOKMARKS_FOLDER##*/}"    # e.g. "Events"
    jq -r --arg first "$FIRST" --arg last "$LAST" '
+     def urls($prefix):
+       .children[]?
+       | if .type == "folder" then urls($prefix + .name + "/")
+         elif .type == "url" then "\($prefix)\(.name)\t\(.url)"
+         else empty end;
      [.. | objects | select(.type=="folder" and .name==$first)][0]
      | [.. | objects | select(.type=="folder" and .name==$last)][0]
-     | .children[]? | select(.type=="url") | "\(.name)\t\(.url)"
+     | urls("")
    ' "$BOOKMARKS_FILE"
    ```
+   Igor groups sources into subfolders (e.g. `Running/` for run clubs). Those are sources like any
+   other: the walk recurses, and the `Running/…` prefix on the name is only a category hint. An
+   earlier version read the top level only and silently skipped every subfolder (fixed 2026-09-26).
 
 3. **Crawl every source.** Open each URL in the browser, dismiss cookie/login popups, read the snapshot, and extract event candidates based on what's actually on the page (don't hardcode per-site logic).
    - **Never skip a source** because it's noisy or you "already have enough". Every bookmark is there on purpose. If a page needs login, ask Igor to log in.
    - **Every candidate MUST have a URL.** If you can see a title/date but no link, click into it / read the `href` before moving on.
+   - **`Running/` bookmarks are run clubs**, not event pages: there's a weekly schedule to find, not a listing to read. Follow [Run clubs](#run-clubs-running-bookmarks).
    - Collect across ALL sources before showing anything:
      ```
      candidate = { title, date, url, source_url, location? }
@@ -233,11 +242,118 @@ gog calendar create "$NEW_LIFE_CALENDAR_ID" \
 
 **8. Report back**: title, date/time, resolved address, price, and the event's `htmlLink`. Flag any assumption you made (guessed 2h duration, ambiguous venue match, price taken from the ticket vendor rather than the event page).
 
+**Never mention time overlaps**, not here and not in crawl notes: neither with events already in
+his calendar nor between his picks. Igor adds overlapping options on purpose and decides on the
+day, so pointing it out is patronising (his call, 2026-09-26: "I'm not five"). This is separate
+from step 5: a *duplicate* (the same event twice) is still caught and reported.
+
 ### C) "Not interested in 2, 4" / "Ban series 6" → remember the skip
 
 - **Single event** ("не интересно", "skip"): append to `declined`.
 - **Whole series** ("забань серию", "больше не предлагай такое"): append to `banned_series`. The match key is the event's **normalized title** (see below), scoped to its `source_url`. Igor can also give a custom phrase ("забань всё с 'карнавал осьминогов'") — normalize that phrase instead.
 - After editing, confirm in one line what will now be hidden.
+
+> ⚠️ **Silence is NOT a decline here.** Only the events Igor explicitly names get recorded.
+> Never diff the presented batch against his picks and dump the remainder into `declined`, and
+> never offer to "tidy up" the leftovers. He reviews this list about once a week and his plans
+> change between runs — seeing the same gig again is the point, not a drain (his call,
+> 2026-09-06, overturning the opposite instruction he gave on 2026-08-27).
+>
+> The sibling **`events-crawl`** skill is deliberately the opposite: there, everything presented
+> and not picked *does* go to `declined`. That asymmetry is intentional — work vs. leisure. Do
+> not harmonise the two.
+
+---
+
+## Run clubs (`Running/` bookmarks)
+
+Run clubs publish a weekly routine, not events. Crawling one means finding its **current schedule**
+and turning it into dated candidates.
+
+### Instagram club profiles
+
+Look in this order, and keep going after the first hit, because these sources often disagree:
+
+1. **Bio in the profile header.** Most clubs keep the schedule there (`TUE ➡️ 18.30 Track @ Snelli`,
+   `Igal teisipäeval. Kell 17.30.`). IG truncates it: **click `more` in the header** before
+   reading, or you get half the week. The short lines after the bio link (`#9 Long Run TLN`,
+   `Menüü`, `Millal ja kus?`) are story-highlight titles, not bio. Open a highlight only when its
+   title promises the schedule and the bio and pinned posts left it unclear. Some bios carry no
+   schedule at all (`@veerennisork`), so go straight on to the posts.
+2. **Pinned posts.** Up to three sit at the start of the grid, each tile marked with
+   `svg[aria-label="Pinned post icon"]`. The tile's `img[alt]` carries the caption, so you can
+   triage without opening. Some are a weekly menu (Kopli Sörk's `NÄDALAMENÜÜ` lists this week's
+   runs, one-off specials included); others are unrelated (Pühaste's are a partner's beer cruise).
+   **A caption with no day or time does not mean there's no schedule.** If the post looks like a
+   poster or announcement, the time is in the image. Open the post, screenshot the media and read
+   it, stepping through every carousel slide.
+3. **Latest 2–3 posts**, for this week's deviations: a cancelled run, a moved start, an extra
+   session. One-off events there (a race, a party, a special run) are ordinary candidates.
+4. **Registration link in the bio.** If it points to Luma (CULT, Long Run Tallinn, We Run Volta),
+   open it. A Luma calendar lists each run as its own page with the exact time and start, and that
+   page becomes the candidate URL. If registration is needed to attend, the run is `[BOOK]`. A
+   Strava "join the club" is optional and doesn't count.
+
+**Post dates without opening posts.** "näeme homme" is useless until you know when it was
+posted, and the grid doesn't show dates. The shortcode (last URL segment) encodes the timestamp:
+read it as base64url digits (`A–Z a–z 0–9 - _`) into an integer `id`; `(id >> 23) + 1314220021721`
+is Unix time in ms. It matched the post's `<time>` to the second (2026-09-26). Don't bother with
+IG's `web_profile_info` API: it answered 429.
+
+**The freshest source wins:** latest post > pinned post > bio > the sörk DB below. (2026-09-26:
+the DB had Rotermann on even weeks only and Hipodroomi biweekly; both bios say every Tuesday.)
+
+### From schedule to candidates
+
+- One candidate per run in the **next 7 days** (Igor reviews about once a week). Title
+  `<Club>: <run>`, e.g. `Buns Run Club: Track`, `Kopli Sörk: 10K`. Where = the start point the club
+  names.
+- **URL:** the run's own page when there is one (its Luma event, or a post announcing that
+  particular run). Otherwise use the club's profile URL with the run's date as a fragment:
+  `https://www.instagram.com/bunsrunclub/#2026-09-29`. The fragment opens the same page, but it
+  gives each occurrence its own key in `state.json`. With the bare profile URL, adding one Tuesday
+  would hide every future Tuesday. When a club runs twice that day, append the start time
+  (`#2026-09-27-0900`, `#2026-09-27-1015`).
+
+### The sörk club database (`eestisorgib.ee` bookmark)
+
+`eestisorgib.ee` (= `sork.ee`) is a directory of ~80 Estonian sörk clubs, not an event page. Don't
+scrape the SPA: its base44 backend is public.
+
+```bash
+F="${TMPDIR:-/tmp}/runclubs.json"
+curl -s "https://base44.app/api/apps/698706c0c5103021976b4ab2/entities/RunClub?limit=1000" -o "$F"
+python3 - "$F" <<'EOF'
+import json, math, sys
+K = (59.4440, 24.7350)  # Kalamaja
+def km(lat, lon):
+    la1, lo1, la2, lo2 = map(math.radians, (*K, lat, lon))
+    h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
+    return 12742 * math.asin(math.sqrt(h))
+for c in json.load(open(sys.argv[1])):
+    if c.get("latitude") is None: continue
+    d = km(float(c["latitude"]), float(c["longitude"]))
+    if d > 3: continue
+    runs = [f'{s["day"]} {s["time"]}' for s in c.get("schedule") or [] if s.get("run_type") != "deleted"]
+    print(f'{d:.1f} km | {c["name"]} | ig={c.get("instagram_url")} | strava={c.get("strava_url")} | {runs} | special={c.get("special_runs")}')
+EOF
+```
+
+- **Only the centre and Põhja-Tallinn.** Igor lives in Kalamaja, so for now keep clubs **within
+  3 km of Kalamaja**, which is what the snippet does. A club clearly in Põhja-Tallinn but a bit
+  further out (Kopli tip, Paljassaare) also counts. On 2026-09-26 this kept We Run Volta,
+  Kassisaba, Rotermann, Kopli, Arteri, Hipodroomi, Veerenni and Kadrioru. The next ones out,
+  Tondi and Sikupilli, are 3.5 km away and stay out.
+- Skip clubs that already have their own bookmark in `Running/` (same Instagram). The bookmark
+  covers them.
+- A kept club's DB `schedule` is a lead, not the answer. `frequency` and `week_parity` are
+  unreliable, and `run_type: "deleted"` means cancelled. Confirm on the club's Instagram exactly
+  as above. `special_runs` entries are ordinary one-off candidates.
+- DB social links rot: `veerenni.running.club` is dead, and the real handle is `@veerennisork`.
+  When a link is dead, search Instagram by club name (logged in:
+  `fetch('/web/search/topsearch/?context=blended&query=<name>', {headers: {'x-ig-app-id': '936619743392459'}})`).
+  With no Instagram at all (Kassisaba, Arteri), the DB schedule plus the club's `strava_url` is
+  all there is. Use the Strava page as the URL, with the same `#date` fragment.
 
 ---
 
@@ -315,10 +431,12 @@ Use `date +%F` for the `*_at` stamps. Edit the file directly (read → modify JS
 
 **Crawling (A):**
 - ✅ Sourced env; ran `date` first
-- ✅ Read bookmarks **fresh**; crawled **every** source; no source skipped
+- ✅ Read bookmarks **fresh**, subfolders included; crawled **every** source; no source skipped
 - ✅ Every candidate has a URL
 - ✅ Filtered against `added` + `declined` + `banned_series`
 - ✅ Reported how many were hidden and why (no silent drops)
+- ✅ Run clubs: IG bio expanded (`more`), pinned posts opened (image read when the caption has no time), latest posts checked
+- ✅ Sörk DB cut to ≤ 3 km from Kalamaja; weekly runs without their own page carry a `#YYYY-MM-DD` URL fragment
 
 **Adding (B) — applies to both the crawl picks and a pasted link:**
 - ✅ Canonical URL (FB share/`rdid` wrapper resolved to `/events/<id>/`)
@@ -336,7 +454,10 @@ Use `date +%F` for the `*_at` stamps. Edit the file directly (read → modify JS
 
 - ❌ Skipping a source because there are "enough" candidates already
 - ❌ A candidate with no URL
+- ❌ Reading a truncated IG bio, or writing off a pinned post because its caption has no time — the time is on the image
+- ❌ Storing a weekly run under the bare profile URL: one add then hides every future week
 - ❌ **Asking Igor what the price is** — he explicitly doesn't want the question; unfindable means `0€`
+- ❌ **Pointing out time overlaps** with his calendar or between his picks. He knows, and doesn't want to hear it
 - ❌ Writing `tasuta` / `free` in the title instead of `0€`, or joining with `—` instead of ` · `
 - ❌ Forgetting the language line — it's line 1 of every description
 - ❌ **Tagging `[BOOK]` off vendor-side booking** (`Müügikoha broneerimine`) or a host Page's own `Get tickets` button — neither applies to attending
