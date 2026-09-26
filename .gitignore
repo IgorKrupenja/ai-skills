@@ -2,6 +2,10 @@
 .playwright-mcp/
 .claude
 
+# Python bytecode caches, in any folder at any depth
+__pycache__/
+*.pyc
+
 # spotify cached user token (contains a refresh token)
 .spotify_token.json
 
