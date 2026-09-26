@@ -66,7 +66,7 @@ All operations go through `spotify/spotify.py` — Python 3, standard library on
 
 Personal events **"for the soul"** (culture, leisure, run clubs; not work), a simple counterpart to the tallinn.dev event skills. Crawl bookmarked sources → list candidates in chat → add the chosen ones to a private Google Calendar (events colored so they stand out next to mundane entries) → remember the rejects, including whole **banned series** so they never get suggested again. Runs locally.
 
-Uses the `gog` Google Calendar CLI. On every crawl `sync_sources.py` syncs the bookmarks folder into `social-calendar/sources.yaml`: new bookmarks are added, deleted ones removed, per-source notes kept. The reject/added/ban memory lives in a git-ignored `social-calendar/state.json` (see `social-calendar/state.example.json` for the shape).
+Uses the `gog` Google Calendar CLI. On every crawl `sync_sources.py` syncs the bookmarks folder into `social-calendar/sources.yaml`: new bookmarks are added, deleted ones removed, per-source notes kept. The reject/added/ban memory lives in a git-ignored `social-calendar/state.json` (see `social-calendar/state.example.json` for the shape), and `filter.py` applies it to each crawl. How to crawl run clubs (Instagram schedules, the Estonian sörk club directory) is in `social-calendar/run-clubs.md`.
 
 | Variable                           | Description                                                        |
 | ---------------------------------- | ------------------------------------------------------------------ |
