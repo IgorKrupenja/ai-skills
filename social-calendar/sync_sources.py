@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sync sources.yaml with the bookmarks folder (social-calendar skill).
 
-Bookmarks are the inbox: Igor adds and deletes sources there while browsing.
+Bookmarks are the inbox: the user adds and deletes sources there while browsing.
 sources.yaml is the copy kept next to the skill, with a free-text `notes` field per source.
 On every run:
   - bookmarks missing from the file are added (the subfolder path becomes `category`),
