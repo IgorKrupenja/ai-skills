@@ -72,6 +72,14 @@ The calendar was created once with `gog calendar create-calendar "<name>" --time
    - **Window: today through today + 14 days**, for every source (a Saturday 26.09 crawl covers
      events through Saturday 10.10). Leave out anything later: the user wants exactly two weeks
      ahead (2026-09-26). The only exception is the cooking listing below, which has no window.
+   - **Facebook pages and groups** show empty `blockquote: Facebook` placeholders in snapshots, but
+     the DOM's `innerText` (via `browser_evaluate`) has the posts. Groups: iterate
+     `[role=feed] > div` and open them with `?sorting_setting=CHRONOLOGICAL`, since "Most relevant"
+     surfaces year-old posts. Pages: climb from `[data-ad-preview=message]` to the ancestor that
+     contains "Write a comment". Page events are at `/<page>/upcoming_hosted_events`, group events
+     at `/groups/<id>/events`. Scope `a[href*="/events/"]` to `[role=main]`, because the
+     notifications panel injects other people's event links into every page. Feeds load out of
+     order and `innerText` timestamps are obfuscated, so confirm a post's age from a screenshot.
    - **Sources in the `Running` category are run clubs**, not event pages: there's a weekly schedule to find, not a listing to read. Read [`run-clubs.md`](run-clubs.md) and follow it.
    - **The Tallinna Rahvaülikool cooking listing** (`kultuur.ee/valdkond/kokandus`) is watched, not windowed: its courses sell out within days of appearing. Instead of reading the page, run [`kokandus.py`](kokandus.py). It compares every upcoming course with the previous run and prints what is NEW, where spots OPENED again, every upcoming ITALIAN course (the user's priority) and all courses that still have spots. Report the NEW, OPENED and ITALIAN blocks in their own section after the table, whatever their dates; courses with spots inside the crawl window also go into the table as usual.
    - Collect across ALL sources before showing anything:
