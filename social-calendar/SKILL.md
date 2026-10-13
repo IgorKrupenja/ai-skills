@@ -13,7 +13,7 @@ A dead-simple, personal counterpart to the tallinn.dev event skills, but for **c
 
 Plus a standalone entry point that needs no crawl: **the user pastes an event link → it lands on the calendar, fully filled in.** Same calendar, same formatting rules, same `state.json` bookkeeping: that's exactly why it lives in this skill and not a separate one.
 
-Picks and rejects stay private: a personal Google Calendar and a git-ignored `state.json`. The sources live in [`sources.yaml`](sources.yaml), synced from the bookmarks (step A2).
+Picks and rejects stay private: two personal Google Calendars (picks, plus a separate one for what the user has paid or registered for) and a git-ignored `state.json`. The sources live in [`sources.yaml`](sources.yaml), synced from the bookmarks (step A2).
 
 ## Prerequisites
 
@@ -30,12 +30,19 @@ set -a && source "${SKILLS_DIR:-$HOME/.claude/skills}/.env" && set +a
 | `SOCIAL_CALENDAR_ID`               | Target Google Calendar ID (a private calendar)                     |
 | `SOCIAL_CALENDAR_EVENT_COLOR`      | `gog` event color id 1-11 (so events stand out). `6` = Tangerine   |
 | `SOCIAL_CALENDAR_TIMEZONE`         | IANA timezone, e.g. `Europe/Tallinn`                               |
+| `SOCIAL_CALENDAR_PAID_ID`          | Second private calendar, for events the user paid or registered for |
 | `GOOGLE_PLACES_API_KEY`            | Google Places key for `goplaces` (venue name → full address)       |
 
 State file: **`social-calendar/state.json`** (git-ignored). If missing, create it from `state.example.json`.
 `kokandus.py` keeps its own snapshot in `social-calendar/kokandus.json` (git-ignored); when it's missing, the next run saves a baseline.
 
 The calendar was created once with `gog calendar create-calendar "<name>" --timezone "Europe/Tallinn"` and colored in the sidebar with `gog calendar subscribe "$SOCIAL_CALENDAR_ID" --color-id 6`. You don't need to recreate it.
+
+**Paid events get their own calendar**, `New Life · PAID` (created 2026-10-13 the same way).
+Among dozens of options in the picks calendar, a bought ticket drowned (the user's words). The
+user sets its color in the sidebar; events in it carry **no color of their own**, so they show in
+the calendar's color (an explicit event color there gives an odd two-tone block, the user's call
+on 2026-10-13). A [PAID] event never stays in `$SOCIAL_CALENDAR_ID`: see step 6.
 
 ---
 
@@ -81,7 +88,7 @@ The calendar was created once with `gog calendar create-calendar "<name>" --time
      notifications panel injects other people's event links into every page. Feeds load out of
      order and `innerText` timestamps are obfuscated, so confirm a post's age from a screenshot.
    - **Sources in the `Running` category are run clubs**, not event pages: there's a weekly schedule to find, not a listing to read. Read [`run-clubs.md`](run-clubs.md) and follow it.
-   - **The Tallinna Rahvaülikool cooking listing** (`kultuur.ee/valdkond/kokandus`) is watched, not windowed: its courses sell out within days of appearing. Instead of reading the page, run [`kokandus.py`](kokandus.py). It compares every upcoming course with the previous run and prints what is NEW, where spots OPENED again, every upcoming ITALIAN course (the user's priority) and all courses that still have spots. Report the NEW, OPENED and ITALIAN blocks in their own section after the table, whatever their dates; courses with spots inside the crawl window also go into the table as usual.
+   - **The Tallinna Rahvaülikool cooking listing** (`kultuur.ee/valdkond/kokandus`) is watched, not windowed: its courses sell out within days of appearing. Instead of reading the page, run [`kokandus.py`](kokandus.py). It compares every upcoming course with the previous run and prints what is NEW, where spots OPENED again, every upcoming ITALIAN course (the user's priority) and all courses that still have spots. Report the NEW, OPENED and ITALIAN blocks in their own section after the list, whatever their dates; courses with spots inside the crawl window also go into the list as usual (category Кулинарные курсы).
    - Collect across ALL sources before showing anything:
      ```
      candidate = { title, date, url, source_url, location? }
@@ -91,16 +98,47 @@ The calendar was created once with `gog calendar create-calendar "<name>" --time
 4. **Filter against `state.json`** with [`filter.py`](filter.py) (see [Filtering](#filtering-what-not-to-show)).
    It drops everything already added or declined and everything in a banned series.
 
-5. **Present ALL survivors** as one numbered table in chat:
+5. **Present ALL survivors grouped by category**, never as one long table. The user's call
+   (2026-10-13): a 184-row table was "кошмар", and a merged "театр, танец, стендап" bucket was
+   "очень плохо", so keep the categories narrow. Number every candidate once, in date order,
+   before grouping: the numbers then stay valid in any later view ("добавь 12, 40", "покажи ещё
+   раз еду"). Then one `###` header per category with its count, in this order, skipping empty
+   ones:
 
-   | # | Date | Title | Where | Source | Link |
-   |---|------|-------|-------|--------|------|
+   | Header | What goes there |
+   | ------ | --------------- |
+   | Пробежки | run clubs (`Running` sources and the sörk DB) |
+   | Квизы и игры | quizzes, music bingo and lotto, game nights |
+   | Концерты и живая музыка | concerts, jams, live sets |
+   | Вечеринки, DJ, танцы | club nights, DJ sets, karaoke, social dance nights |
+   | Кино | screenings and film clubs |
+   | Театр | drama, opera, musicals |
+   | Современный танец | dance performances (the STF festival and the like) |
+   | Стендап и комедия | stand-up, roasts, improv comedy |
+   | Цирк и шоу | circus, revues, variety shows |
+   | Открытая сцена | open mic, open stage |
+   | Выставки, экскурсии, лекции, книги | exhibitions, tours, talks, book launches, language and book clubs |
+   | Еда | dinners, chef evenings, food festivals |
+   | Вино | wine tastings and wine evenings |
+   | Пиво | beer releases, tap takeovers, beer tastings |
+   | Кулинарные курсы | cooking classes (the kokandus listing and the like) |
+   | Походы | hikes and nature trips |
+   | Рынки и прочее | markets, fairs, anything else |
 
-   **NEVER bold, star or highlight individual rows.** Every candidate gets identical plain
+   One line per event, with the link hidden in the title (escape `[`, `]` and `|` inside it).
+   A recurring series (one run club, one quiz series, one exhibition tour) gets a single line,
+   each occurrence numbered and linked on its own:
+   ```
+   - `15` ср 14.10 19:00 · [Шейкер Квиз: #ОбоВсём #9](https://tallinn.shakerquiz.ru/#2026-10-14) · Kitchen Rõõm
+   - Kopli Sörk, старт Kopli 25a: `2` [ср 14.10 07:10](…/koplisork/#2026-10-14-0710) · `10` [ср 14.10 18:30](…/koplisork/#2026-10-14-1830)
+   ```
+
+   **NEVER bold, star or highlight individual lines.** Every candidate gets identical plain
    formatting: no `**`, no ⭐/🔥, no "(recommended)", no reordering to float favourites to the
    top. The user found this confusing: emphasis with no stated criterion looks like it means
-   something official when it is really just the model's own hunch. Caveats go in the notes
-   below the table, not as formatting inside it.
+   something official when it is really just the model's own hunch. Caveats (sold out, last
+   spots, an uncertain schedule) go in short notes under the list, by number, not as
+   formatting inside it.
 
    Then **report what was filtered** (never drop silently):
    > Скрыл 4: 2 уже добавлены, 1 ранее отклонён, 1 из забаненной серии «Open Mic».
@@ -111,7 +149,7 @@ The calendar was created once with `gog calendar create-calendar "<name>" --time
 
 **Two entry points, one pipeline:**
 
-- **B1 (from the crawl table):** "добавь 1, 3, 5" → you already have the candidate's URL from step A.
+- **B1 (from the crawl list):** "добавь 1, 3, 5" → you already have the candidate's URL from step A.
 - **B2 (from a bare link):** "добавь в личный календарь `<URL>`" (any event link: Facebook, Instagram, tiks.me, Fienta, …). No crawl needed, no `state.json` filtering: the user already decided. Go straight to step 1.
 
 Both paths run the **same 8 steps** below. Never shortcut B2 just because it's a one-off.
@@ -140,7 +178,7 @@ date +"%Y-%m-%d %A %Z"
 
 **Two link shapes that are NOT wrappers, so never strip them:**
 - **FB recurring events** use `facebook.com/events/<series_id>/<occurrence_id>/`. The second id *is* the date the user picked. Dropping it lands on the series and silently changes which occurrence you add. Keep both segments. (The page shows the sibling dates as a row of chips, useful for confirming which one is live.)
-- **Fienta series** live at `fienta.com/[ru/]s/<slug>` and list several dates, each its own page at `fienta.com/[ru/]<slug>-<id>`. A series link is **not** an event: open it, pick the date, and check availability: sold-out dates are marked (`Распродано` / `Sold out`) and must not be added. If several dates are open and the user didn't say which, add the nearest available one and tell them the others exist.
+- **Fienta series** live at `fienta.com/[ru/]s/<slug>` and list several dates, each its own page at `fienta.com/[ru/]<slug>-<id>`. A series link is **not** an event: open it, pick the date, and check availability: sold-out dates are marked (`Распродано` / `Sold out`), and a sold-out one is never added without asking (step 3d). If several dates are open and the user didn't say which, add the nearest available one and tell them the others exist.
 
 **2. Extract full content with Playwright.** Open the page in the browser, dismiss cookie/login walls, read the snapshot.
 - **Facebook: always click "See more"** before extracting, because FB truncates the body by default.
@@ -155,6 +193,7 @@ date +"%Y-%m-%d %A %Z"
   })
   ```
   Substitute the decoded URLs back into the description text. This is restoring what the author wrote, not editing it.
+- **Facebook draws emoji as images** (`<img alt="🎟">`), and `innerText` drops them: `🎟 Tickets` comes out as ` Tickets`. Clone the description node, replace every `img` in the clone with a text node holding its `alt`, attach the clone off-screen and read its `innerText`.
 - **Content policy:** do **not** summarize, do **not** translate, keep original line breaks, emphasis and emojis (incl. math-bold like `𝐌𝐔𝐔𝐒𝐈𝐊𝐀`). This is a private calendar: the full original text is the whole point.
 - Drop only FB's own UI chrome that lands in `innerText`: the trailing `See less` and the city tag link after it.
 - **Quoting:** write the assembled description to a temp file and pass `--description "$(cat file)"`. Inlining multi-line text with emoji into the shell mangles it.
@@ -190,15 +229,29 @@ Signals that it IS required:
 
 When in doubt, ask yourself who the instruction is addressed to: the audience, or the people running a table. Only the former counts. Default is **no booking**.
 
+**3d. Check that tickets or places are still available. Sold out → stop and ask.** Read the
+status on the ticket page itself, not in an announcement (those go stale): Fienta's ticket block
+or its API `sale_status` (`soldOut`); `Sold out` / `Välja müüdud` / `Распродано` on Piletilevi,
+Piletikeskus, ticketshop and gateme; `KOHAD TÄIS` on a kultuur.ee course; `Мест нет` or
+reserve-only on a quiz site. Only the cheapest tier being gone (early bird) is not sold out.
+
+**If a pick is sold out, stop immediately and ask the user** before creating it: name it, say
+what is sold out and offer to skip it or add it anyway (resale, a waitlist). In a batch, check
+every pick first and ask before creating any of them, so nothing half-runs. The user's call,
+2026-10-13, after two sold-out picks had to be deleted again.
+
 **4. Resolve the location** to a full street address:
 ```bash
 goplaces search "Venue Name, Tallinn" --api-key "$GOOGLE_PLACES_API_KEY" --json
 ```
 Use the `address` field. Sanity-check the `name` in the result actually matches the venue: Places happily returns a plausible wrong bar. Also glance at `business_status`: `CLOSED_PERMANENTLY` on a venue hosting a future event means you resolved the wrong place.
 
-**5. Check for duplicates** before creating:
+**5. Check for duplicates** before creating, in **both** calendars (`gog calendar events` takes
+one calendar id at a time):
 ```bash
-gog calendar events "$SOCIAL_CALENDAR_ID" --from 2026-09-01 --to 2026-09-02 --all-pages --json
+for cal in "$SOCIAL_CALENDAR_ID" "$SOCIAL_CALENDAR_PAID_ID"; do
+  gog calendar events "$cal" --from 2026-09-01 --to 2026-09-02 --all-pages --json
+done
 ```
 Compare start time (few-minutes tolerance) + title. Also check the URL against `state.json` `added`. If it's a duplicate → report it and **stop**, don't create a second copy.
 
@@ -216,6 +269,18 @@ Workshop · 25€ [BOOK]            ← paid and booked
 ```
 
 Always a middot `·`, never an em dash; always a numeric price, never the word `tasuta`. `[BOOK]` is uppercase, in square brackets, always last, and **absent entirely** when booking isn't needed (no `[NO BOOK]`, no empty brackets).
+
+Once the user says they bought the ticket or registered, the event becomes `[PAID]` and moves to
+the PAID calendar. Move it, then swap `[BOOK]` for `[PAID]` and clear its color there; the event
+id survives the move, and you get it from `gog calendar events --json`. Never create a second event:
+```bash
+gog calendar move "$SOCIAL_CALENDAR_ID" <eventId> "$SOCIAL_CALENDAR_PAID_ID"
+gog calendar update "$SOCIAL_CALENDAR_PAID_ID" <eventId> --summary "… · 60€ [PAID]" --event-color ""
+```
+Clearing the color matters: every pick carries an explicit Tangerine `colorId`, which would
+override the PAID calendar's own color. When the user hands over a link to something already
+bought ("купил билет, добавь"), create the event straight in `$SOCIAL_CALENDAR_PAID_ID` with
+`[PAID]` and without `--event-color`.
 
 **Description format:** three header lines, then a blank line, then the full original text:
 
@@ -330,10 +395,14 @@ A last pass over the rules above:
 - **Crawl:** `sync_sources.py` ran and its diff was reported; every source was crawled, none
   skipped for "enough candidates" (the cooking listing through `kokandus.py`, with its NEW,
   OPENED and ITALIAN blocks reported); every candidate is inside the 14-day window and has a URL; what was hidden was reported.
-- **Table:** plain rows only (no bold, stars or reordering), and no word about time overlaps.
-- **Each event:** canonical URL, date and time with `--timezone`, resolved address, a
+- **List:** grouped by category in the set order, one numbering for the whole crawl, a series
+  on one line, plain lines only (no bold, stars or reordering), and no word about time overlaps.
+- **Each event:** availability checked, and a sold-out pick asked about before anything was
+  created; canonical URL, date and time with `--timezone`, resolved address, a
   `· <price>` title (`[BOOK]` only when attending needs booking), the language / price / URL
   header and the full untranslated description; the user is never asked about the price.
+- **Paid:** every `[PAID]` event sits in the PAID calendar with no color of its own (it shows in
+  the calendar's color), and none is left in the picks calendar.
 - **The user's own entries** are in English; real events keep their language.
 - **State:** adds, declines and bans are in `state.json`, and the report gives `htmlLink` and
   every assumption made.
