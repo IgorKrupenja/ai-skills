@@ -105,7 +105,7 @@ sources:
   - name: "Kokandus - Tallinna Rahvaülikool"
     category: "Cooking"
     url: "https://kultuur.ee/valdkond/kokandus/"
-    notes: "Handled by kokandus.py (SKILL.md step A3), not by reading the page: it covers every upcoming course, whatever the date, and reports NEW, SPOTS OPENED and ITALIAN. It doesn't know what the user already has: before listing or recommending courses outside a full crawl, check each URL against state.json added and the PAID calendar (on 15.10.2026 the Vahemere course of 18.11, PAID since 13.10, was recommended as a new pick). A course page names the instructor right before 'Koolituse juhendaja'. Courses are in Estonian unless the page says 'NB! Kursus on <keel> keeles' (only some Italian and Mexican ones are in English); 'Tallinn Connect B1+' courses are in Estonian but welcome learners."
+    notes: "Handled by kokandus.py (SKILL.md step A3), not by reading the page: it covers every upcoming course, whatever the date, and reports NEW, SPOTS OPENED and ITALIAN. Courses the user already bought (the PAID calendar, read through bought.py) come in its ALREADY BOUGHT block and never in the others. A course page names the instructor right before 'Koolituse juhendaja'. Courses are in Estonian unless the page says 'NB! Kursus on <keel> keeles' (only some Italian and Mexican ones are in English); 'Tallinn Connect B1+' courses are in Estonian but welcome learners."
   - name: "Matkajad | Facebook"
     category: "Hiking"
     url: "https://www.facebook.com/groups/1409233316018355"

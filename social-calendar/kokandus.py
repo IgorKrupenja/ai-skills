@@ -5,6 +5,8 @@ These courses fill up within days of appearing, so a crawl looks at every upcomi
 just the crawl window. On each run it:
   - fetches the whole listing,
   - compares it with kokandus.json, the snapshot from the previous run,
+  - prints the courses the user has ALREADY BOUGHT (the PAID calendar, through bought.py) and
+    leaves them out of every other block, so a bought course is never offered again,
   - prints the NEW courses, the courses whose spots OPENED again (they were full), every upcoming
     ITALIAN course, and all upcoming courses that still have spots,
   - saves the new snapshot.
@@ -18,6 +20,8 @@ import os
 import re
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+
+import bought
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SNAPSHOT = os.path.join(HERE, "kokandus.json")
@@ -99,10 +103,16 @@ def main():
         c.setdefault("first_seen", TODAY)
 
     upcoming = {u: c for u, c in current.items() if c["date"] >= TODAY}
-    new = {u: c for u, c in upcoming.items() if old is not None and u not in old}
-    opened = {u: c for u, c in upcoming.items() if old and u in old and old[u]["status"] == "full" and c["status"] != "full"}
-    italian = {u: c for u, c in upcoming.items() if c.get("italian")}
-    has_spots = {u: c for u, c in upcoming.items() if c["status"] != "full"}
+    try:
+        paid, warning = {bought.canon(b["url"]) for b in bought.load()}, ""
+    except bought.Unknown as e:
+        paid, warning = set(), f"WARNING: could not read the PAID calendar ({e}). Check by hand what is already bought before offering any course."
+    have = {u: c for u, c in upcoming.items() if bought.canon(u) in paid}
+    offer = {u: c for u, c in upcoming.items() if u not in have}
+    new = {u: c for u, c in offer.items() if old is not None and u not in old}
+    opened = {u: c for u, c in offer.items() if old and u in old and old[u]["status"] == "full" and c["status"] != "full"}
+    italian = {u: c for u, c in offer.items() if c.get("italian")}
+    has_spots = {u: c for u, c in offer.items() if c["status"] != "full"}
 
     # keep past courses for a while so a course that reappears is not reported as new
     cutoff = (datetime.date.today() - datetime.timedelta(days=60)).isoformat()
@@ -110,9 +120,12 @@ def main():
     json.dump({"updated": TODAY, "courses": {**kept, **current}}, open(SNAPSHOT, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
     full = sum(c["status"] == "full" for c in upcoming.values())
-    head = f"kokandus: {len(upcoming)} upcoming, {full} full"
+    head = f"kokandus: {len(upcoming)} upcoming, {full} full, {len(have)} already bought"
     print(head + (" | first run, baseline saved" if old is None else f" | new: {len(new)} | spots opened: {len(opened)}"))
-    for name, group in (("NEW", new), ("SPOTS OPENED (were full)", opened), ("ITALIAN AHEAD", italian), ("UPCOMING WITH SPOTS", has_spots)):
+    if warning:
+        print(warning)
+    for name, group in (("ALREADY BOUGHT (never offer these)", have), ("NEW", new), ("SPOTS OPENED (were full)", opened),
+                        ("ITALIAN AHEAD", italian), ("UPCOMING WITH SPOTS", has_spots)):
         if name in ("NEW", "SPOTS OPENED (were full)") and old is None:
             continue
         print(f"{name}: {len(group) or 'none'}")

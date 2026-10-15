@@ -44,6 +44,31 @@ user sets its color in the sidebar; events in it carry **no color of their own**
 the calendar's color (an explicit event color there gives an odd two-tone block, the user's call
 on 2026-10-13). A [PAID] event never stays in `$SOCIAL_CALENDAR_ID`: see step 6.
 
+## Already bought? Check before every answer
+
+Before you show, list, recommend or add **any** event, check whether the user has already bought
+it. This holds for every request, not only crawls: a quick "покажи кулинарные курсы", "что бы ты
+выбрал?", a pasted link. The PAID calendar is the record of what was bought (`state.json`
+`added` holds picks and purchases alike). The user's call on 2026-10-15, after a cooking course
+they had bought on 03.10 was listed as open and recommended, and they paid for it a second time.
+
+```bash
+python3 "${SKILLS_DIR:-$HOME/.claude/skills}/social-calendar/bought.py"
+```
+
+It prints every upcoming event in the PAID calendar (date, time, title, URL) and reads the
+calendar id from `.env` itself, so it works without the env step. `filter.py` and `kokandus.py`
+run the same check on their own: the filter hides bought candidates (same URL, or the same date
+with one title inside the other), and `kokandus.py` moves bought courses into its ALREADY BOUGHT
+block, out of every other block. Anything put together without them (an ad-hoc list, a single
+recommendation, a link the user pasted) you check against the `bought.py` output yourself.
+
+- A bought event is never offered as something to buy or sign up for. In an ad-hoc list it
+  stays, marked `уже куплено`; a recommendation skips it and says it's already bought.
+- When the calendar can't be read (gog auth, network), all three scripts print a `WARNING`.
+  That means unknown, never "nothing bought": tell the user, and present nothing as available
+  until the PAID calendar has been checked.
+
 ---
 
 ## The three things the user will ask
@@ -88,15 +113,16 @@ on 2026-10-13). A [PAID] event never stays in `$SOCIAL_CALENDAR_ID`: see step 6.
      notifications panel injects other people's event links into every page. Feeds load out of
      order and `innerText` timestamps are obfuscated, so confirm a post's age from a screenshot.
    - **Sources in the `Running` category are run clubs**, not event pages: there's a weekly schedule to find, not a listing to read. Read [`run-clubs.md`](run-clubs.md) and follow it.
-   - **The Tallinna Rahvaülikool cooking listing** (`kultuur.ee/valdkond/kokandus`) is watched, not windowed: its courses sell out within days of appearing. Instead of reading the page, run [`kokandus.py`](kokandus.py). It compares every upcoming course with the previous run and prints what is NEW, where spots OPENED again, every upcoming ITALIAN course (the user's priority) and all courses that still have spots. Report the NEW, OPENED and ITALIAN blocks in their own section after the list, whatever their dates; courses with spots inside the crawl window also go into the list as usual (category Кулинарные курсы).
+   - **The Tallinna Rahvaülikool cooking listing** (`kultuur.ee/valdkond/kokandus`) is watched, not windowed: its courses sell out within days of appearing. Instead of reading the page, run [`kokandus.py`](kokandus.py). It compares every upcoming course with the previous run and prints what is NEW, where spots OPENED again, every upcoming ITALIAN course (the user's priority) and all courses that still have spots. Courses the user already bought come first, in an ALREADY BOUGHT block, and never in the other blocks: mention them as bought, never offer them. Report the NEW, OPENED and ITALIAN blocks in their own section after the list, whatever their dates; courses with spots inside the crawl window also go into the list as usual (category Кулинарные курсы).
    - Collect across ALL sources before showing anything:
      ```
      candidate = { title, date, url, source_url, location? }
      ```
    - `source_url` = the bookmark the candidate came from (needed for series bans).
 
-4. **Filter against `state.json`** with [`filter.py`](filter.py) (see [Filtering](#filtering-what-not-to-show)).
-   It drops everything already added or declined and everything in a banned series.
+4. **Filter** with [`filter.py`](filter.py) (see [Filtering](#filtering-what-not-to-show)).
+   It drops everything already bought (the PAID calendar), added or declined and everything in
+   a banned series.
 
 5. **Present ALL survivors grouped by category**, never as one long table. The user's call
    (2026-10-13): a 184-row table was "кошмар", and a merged "театр, танец, стендап" bucket was
@@ -141,7 +167,7 @@ on 2026-10-13). A [PAID] event never stays in `$SOCIAL_CALENDAR_ID`: see step 6.
    formatting inside it.
 
    Then **report what was filtered** (never drop silently):
-   > Скрыл 4: 2 уже добавлены, 1 ранее отклонён, 1 из забаненной серии «Open Mic».
+   > Скрыл 5: 1 уже куплен, 2 уже добавлены, 1 ранее отклонён, 1 из забаненной серии «Open Mic».
 
    Criteria for now: **show everything** (no taste filtering yet). This will be refined over time.
 
@@ -350,17 +376,21 @@ event (step 2).
 
 ## Filtering: what NOT to show
 
-`state.json` remembers what not to show again, and [`filter.py`](filter.py) applies it. Write the
-crawled candidates to a temp JSON array of `{title, date, url, source_url, location}`, then run:
+`state.json` remembers what not to show again, the PAID calendar what is already bought, and
+[`filter.py`](filter.py) applies both. Write the crawled candidates to a temp JSON array of
+`{title, date, url, source_url, location}`, then run:
 
 ```bash
 python3 "${SKILLS_DIR:-$HOME/.claude/skills}/social-calendar/filter.py" "${TMPDIR:-/tmp}/candidates.json"
 ```
 
 It prints `SHOW n / HIDE m` with the count per reason (for the report in step A5), one line per
-hidden candidate, then the survivors as JSON. A candidate is hidden when its `url` is in `added`
-or `declined`, or when a `banned_series` entry's `match` occurs in its normalized title and the
-entry's `source` is `"*"` or the candidate's `source_url`.
+hidden candidate, then the survivors as JSON. A candidate is hidden when it is already bought
+(an event in the PAID calendar with the same URL, or on the same date with one title inside the
+other), when its `url` is in `added` or `declined`, or when a `banned_series` entry's `match`
+occurs in its normalized title and the entry's `source` is `"*"` or the candidate's
+`source_url`. A `WARNING` line before `SHOW` means the PAID calendar couldn't be read and
+nothing was checked for being bought: see [Already bought?](#already-bought-check-before-every-answer).
 
 A ban's `match` has to be normalized the same way (lowercase, numbers and punctuation dropped),
 so make it with the script: `filter.py normalize "Open Mic #12"` prints `open mic`.
@@ -392,9 +422,12 @@ Use `date +%F` for the `*_at` stamps. Edit the file directly (read → modify JS
 
 A last pass over the rules above:
 
+- **Bought:** before anything was shown or recommended, what's already bought was checked
+  (`bought.py`, or the same check inside `filter.py` and `kokandus.py`); nothing bought was
+  offered as available, and a `WARNING` was reported, not ignored.
 - **Crawl:** `sync_sources.py` ran and its diff was reported; every source was crawled, none
-  skipped for "enough candidates" (the cooking listing through `kokandus.py`, with its NEW,
-  OPENED and ITALIAN blocks reported); every candidate is inside the 14-day window and has a URL; what was hidden was reported.
+  skipped for "enough candidates" (the cooking listing through `kokandus.py`, with its ALREADY
+  BOUGHT, NEW, OPENED and ITALIAN blocks reported); every candidate is inside the 14-day window and has a URL; what was hidden was reported.
 - **List:** grouped by category in the set order, one numbering for the whole crawl, a series
   on one line, plain lines only (no bold, stars or reordering), and no word about time overlaps.
 - **Each event:** availability checked, and a sold-out pick asked about before anything was
