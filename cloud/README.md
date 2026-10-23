@@ -19,6 +19,24 @@ config. Two kinds of skills run in cloud:
 | `linkedin-connect` / `linkedin-grow` | ❌ no | needs your LinkedIn session; datacenter IP + automation → account-ban risk |
 | `lhv-investment-report` | ❌ no | Smart-ID interactive login — can't run headless |
 
+## Skill discovery in cloud
+
+Claude Code only auto-registers skills found at **`.claude/skills/<name>/SKILL.md`**, but this
+repo keeps each skill at the **root** (for the cross-tool agentskills.io layout), so a bare cloud
+session wouldn't see them as invocable skills. Bridging that is committed, not manual:
+[`.claude/skills/`](../.claude/skills) holds a **relative symlink per skill** (`spotify ->
+../../spotify`, ...). Cloud/web sessions clone the repo and auto-load `<repo>/.claude/skills/`, so
+every skill registers with no setup-script step.
+
+- **Adding a skill?** Run [`cloud/sync-skills.sh`](sync-skills.sh) — it rebuilds one symlink for
+  every root folder containing a `SKILL.md`. Commit the new link.
+- `.gitignore` ignores local `.claude/*` state but **re-includes `.claude/skills/`** so the links
+  travel.
+- Not a whole-dir `.claude/skills -> ..` symlink on purpose: that's self-referential (`.claude`
+  sits inside the root) and loops forever; per-skill links target leaf folders, so no loop.
+- The **setup script** is the wrong tool for this — it runs before the repo is at the CWD, has no
+  `claude` on PATH, and personal `~/.claude/skills/` doesn't persist across cloud sessions.
+
 ## Cloud environment setup
 
 - **Network access: Full.**
