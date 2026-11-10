@@ -1,12 +1,11 @@
 ---
 name: spotify
 description: Use the Spotify Web API to manage the user's playlists — search albums/tracks, add full albums or individual tracks to a playlist, inspect playlists. Use whenever the user asks to add music to / edit / build a Spotify playlist.
-allowed-tools: Bash, Read, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_click
 ---
 
 # Spotify
 
-> **Runs in:** local + cloud — uses the Spotify Web API with a token; no browser except the one-time local auth bootstrap. For cloud, the `.env` secrets must be provisioned in the cloud agent (see [/cloud](../cloud/README.md)).
+> **Runs in:** any environment with Python 3, network access, and the Spotify environment variables. The one-time OAuth bootstrap needs a browser signed in to the right account. Local files and browser sessions are not copied into cloud sessions automatically.
 
 Manage the user's Spotify playlists through the **official Web API** using a
 registered-app **user** token. This is the preferred way to add/remove/list
@@ -19,7 +18,8 @@ standard library only** (`python3 spotify.py <cmd>`, no install or build step). 
 ## Prerequisites
 
 Env vars live in `.env` (see `.env.example`). `spotify.py` reads them itself, so
-no manual export is needed.
+no manual export is needed. It checks `SPOTIFY_ENV_FILE` first, then the `.env` beside the
+canonical skill repository, then `$SKILLS_DIR/.env` when `SKILLS_DIR` is set.
 
 - `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` — from the user's app in the
   [Developer Dashboard](https://developer.spotify.com/dashboard) (reuse the **CLI** app).
@@ -33,11 +33,9 @@ no manual export is needed.
   script renews access tokens forever with **no browser**, on any machine. Minted once
   via the bootstrap below (already set for this user).
 
-Run everything from this skill's directory:
-
-```bash
-cd "${SKILLS_DIR:-$HOME/.claude/skills}/spotify"
-```
+Run commands from this skill's directory. When the skill is installed through a symlink, use
+the resolved directory containing `spotify.py`; the script resolves its own path so both agents
+share the same local token cache.
 
 ## One-time bootstrap (only if `SPOTIFY_REFRESH_TOKEN` is unset)
 
@@ -55,10 +53,11 @@ To mint the refresh token:
    ```bash
    python3 spotify.py auth
    ```
-2. Drive the Playwright browser to that URL (`browser_navigate`); the user must be logged
-   into the right Spotify account there. If already authorized it redirects straight
-   through, otherwise click **Agree** (`browser_snapshot` → `browser_click`). The agent
-   never types credentials.
+2. In the shared personal browser, open the URL and inspect the page before interacting:
+   `playwright-cli -s=personal goto "$AUTH_URL"`, then
+   `playwright-cli -s=personal snapshot`. If Spotify asks for consent, click the **Agree**
+   button by its snapshot reference (or a locator using `playwright-cli -s=personal run-code`).
+   The agent never types credentials.
 3. On success it prints `REFRESH_TOKEN <value>` — put that in `.env` as
    `SPOTIFY_REFRESH_TOKEN`. Done permanently.
 

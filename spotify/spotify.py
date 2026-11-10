@@ -50,7 +50,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.realpath(__file__))
 TOKEN_FILE = os.path.join(HERE, ".spotify_token.json")
 API = "https://api.spotify.com/v1"
 ACCOUNTS = "https://accounts.spotify.com"
@@ -62,12 +62,16 @@ def die(msg):
 
 
 def load_dotenv():
-    """Load .env (skill-dir parent or $SKILLS_DIR). Real env vars win over .env."""
-    candidates = [
-        os.path.join(os.path.dirname(HERE), ".env"),
-        os.path.join(os.environ.get("SKILLS_DIR", os.path.expanduser("~/.claude/skills")), ".env"),
-    ]
-    for path in candidates:
+    """Load the configured or canonical repo .env. Real env vars win over .env."""
+    candidates = []
+    env_file = os.environ.get("SPOTIFY_ENV_FILE")
+    if env_file:
+        candidates.append(env_file)
+    candidates.append(os.path.join(os.path.dirname(HERE), ".env"))
+    skills_dir = os.environ.get("SKILLS_DIR")
+    if skills_dir:
+        candidates.append(os.path.join(skills_dir, ".env"))
+    for path in dict.fromkeys(candidates):
         if not os.path.exists(path):
             continue
         with open(path) as f:
