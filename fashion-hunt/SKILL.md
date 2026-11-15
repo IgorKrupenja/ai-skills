@@ -1,9 +1,9 @@
 ---
-name: bookmarked-shopping-finder
+name: fashion-hunt
 description: Find live listings of a specific fashion item (mostly designer bags, wallets, belts and other accessories, sometimes clothes) in the user's bookmarked secondhand and designer shops, such as Vinted and Vestiaire Collective, and compare each with the brand's new retail price. Use whenever the user wants to find, buy or price-check a bag, wallet, accessory or piece of clothing, or asks whether a listing is a good deal (for example "find a white LV belt" or "any secondhand Hugo Boss wallets?"), even if they don't mention the shops or bookmarks.
 ---
 
-# Bookmarked Shopping Finder
+# Fashion Hunt
 
 Find every live listing of the item the user describes in their bookmarked shops, and compare each
 with what the item costs new from the brand. Most of these shops sell pre-owned designer goods, so
