@@ -28,7 +28,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-STATE_DIR = Path(tempfile.gettempdir()) / "fashion-hunt-tabs"
+STATE_DIR = Path(tempfile.gettempdir()) / "playwright-cli-tabs"
 TAG_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
 TAB_JS = Path(__file__).resolve().with_name("tab.js")
 
