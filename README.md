@@ -90,14 +90,9 @@ Uses the `gog` Google Calendar CLI. On every crawl `sync_sources.py` syncs the b
 
 ### fashion-hunt
 
-Find live listings of a fashion item (mostly designer bags, wallets, belts and other accessories) in the shops bookmarked in Vivaldi, and compare each with the brand's new price. One subagent searches each shop and one checks each brand's official store, all in parallel and each in a background tab of its own in the shared `playwright-cli` browser, so a full search takes about as long as the slowest shop. The report is one table sorted by price, with near matches grouped apart, authenticity risks flagged, and what's new, sold or repriced since the last run of the same search.
+Find live listings of a fashion item, mostly designer accessories, in the shops bookmarked in Vivaldi under `Fashion/Online` and `Fashion/Tallinn`, and compare each with the brand's new price. Subagents search all shops and brand stores in parallel, each in its own background tab of the shared `playwright-cli` browser. The report is one table sorted by price, with near matches grouped apart, authenticity risks flagged and changes since the last run.
 
-- `scripts/read_vivaldi_bookmarks.py` reads the shops from the Vivaldi bookmark folders `Fashion/Online` and `Fashion/Tallinn`, plus a city folder such as `Fashion/Helsinki` on request.
-- `scripts/tab.py` keeps each agent in its own tab, so parallel agents and other chats never act in each other's tabs.
-- `scripts/history.py` saves each run's results in `~/.local/share/fashion-hunt/`, outside the repo, and prints what changed since the last run.
-- `references/shop-agent.md` holds the search rules and per-shop notes for the shop agents, and `references/brand-agent.md` the notes on the brands' own stores.
-
-Needs an agent tool that can run subagents, such as Claude Code; without them it searches the shops one by one. No `.env` values: the bookmarks come from the active Vivaldi profile, or from the file in `VIVALDI_BOOKMARKS_FILE` when that is set in your shell.
+Needs subagents (e.g. Claude Code), else it searches shops one by one. No `.env` values: bookmarks come from the active Vivaldi profile, or `VIVALDI_BOOKMARKS_FILE` if set.
 
 ### screenshot
 
