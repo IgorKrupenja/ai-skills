@@ -14,8 +14,13 @@ open-ended: use whatever brand, model, type and constraints the user gives.
 
 Start every search by running `scripts/read_vivaldi_bookmarks.py` from this skill's folder. It
 prints the shops bookmarked in Vivaldi under `Fashion/Online` and `Fashion/Tallinn`, the user's
-curated list. Search only those, not shops you remember or come across, unless the user names
-another. If a folder is missing or empty, say so and search the rest rather than widening the
+curated list: the user lives in Tallinn, and these shops sell online or in town. The script lists
+the other folders under `Fashion` in `other_folders`: cities the user sometimes visits, whose shops
+don't deliver to Estonia. Search one of those only when the user asks about that city (a trip to
+Helsinki, say), by adding `--city <name>`, and treat its shops as places to buy in person.
+
+Search only the shops the script prints, not shops you remember or come across, unless the user
+names another. If a folder is missing or empty, say so and search the rest rather than widening the
 scope. If the script can't tell which Vivaldi profile is active, ask which one to use. The script
 reads only bookmark titles and URLs, plus Vivaldi's `Local State` to find the active profile, never
 history, cookies or passwords.
@@ -156,7 +161,7 @@ one.
   countries are Austria, Belgium, Bulgaria, Croatia, Cyprus, Czechia, Denmark, Estonia, Finland,
   France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the
   Netherlands, Poland, Portugal, Romania, Slovakia, Slovenia, Spain and Sweden. "not stated" isn't
-  bolded.
+  bolded. For a shop from a city folder, write "in store, <city>".
 
 Put near matches in a separate "Near matches" section after the table, each with the criterion it
 misses.

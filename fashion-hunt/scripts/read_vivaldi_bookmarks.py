@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Read only current user's Vivaldi bookmarks from Fashion/Online and Fashion/Tallinn."""
+"""Print the current user's Vivaldi shop bookmarks from Fashion/Online and Fashion/Tallinn.
+
+Pass --city <name> (repeatable) to also read another city's folder, such as Fashion/Helsinki.
+"""
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -10,7 +14,8 @@ from pathlib import Path
 from typing import Any
 
 
-TARGET_FOLDERS = {"Online", "Tallinn"}
+PARENT_FOLDER = "Fashion"
+DEFAULT_FOLDERS = ("Online", "Tallinn")
 BOOKMARK_ROOT = Path.home() / "Library" / "Application Support" / "Vivaldi"
 
 
@@ -76,8 +81,14 @@ def walk_folder(
             walk_folder(child, child_path, folder_name, output)
 
 
-def collect_targets(bookmarks: dict[str, Any]) -> tuple[set[str], list[dict[str, str]]]:
-    found: set[str] = set()
+def collect_targets(
+    bookmarks: dict[str, Any], wanted: list[str]
+) -> tuple[dict[str, str], set[str], list[dict[str, str]]]:
+    """Return the wanted folders found (keyed by casefolded name), all folders under Fashion,
+    and the shops in the wanted ones."""
+    wanted_keys = {name.casefold() for name in wanted}
+    found: dict[str, str] = {}
+    available: set[str] = set()
     entries: list[dict[str, str]] = []
     roots = bookmarks.get("roots", {})
 
@@ -90,11 +101,12 @@ def collect_targets(bookmarks: dict[str, Any]) -> tuple[set[str], list[dict[str,
         def visit(node: dict[str, Any], path: tuple[str, ...]) -> None:
             name = str(node.get("name", ""))
             current = path + ((name,) if name else ())
-            if node.get("type") == "folder" and len(current) >= 2:
-                if current[-2] == "Fashion" and current[-1] in TARGET_FOLDERS:
-                    found.add(current[-1])
+            if node.get("type") == "folder" and len(current) >= 2 and current[-2] == PARENT_FOLDER:
+                available.add(current[-1])
+                if current[-1].casefold() in wanted_keys:
+                    found[current[-1].casefold()] = current[-1]
                     walk_folder(node, current, current[-1], entries)
-                    return
+                return
             for child in node.get("children", []):
                 if isinstance(child, dict):
                     visit(child, current)
@@ -108,31 +120,44 @@ def collect_targets(bookmarks: dict[str, Any]) -> tuple[set[str], list[dict[str,
             continue
         seen.add(entry["url"])
         unique.append(entry)
-    return found, unique
+    return found, available, unique
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--city",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help=f"also read {PARENT_FOLDER}/NAME, for a city the user asks about (repeatable)",
+    )
+    args = parser.parse_args()
+    wanted: list[str] = []
+    for name in (*DEFAULT_FOLDERS, *args.city):
+        if name.casefold() not in {w.casefold() for w in wanted}:
+            wanted.append(name)
+
     try:
         bookmarks_path = find_bookmarks_file()
         bookmarks = json.loads(bookmarks_path.read_text(encoding="utf-8"))
-        found, entries = collect_targets(bookmarks)
+        found, available, entries = collect_targets(bookmarks, wanted)
     except (OSError, json.JSONDecodeError, RuntimeError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
 
+    searched = [found[name.casefold()] for name in wanted if name.casefold() in found]
     folder_counts = {
-        name: sum(1 for entry in entries if entry["folder"] == name)
-        for name in ("Online", "Tallinn")
+        name: sum(1 for entry in entries if entry["folder"] == name) for name in searched
     }
     result = {
         "bookmarks_file": str(bookmarks_path),
-        "folders_found": [name for name in ("Online", "Tallinn") if name in found],
-        "folders_missing": [name for name in ("Online", "Tallinn") if name not in found],
+        "folders_found": searched,
+        "folders_missing": [name for name in wanted if name.casefold() not in found],
         "folder_counts": folder_counts,
-        "folders_empty": [
-            name for name in ("Online", "Tallinn")
-            if name in found and folder_counts[name] == 0
-        ],
+        "folders_empty": [name for name in searched if folder_counts[name] == 0],
+        # City folders not read this time; read one with --city only when the user asks about it
+        "other_folders": sorted(name for name in available if name not in searched),
         "stores": entries,
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
