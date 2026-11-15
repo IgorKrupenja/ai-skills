@@ -35,12 +35,11 @@ skills (its commands are in the `playwright-cli` skill), not with another browse
 profile keeps the user's shop logins, currency and cookie choices, so shops behave as they do for
 the user.
 
-Run `playwright-cli list` first. If `personal` is already open, another chat may be using it: work
-in a tab of your own and close only that tab at the end, never the browser.
+Run `playwright-cli list` first. If `personal` is already open, another chat may be using it: open
+a tab of your own, and at the end close only that tab, never the browser.
 
 ```bash
 playwright-cli -s=personal tab-new "<url>"
-playwright-cli -s=personal tab-close
 ```
 
 Otherwise start it, adding the launch flags your global instructions give, if any:
@@ -48,6 +47,24 @@ Otherwise start it, adding the launch flags your global instructions give, if an
 ```bash
 playwright-cli -s=personal open "<url>" --headed --persistent
 ```
+
+Another chat can start using the browser at any time, even one you opened yourself. Plain commands
+such as `goto`, `click`, `fill`, `eval`, `snapshot` and `tab-close` act on whichever tab is current,
+and that chat's `tab-new` or `tab-select` changes it without warning, so they can land in its tab,
+which may be showing a sign-in or two-factor prompt. So drive your tab through `run-code` from the
+start: find your own page by the URL you last left it on (check `tab-list` that no other tab shares
+it) and act on that page instead of `page`. Read it there too, with `mine.evaluate(...)` or
+`mine.locator('body').ariaSnapshot()`, and close it with `await mine.close()`.
+
+```bash
+playwright-cli -s=personal run-code "async page => {
+  const mine = page.context().pages().find(p => p.url().includes('vinted.ee'));
+  await mine.goto('https://www.vinted.ee/catalog?catalog[]=96');
+  return mine.url();
+}"
+```
+
+Never type into, click in or navigate a tab you didn't open.
 
 The browser is signed in as the user, so only look: don't favourite items, follow sellers, message
 anyone, add to cart or buy.
@@ -94,7 +111,11 @@ incomplete, and what matters is what the shop lists now.
   needed, with Estonian terms such as `kott`/`käekott` (bag/handbag), `rahakott` (wallet), `vöö`
   (belt), `meestele` (men's) and `valge` (white). Check the listing itself for the item, color,
   men's category, price, sold state and shipping. Matches can rank below the first few cards, so go
-  through the results, but skip the similar-items carousels.
+  through the results, but skip the similar-items carousels. The search cards show no titles, so
+  the site's own JSON, which `/otsi/` loads, is quicker: from a yaga.ee page,
+  `fetch('/api/product/search/?query=<q>&offset=0&limit=60')` lists the slugs (page with
+  `offset`), and `/api/product/<slug>` gives the description, category path, colors, condition,
+  status, reservation, location and buyer fees. Check the photos when the seller set no color.
 - **Vinted (vinted.ee):** open a pasted filtered URL with its full query string. Repeated parameters
   such as several `brand_ids[]` or `color_ids[]` are separate filters, and rebuilding the search
   from text or a single-value map drops them. Confirm the filter chips and result count, then check
@@ -102,7 +123,11 @@ incomplete, and what matters is what the shop lists now.
   page: title, photos, price, size, condition and availability. Color filters let through
   multicolor and off-color items, so separate true matches from near matches. Record the item price
   apart from the buyer-protection total; shipping is added at checkout. If an item page won't load,
-  report only what the card shows and mark the rest unverified.
+  report only what the card shows and mark the rest unverified. Men's belts are `catalog[]=96`,
+  white is `color_ids[]=12` and cream `color_ids[]=20`. A brand can have several entries (Hugo Boss
+  has Hugo Boss, BOSS Hugo Boss, HUGO Hugo Boss, Boss, Boss Orange and BOSS Green), so tick each in
+  the brand filter's search and take the ids from the URL. Item pages have no ships-from field, and
+  a description that says SOLD means sold even while Buy now still shows.
 - **Vestiaire Collective (vestiairecollective.com):** use the catalog filters for audience,
   category, brand and color (men's belts, for example, are under men's accessories). The filters
   live after `#` in the URL, so open a pasted catalog URL with its query and fragment intact.
@@ -110,7 +135,19 @@ incomplete, and what matters is what the shop lists now.
   pagination shows one page. If both White and Ecru are selected, White is the match and Ecru a near
   match. Show prices in EUR (footer, Language/Currency); if that fails, convert at a verified rate
   and mark it approximate. A price shown in a currency other than the seller's may include a
-  conversion fee of up to 5%.
+  conversion fee of up to 5%. In that dialog, pick the currency before the country (picking a
+  currency resets the country), then Save. A color added to the URL fragment by hand may not apply,
+  so click the Colour filter and check its chip. Boss, Hugo Boss and Boss Orange are separate
+  designers. The item's ships-from country is the "Location" line under DETAILS, and "The seller is
+  on vacation" means it can't be bought now.
+- **Queen Station (queenstation.fi):** search results stop at about 240 products, so filter a brand
+  collection instead: `/collections/louis-vuitton?filter.p.product_type=Belts&filter.v.availability=1`
+  lists only the belts in stock.
+- **YOOX (yoox.com):** a text-search parameter is dropped, so use the category with the Designer
+  filter (men's HUGO belts add `brand[0]=HUGO BOSS-202 > HUGO-22874`). Cards show no color; the
+  item page title does, as in "HUGO Black Men's Leather Belt".
+- **Care of Carl (careofcarl.com):** pick Estonia in the delivery-country dialog first. Besides new
+  items it has a pre-owned section, with Louis Vuitton at `/en/louis-vuitton-pre-owned`.
 
 ## Check each listing
 
@@ -129,9 +166,20 @@ country the item ships from.
 ## Check the new retail price
 
 For every search, find the exact item, or its current equivalent, on the brand's official website,
-using the Estonia or EU storefront when there is one, and link the page. A reseller's price isn't
-the retail price. The brand's site gives the reference price only: if the shops have no matches,
-say so rather than offering the brand's own products instead.
+using the Estonia or EU storefront when there is one, and link the page. When neither shows prices,
+use another of the brand's EUR stores, in English if there is one, and say which. A reseller's
+price isn't the retail price. The brand's site gives the reference price only: if the shops have no
+matches, say so rather than offering the brand's own products instead.
+
+- **Louis Vuitton:** there is no Estonian store, and the EU-wide site (`eu.louisvuitton.com/eng-e1`)
+  shows no prices. Use the Netherlands store in English, `https://en.louisvuitton.com/eng-nl/`,
+  which prices in EUR and uses the same product paths. The product page gives the color and
+  materials, such as "White/Black, canvas strap, leather reverse".
+- **Hugo Boss:** there is no Estonian store (`hugoboss.com/ee` is a 404). Use the Finland store in
+  English, `https://www.hugoboss.com/fi/en/`, which prices in EUR; men's belts, for example, are at
+  `/fi/en/men-belts/`. Under FILTER & SORT, Color lists how many products come in each color, so a
+  color missing there isn't sold new. In the cookie dialog, Save services with only Necessary on
+  declines the rest.
 
 Compare like with like and note when size, material, edition or variant differs. If the brand
 doesn't list the item, write "not currently listed by manufacturer" rather than estimating. When a
