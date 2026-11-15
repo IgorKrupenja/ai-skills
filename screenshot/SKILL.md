@@ -19,20 +19,44 @@ visible area stays small (~hundreds of KB) and delivers reliably.
 
 ### 1. Open the page
 
-Use the shared `personal` browser, so logins carry over. Run `playwright-cli list` first. If
-`personal` is already open, another chat may be using it, so open the page in a tab of your own:
+Use the shared `personal` browser, so logins carry over. Run `playwright-cli list` first.
 
-```bash
-playwright-cli -s=personal tab-new "<url>"
-```
-
-Otherwise start it, adding the launch flags your global instructions give, if any:
+If `personal` isn't running, start it, adding the launch flags your global instructions give, if
+any, and go on to step 2:
 
 ```bash
 playwright-cli -s=personal open "<url>" --persistent
 ```
 
+If it is already running, another chat may be using it. Open the page in a background tab of
+your own, screenshot it and close it in one `run-code` call, then go to step 3. Never use
+`tab-new` or `tab-select`: they pull the browser window in front of the user's other apps.
+
+```bash
+playwright-cli -s=personal run-code "async page => {
+  const ctx = page.context(), tag = 'claude-' + Date.now();
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Target.createTarget', { url: 'about:blank#' + tag, background: true });
+  await cdp.detach();
+  let mine;
+  for (let i = 0; i < 50 && !mine; i++) {
+    mine = ctx.pages().find(p => p.url().endsWith(tag));
+    if (!mine) await new Promise(r => setTimeout(r, 100));
+  }
+  await mine.goto('<url>');
+  await mine.waitForTimeout(2000);
+  await mine.screenshot({ path: '$PWD/.playwright-cli/<short-descriptive-name>.png' });
+  await mine.close();
+}"
+```
+
+Keep `$PWD` in the path: a relative path in `run-code` lands in the browser daemon's folder, not
+yours. To show a region lower on the page, add `await mine.mouse.wheel(0, 800);` before the
+screenshot.
+
 ### 2. Screenshot the visible area only
+
+In the browser you just started:
 
 ```bash
 playwright-cli -s=personal screenshot --filename=.playwright-cli/<short-descriptive-name>.png
@@ -44,9 +68,8 @@ If the user wants a different region in view (e.g. lower on the page), scroll fi
 
 ### 3. Deliver
 
-Send the file to the user with `SendUserFile`, passing its absolute path. If you opened a tab in a
-browser that was already running, close only that tab (`playwright-cli -s=personal tab-close`),
-never the browser.
+Send the file to the user with `SendUserFile`, passing its absolute path. Never close a browser
+that was already running.
 
 ## Notes
 

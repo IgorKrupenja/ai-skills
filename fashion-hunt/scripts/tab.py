@@ -53,8 +53,15 @@ async page => {
   }
   let mine;
   if (MODE === 'open') {
-    mine = await ctx.newPage();
-    const tid = await tidOf(mine);
+    // ctx.newPage() opens a foreground tab, which pulls Chrome in front of the user's other apps.
+    const s = await ctx.newCDPSession(page);
+    const { targetId: tid } = await s.send('Target.createTarget', { url: 'about:blank', background: true });
+    await s.detach().catch(() => {});
+    for (let i = 0; i < 50 && !mine; i++) {
+      mine = await find(tid);
+      if (!mine) await new Promise(r => setTimeout(r, 100));
+    }
+    if (!mine) return JSON.stringify({ ok: false, error: 'the new background tab did not appear' });
     try {
       await mine.goto(START, { waitUntil: 'domcontentloaded', timeout: 60000 });
     } catch (e) {
