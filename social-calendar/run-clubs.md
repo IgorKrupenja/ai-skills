@@ -63,19 +63,21 @@ scrape the SPA: its base44 backend is public.
 ```bash
 F="${TMPDIR:-/tmp}/runclubs.json"
 curl -s "https://base44.app/api/apps/698706c0c5103021976b4ab2/entities/RunClub?limit=1000" -o "$F"
-python3 - "$F" <<'EOF'
-import json, math, sys
-K = (59.4440, 24.7350)  # Kalamaja
-def km(lat, lon):
-    la1, lo1, la2, lo2 = map(math.radians, (*K, lat, lon))
-    h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
-    return 12742 * math.asin(math.sqrt(h))
-for c in json.load(open(sys.argv[1])):
-    if c.get("latitude") is None: continue
-    d = km(float(c["latitude"]), float(c["longitude"]))
-    if d > 3: continue
-    runs = [f'{s["day"]} {s["time"]}' for s in c.get("schedule") or [] if s.get("run_type") != "deleted"]
-    print(f'{d:.1f} km | {c["name"]} | ig={c.get("instagram_url")} | strava={c.get("strava_url")} | {runs} | special={c.get("special_runs")}')
+bun run - "$F" <<'EOF'
+const KALAMAJA = [59.444, 24.735];
+const rad = deg => (deg * Math.PI) / 180;
+function km(lat, lon) {
+  const [la1, lo1, la2, lo2] = [...KALAMAJA, lat, lon].map(rad);
+  const h = Math.sin((la2 - la1) / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin((lo2 - lo1) / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
+for (const c of await Bun.file(Bun.argv[2]).json()) {
+  if (c.latitude == null) continue;
+  const d = km(Number(c.latitude), Number(c.longitude));
+  if (d > 3) continue;
+  const runs = (c.schedule ?? []).filter(s => s.run_type !== "deleted").map(s => `${s.day} ${s.time}`);
+  console.log(`${d.toFixed(1)} km | ${c.name} | ig=${c.instagram_url} | strava=${c.strava_url} | ${JSON.stringify(runs)} | special=${JSON.stringify(c.special_runs)}`);
+}
 EOF
 ```
 

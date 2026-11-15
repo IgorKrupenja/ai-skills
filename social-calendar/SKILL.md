@@ -26,17 +26,24 @@ set -a && source "${SKILLS_DIR:-$HOME/.claude/skills}/.env" && set +a
 | `BOOKMARKS_FILE`                   | Path to the Chromium/Vivaldi bookmarks JSON                        |
 | `SOCIAL_CALENDAR_BOOKMARKS_FOLDER` | Folder path inside bookmarks, `/`-separated (e.g. `Social/Events`) |
 | `SOCIAL_CALENDAR_ID`               | Target Google Calendar ID (a private calendar)                     |
-| `SOCIAL_CALENDAR_EVENT_COLOR`      | `gog` event color id 1-11 (so events stand out). `6` = Tangerine   |
+| `SOCIAL_CALENDAR_EVENT_COLOR`      | Event `colorId` 1-11 (so events stand out). `6` = Tangerine        |
 | `SOCIAL_CALENDAR_TIMEZONE`         | IANA timezone, e.g. `Europe/Tallinn`                               |
 | `SOCIAL_CALENDAR_PAID_ID`          | Second private calendar, for events the user paid or registered for |
 | `GOOGLE_PLACES_API_KEY`            | Google Places key for `goplaces` (venue name → full address)       |
 
 State file: **`social-calendar/state.json`** (git-ignored). If missing, create it from `state.example.json`.
-`kokandus.py` keeps its own snapshot in `social-calendar/kokandus.json` (git-ignored); when it's missing, the next run saves a baseline.
+`kokandus.ts` keeps its own snapshot in `social-calendar/kokandus.json` (git-ignored); when it's missing, the next run saves a baseline.
 
-**Browser:** `playwright-cli` with the shared `personal` browser, which keeps the user's logins. Other chats may use it at the same time, so work in a background tab of your own through [`../scripts/tab.py`](../scripts/tab.py) (`open`, `run`, `close`; usage in its header).
+**Browser:** this repo's own `playwright-cli` browser (session `ai-skills`), which keeps the user's logins. Plain playwright-cli commands go through [`../scripts/browser.ts`](../scripts/browser.ts): `bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/browser.ts" list` first, and `… browser.ts open --headed` if `ai-skills` isn't open. Other chats may use it at the same time, so work in a background tab of your own through [`../scripts/tab.ts`](../scripts/tab.ts): `bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/tab.ts" open|run|close …` (usage in its header).
 
-The calendar was created once with `gog calendar create-calendar "<name>" --timezone "Europe/Tallinn"` and colored in the sidebar with `gog calendar subscribe "$SOCIAL_CALENDAR_ID" --color-id 6`. You don't need to recreate it.
+**Google Calendar:** through [`../scripts/gws.ts`](../scripts/gws.ts), this repo's `gws` (Google Workspace CLI): `bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar <resource> <method> --params '<json>' --json '<body>'`. Build the JSON with `jq -n`: it reads the env values as `$ENV.SOCIAL_CALENDAR_ID` and the like, and quotes everything right.
+
+The calendar was created once and colored in the sidebar, so you don't need to recreate it. Should it ever be needed again:
+```bash
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar calendars insert --json '{"summary": "<name>", "timeZone": "Europe/Tallinn"}'
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar calendarList patch \
+  --params "$(jq -n '{calendarId: $ENV.SOCIAL_CALENDAR_ID}')" --json '{"colorId": "6"}'
+```
 
 **Paid events get their own calendar**, `New Life · PAID` (created 2026-10-13 the same way).
 Among dozens of options in the picks calendar, a bought ticket drowned (the user's words). The
@@ -53,19 +60,19 @@ it. This holds for every request, not only crawls: a quick "покажи кул�
 they had bought on 03.10 was listed as open and recommended, and they paid for it a second time.
 
 ```bash
-python3 "${SKILLS_DIR:-$HOME/.claude/skills}/social-calendar/bought.py"
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/social-calendar/bought.ts"
 ```
 
 It prints every upcoming event in the PAID calendar (date, time, title, URL) and reads the
-calendar id from `.env` itself, so it works without the env step. `filter.py` and `kokandus.py`
+calendar id from `.env` itself, so it works without the env step. `filter.ts` and `kokandus.ts`
 run the same check on their own: the filter hides bought candidates (same URL, or the same date
-with one title inside the other), and `kokandus.py` moves bought courses into its ALREADY BOUGHT
+with one title inside the other), and `kokandus.ts` moves bought courses into its ALREADY BOUGHT
 block, out of every other block. Anything put together without them (an ad-hoc list, a single
-recommendation, a link the user pasted) you check against the `bought.py` output yourself.
+recommendation, a link the user pasted) you check against the `bought.ts` output yourself.
 
 - A bought event is never offered as something to buy or sign up for. In an ad-hoc list it
   stays, marked `уже куплено`; a recommendation skips it and says it's already bought.
-- When the calendar can't be read (gog auth, network), all three scripts print a `WARNING`.
+- When the calendar can't be read (gws sign-in, network), all three scripts print a `WARNING`.
   That means unknown, never "nothing bought": tell the user, and present nothing as available
   until the PAID calendar has been checked.
 
@@ -84,7 +91,7 @@ recommendation, a link the user pasted) you check against the `bought.py` output
    there while browsing. [`sources.yaml`](sources.yaml) is the copy next to this file, with a
    `notes` field per source. Sync it at the start of **every** crawl:
    ```bash
-   python3 "${SKILLS_DIR:-$HOME/.claude/skills}/social-calendar/sync_sources.py"
+   bun "${SKILLS_DIR:-$HOME/.claude/skills}/social-calendar/sync_sources.ts"
    ```
    It walks the bookmarks folder recursively (a subfolder becomes the `category`, e.g. `Running`),
    adds new bookmarks, **removes every source whose bookmark the user deleted**, keeps `notes`, and
@@ -113,14 +120,14 @@ recommendation, a link the user pasted) you check against the `bought.py` output
      notifications panel injects other people's event links into every page. Feeds load out of
      order and `innerText` timestamps are obfuscated, so confirm a post's age from a screenshot.
    - **Sources in the `Running` category are run clubs**, not event pages: there's a weekly schedule to find, not a listing to read. Read [`run-clubs.md`](run-clubs.md) and follow it.
-   - **The Tallinna Rahvaülikool cooking listing** (`kultuur.ee/valdkond/kokandus`) is watched, not windowed: its courses sell out within days of appearing. Instead of reading the page, run [`kokandus.py`](kokandus.py). It compares every upcoming course with the previous run and prints what is NEW, where spots OPENED again, every upcoming ITALIAN course (the user's priority) and all courses that still have spots. Courses the user already bought come first, in an ALREADY BOUGHT block, and never in the other blocks: mention them as bought, never offer them. Report the NEW, OPENED and ITALIAN blocks in their own section after the list, whatever their dates; courses with spots inside the crawl window also go into the list as usual (category Кулинарные курсы).
+   - **The Tallinna Rahvaülikool cooking listing** (`kultuur.ee/valdkond/kokandus`) is watched, not windowed: its courses sell out within days of appearing. Instead of reading the page, run [`kokandus.ts`](kokandus.ts) (`bun "${SKILLS_DIR:-$HOME/.claude/skills}/social-calendar/kokandus.ts"`). It compares every upcoming course with the previous run and prints what is NEW, where spots OPENED again, every upcoming ITALIAN course (the user's priority) and all courses that still have spots. Courses the user already bought come first, in an ALREADY BOUGHT block, and never in the other blocks: mention them as bought, never offer them. Report the NEW, OPENED and ITALIAN blocks in their own section after the list, whatever their dates; courses with spots inside the crawl window also go into the list as usual (category Кулинарные курсы).
    - Collect across ALL sources before showing anything:
      ```
      candidate = { title, date, url, source_url, location? }
      ```
    - `source_url` = the bookmark the candidate came from (needed for series bans).
 
-4. **Filter** with [`filter.py`](filter.py) (see [Filtering](#filtering-what-not-to-show)).
+4. **Filter** with [`filter.ts`](filter.ts) (see [Filtering](#filtering-what-not-to-show)).
    It drops everything already bought (the PAID calendar), added or declined and everything in
    a banned series.
 
@@ -222,7 +229,7 @@ date +"%Y-%m-%d %A %Z"
 - **Facebook draws emoji as images** (`<img alt="🎟">`), and `innerText` drops them: `🎟 Tickets` comes out as ` Tickets`. Clone the description node, replace every `img` in the clone with a text node holding its `alt`, attach the clone off-screen and read its `innerText`.
 - **Content policy:** do **not** summarize, do **not** translate, keep original line breaks, emphasis and emojis (incl. math-bold like `𝐌𝐔𝐔𝐒𝐈𝐊𝐀`). This is a private calendar: the full original text is the whole point.
 - Drop only FB's own UI chrome that lands in `innerText`: the trailing `See less` and the city tag link after it.
-- **Quoting:** write the assembled description to a temp file and pass `--description "$(cat file)"`. Inlining multi-line text with emoji into the shell mangles it.
+- **Quoting:** write the assembled description to a temp file and let `jq --rawfile` read it into the event (step 6). Inlining multi-line text with emoji into the shell mangles it.
 
 **3. Find the price.** Check, in this order:
    1. the ticket/price block FB and ticketing sites render **outside** the description text;
@@ -272,16 +279,20 @@ goplaces search "Venue Name, Tallinn" --api-key "$GOOGLE_PLACES_API_KEY" --json
 ```
 Use the `address` field. Sanity-check the `name` in the result actually matches the venue: Places happily returns a plausible wrong bar. Also glance at `business_status`: `CLOSED_PERMANENTLY` on a venue hosting a future event means you resolved the wrong place.
 
-**5. Check for duplicates** before creating, in **both** calendars (`gog calendar events` takes
-one calendar id at a time):
+**5. Check for duplicates** before creating, in **both** calendars (`events list` takes one
+calendar id at a time):
 ```bash
 for cal in "$SOCIAL_CALENDAR_ID" "$SOCIAL_CALENDAR_PAID_ID"; do
-  gog calendar events "$cal" --from 2026-09-01 --to 2026-09-02 --all-pages --json
+  bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar events list --page-all --params "$(jq -n --arg cal "$cal" \
+    '{calendarId: $cal, timeMin: "2026-09-01T00:00:00+03:00", timeMax: "2026-09-02T00:00:00+03:00", singleEvents: true, orderBy: "startTime"}')" \
+    | jq -c '.items[] | {id, summary, start: (.start.dateTime // .start.date), url: .source.url}'
 done
 ```
 Compare start time (few-minutes tolerance) + title. Also check the URL against `state.json` `added`. If it's a duplicate → report it and **stop**, don't create a second copy.
 
-> ⚠️ **`gog calendar events` paginates at 10 by default** and just returns a `nextPageToken`, so the missing events are invisible unless you look for it. A multi-day range silently truncates, so a duplicate check over a busy week can report "nothing there" while the duplicate sits on page 2. Always pass **`--all-pages`** (or `--max`), and treat any listing without it as unreliable.
+`timeMin` and `timeMax` need an offset: Tallinn is `+03:00` in summer time and `+02:00` in winter. `singleEvents: true` lists each occurrence of a recurring event on its own.
+
+> ⚠️ **`events list` returns one page at a time** (up to 250 events) plus a `nextPageToken`, so the missing events are invisible unless you look for it. A busy range silently truncates, so a duplicate check can report "nothing there" while the duplicate sits on page 2. Always pass **`--page-all`**: it fetches every page and prints one JSON object per page (hence `.items[]`). Treat any listing without it as unreliable.
 
 **6. Create the event.**
 
@@ -298,15 +309,21 @@ Always a middot `·`, never an em dash; always a numeric price, never the word `
 
 Once the user says they bought the ticket or registered, the event becomes `[PAID]` and moves to
 the PAID calendar. Move it, then swap `[BOOK]` for `[PAID]` and clear its color there; the event
-id survives the move, and you get it from `gog calendar events --json`. Never create a second event:
+id survives the move, and you get it from the `events list` output (`id`). Never create a second event:
 ```bash
-gog calendar move "$SOCIAL_CALENDAR_ID" <eventId> "$SOCIAL_CALENDAR_PAID_ID"
-gog calendar update "$SOCIAL_CALENDAR_PAID_ID" <eventId> --summary "… · 60€ [PAID]" --event-color ""
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar events move --params "$(jq -n --arg id "<eventId>" \
+  '{calendarId: $ENV.SOCIAL_CALENDAR_ID, eventId: $id, destination: $ENV.SOCIAL_CALENDAR_PAID_ID}')"
+E="${TMPDIR:-/tmp}/event.json"
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar events get --params "$(jq -n --arg id "<eventId>" \
+  '{calendarId: $ENV.SOCIAL_CALENDAR_PAID_ID, eventId: $id}')" | jq '.summary = "… · 60€ [PAID]" | del(.colorId)' > "$E"
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar events update --params "$(jq -n --arg id "<eventId>" \
+  '{calendarId: $ENV.SOCIAL_CALENDAR_PAID_ID, eventId: $id}')" --json "$(cat "$E")"
 ```
 Clearing the color matters: every pick carries an explicit Tangerine `colorId`, which would
-override the PAID calendar's own color. When the user hands over a link to something already
-bought ("купил билет, добавь"), create the event straight in `$SOCIAL_CALENDAR_PAID_ID` with
-`[PAID]` and without `--event-color`.
+override the PAID calendar's own color. A `patch` can't clear a field (gws rejects
+`"colorId": null`), so `update` writes the whole event back without it. When the user hands over
+a link to something already bought ("купил билет, добавь"), create the event straight in
+`$SOCIAL_CALENDAR_PAID_ID` with `[PAID]` and without `colorId`.
 
 **Description format:** three header lines, then a blank line, then the full original text:
 
@@ -318,25 +335,30 @@ bought ("купил билет, добавь"), create the event straight in `$S
 <FULL ORIGINAL DESCRIPTION>
 ```
 
+Write that description to a temp file (step 2), build the event with `jq`, then insert it:
 ```bash
-gog calendar create "$SOCIAL_CALENDAR_ID" \
-  --summary "Event Title · 15€" \
-  --from "YYYY-MM-DDTHH:MM:SS" \
-  --to   "YYYY-MM-DDTHH:MM:SS" \
-  --timezone "$SOCIAL_CALENDAR_TIMEZONE" \
-  --location "Telliskivi tn 62, 10412 Tallinn, Estonia" \
-  --event-color "$SOCIAL_CALENDAR_EVENT_COLOR" \
-  --source-url "<CANONICAL_EVENT_URL>" \
-  --description "EE
-15€
-<CANONICAL_EVENT_URL>
-
-<FULL ORIGINAL DESCRIPTION>"
+D="${TMPDIR:-/tmp}/description.txt"
+E="${TMPDIR:-/tmp}/event.json"
+jq -n --rawfile description "$D" \
+  --arg summary "Event Title · 15€" \
+  --arg start "YYYY-MM-DDTHH:MM:SS" --arg end "YYYY-MM-DDTHH:MM:SS" \
+  --arg location "Telliskivi tn 62, 10412 Tallinn, Estonia" \
+  --arg url "<CANONICAL_EVENT_URL>" '{
+    summary: $summary,
+    start: {dateTime: $start, timeZone: $ENV.SOCIAL_CALENDAR_TIMEZONE},
+    end: {dateTime: $end, timeZone: $ENV.SOCIAL_CALENDAR_TIMEZONE},
+    location: $location,
+    colorId: $ENV.SOCIAL_CALENDAR_EVENT_COLOR,
+    source: {url: $url},
+    description: ($description | rtrimstr("\n"))
+  }' > "$E"
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar events insert \
+  --params "$(jq -n '{calendarId: $ENV.SOCIAL_CALENDAR_ID}')" --json "$(cat "$E")"
 ```
-- Times: local `YYYY-MM-DDTHH:MM:SS` + `--timezone` (Google applies DST correctly). For all-day: `--all-day --from YYYY-MM-DD --to YYYY-MM-DD` (end = next day). Date-only ranges are fine for *listing* on gog v0.30.0, despite the older warning in the `events-add` skill.
-- `--location` takes the **resolved address** from step 4. (`--location-search "Venue, City"` also works and resolves internally, but resolving yourself lets you verify the match first.)
-- Add `-n/--dry-run` to inspect the exact payload before writing anything. Note it prints a `Dry run: would calendar.create` line **before** the JSON; strip it (`tail -n +2`) before piping to `jq`.
-- `--json` wraps the created event in an `event` key: read `.event.htmlLink`, not `.htmlLink`. Top-level `jq` on it silently yields `null`, which looks like a failed create when it actually succeeded.
+- Times: local `YYYY-MM-DDTHH:MM:SS` + `timeZone` (Google applies DST correctly). For all-day: `start: {date: "YYYY-MM-DD"}, end: {date: "YYYY-MM-DD"}` (end = next day) and no `timeZone`.
+- `location` takes the **resolved address** from step 4.
+- Add `--dry-run` to inspect the exact request (method, URL, body) before writing anything; nothing is sent. gws also checks the body against the API schema and exits with code 3 and an `error` object when it doesn't fit.
+- gws prints the created event itself: read `.htmlLink` and `.id` at the top level. Its stdout is plain JSON (the `Using keyring backend` line goes to stderr), so it pipes straight into `jq`.
 
 **7. Record it** in `state.json` `added`, for B2 links too, otherwise the crawler will re-suggest the event next week. (Schema below.)
 
@@ -352,14 +374,15 @@ separate from step 5: a *duplicate* (the same event twice) is still caught and r
 When the user asks for something that isn't an event from a link or the crawl, write the title
 and description **in English**, whatever language they asked in. That covers a reminder to buy
 tickets or a plan of their own. The six mandatory fields, the `· <price>` title and `state.json`
-don't apply here. Use a short timed slot with `--reminder popup:0m --transparency free`, so it
-pings them without blocking the time. Real events keep their own language: never translate an
-event (step 2).
+don't apply here. Use a short timed slot with
+`reminders: {useDefault: false, overrides: [{method: "popup", minutes: 0}]}` and
+`transparency: "transparent"` in the event, so it pings them without blocking the time. Real
+events keep their own language: never translate an event (step 2).
 
 ### C) "Not interested in 2, 4" / "Ban series 6" → remember the skip
 
 - **Single event** ("не интересно", "skip"): append to `declined`.
-- **Whole series** ("забань серию", "больше не предлагай такое"): append to `banned_series`. The match key is the event's title run through `filter.py normalize`, scoped to its `source_url`. The user can also give a custom phrase ("забань всё с 'карнавал осьминогов'"); normalize that phrase instead.
+- **Whole series** ("забань серию", "больше не предлагай такое"): append to `banned_series`. The match key is the event's title run through `filter.ts normalize`, scoped to its `source_url`. The user can also give a custom phrase ("забань всё с 'карнавал осьминогов'"); normalize that phrase instead.
 - After editing, confirm in one line what will now be hidden.
 
 > ⚠️ **Silence is NOT a decline here.** Only the events the user explicitly names get recorded.
@@ -377,11 +400,11 @@ event (step 2).
 ## Filtering: what NOT to show
 
 `state.json` remembers what not to show again, the PAID calendar what is already bought, and
-[`filter.py`](filter.py) applies both. Write the crawled candidates to a temp JSON array of
+[`filter.ts`](filter.ts) applies both. Write the crawled candidates to a temp JSON array of
 `{title, date, url, source_url, location}`, then run:
 
 ```bash
-python3 "${SKILLS_DIR:-$HOME/.claude/skills}/social-calendar/filter.py" "${TMPDIR:-/tmp}/candidates.json"
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/social-calendar/filter.ts" "${TMPDIR:-/tmp}/candidates.json"
 ```
 
 It prints `SHOW n / HIDE m` with the count per reason (for the report in step A5), one line per
@@ -393,7 +416,7 @@ occurs in its normalized title and the entry's `source` is `"*"` or the candidat
 nothing was checked for being bought: see [Already bought?](#already-bought-check-before-every-answer).
 
 A ban's `match` has to be normalized the same way (lowercase, numbers and punctuation dropped),
-so make it with the script: `filter.py normalize "Open Mic #12"` prints `open mic`.
+so make it with the script: `filter.ts normalize "Open Mic #12"` prints `open mic`.
 
 ---
 
@@ -423,15 +446,15 @@ Use `date +%F` for the `*_at` stamps. Edit the file directly (read → modify JS
 A last pass over the rules above:
 
 - **Bought:** before anything was shown or recommended, what's already bought was checked
-  (`bought.py`, or the same check inside `filter.py` and `kokandus.py`); nothing bought was
+  (`bought.ts`, or the same check inside `filter.ts` and `kokandus.ts`); nothing bought was
   offered as available, and a `WARNING` was reported, not ignored.
-- **Crawl:** `sync_sources.py` ran and its diff was reported; every source was crawled, none
-  skipped for "enough candidates" (the cooking listing through `kokandus.py`, with its ALREADY
+- **Crawl:** `sync_sources.ts` ran and its diff was reported; every source was crawled, none
+  skipped for "enough candidates" (the cooking listing through `kokandus.ts`, with its ALREADY
   BOUGHT, NEW, OPENED and ITALIAN blocks reported); every candidate is inside the 14-day window and has a URL; what was hidden was reported.
 - **List:** grouped by category in the set order, one numbering for the whole crawl, a series
   on one line, plain lines only (no bold, stars or reordering), and no word about time overlaps.
 - **Each event:** availability checked, and a sold-out pick asked about before anything was
-  created; canonical URL, date and time with `--timezone`, resolved address, a
+  created; canonical URL, date and time with `timeZone`, resolved address, a
   `· <price>` title (`[BOOK]` only when attending needs booking), the language / price / URL
   header and the full untranslated description; the user is never asked about the price.
 - **Paid:** every `[PAID]` event sits in the PAID calendar with no color of its own (it shows in

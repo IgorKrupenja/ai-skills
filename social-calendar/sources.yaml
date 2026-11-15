@@ -1,4 +1,4 @@
-# Sources for the social-calendar crawl, synced from the bookmarks folder by sync_sources.py
+# Sources for the social-calendar crawl, synced from the bookmarks folder by sync_sources.ts
 # on every crawl: new bookmarks are added, deleted ones are removed, `notes` are kept.
 # Edit `notes` freely, but keep every value a double-quoted string on a single line.
 sources:
@@ -105,7 +105,7 @@ sources:
   - name: "Kokandus - Tallinna Rahvaülikool"
     category: "Cooking"
     url: "https://kultuur.ee/valdkond/kokandus/"
-    notes: "Handled by kokandus.py (SKILL.md step A3), not by reading the page: it covers every upcoming course, whatever the date, and reports NEW, SPOTS OPENED and ITALIAN. Courses the user already bought (the PAID calendar, read through bought.py) come in its ALREADY BOUGHT block and never in the others. A course page names the instructor right before 'Koolituse juhendaja'. Courses are in Estonian unless the page says 'NB! Kursus on <keel> keeles' (only some Italian and Mexican ones are in English); 'Tallinn Connect B1+' courses are in Estonian but welcome learners."
+    notes: "Handled by kokandus.ts (SKILL.md step A3), not by reading the page: it covers every upcoming course, whatever the date, and reports NEW, SPOTS OPENED and ITALIAN. Courses the user already bought (the PAID calendar, read through bought.ts) come in its ALREADY BOUGHT block and never in the others. A course page names the instructor right before 'Koolituse juhendaja'. Courses are in Estonian unless the page says 'NB! Kursus on <keel> keeles' (only some Italian and Mexican ones are in English); 'Tallinn Connect B1+' courses are in Estonian but welcome learners."
   - name: "Matkajad | Facebook"
     category: "Hiking"
     url: "https://www.facebook.com/groups/1409233316018355"
