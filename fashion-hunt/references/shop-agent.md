@@ -42,6 +42,8 @@ a human check yourself. If one stays, or the shop wants a sign-in, report the sh
 - Read with `p.evaluate` returning just the text or fields you need, not whole-page snapshots.
 - Narrow first: with the shop's category, brand and color filters, or by keeping only results whose
   brand already matches, before opening any listings. Don't read details of hundreds of results.
+- Once the filters and a few text queries cover the shop, stop: don't add more languages or
+  spellings than the shop's listings use.
 - Check many product pages in one `run`, with a loop.
 - Look at photos only when the color or model is unclear. If ImageMagick's `montage` is installed,
   combine several screenshots into one sheet and read that.
@@ -87,16 +89,19 @@ country the item ships from.
 
 ## Site notes
 
-- **Yaga (yaga.ee):** search with `/otsi/<query>`, running brand and category terms separately when
-  needed, with Estonian terms such as `kott`/`käekott` (bag/handbag), `rahakott` (wallet), `vöö`
-  (belt), `meestele` (men's) and `valge` (white). The search cards show no titles, so use the
-  site's own JSON, which `/otsi/` loads: from a yaga.ee page,
-  `fetch('/api/product/search/?query=<q>&offset=0&limit=60')` lists the slugs (page with
-  `offset`), and `/api/product/<slug>` gives the description, category path, colors, condition,
-  status, reservation, location and buyer fees. The search list already carries each result's
-  `brand`, so fetch details only for the requested brands. Matches can rank below the first
-  results, so go through all of them, but skip the similar-items carousels on listing pages. Check
-  the photos when the seller set no color.
+- **Yaga (yaga.ee):** its search cards show no titles, so use the JSON its `/otsi/` page loads,
+  with `fetch` from a yaga.ee page:
+  `/api/product/search/?categories=323&brands=[62,122]&colors=[13,16]&offset=0&limit=60`.
+  The category takes a bare id and brands and colors a bracketed list; `query=<text>` is optional
+  once a filter is set. Other parameter names are silently ignored, so check that the count
+  changes. `total` isn't a real count: keep paging until a page has fewer than 60 results. Ids:
+  men's belts 323, women's belts 138, men's accessories 24 (with its subcategories); Louis Vuitton
+  62, Hugo Boss 122 (its only entry, covering BOSS and HUGO); white 13, cream 16. Look up others in
+  `/api/category`, `/api/brand` and `/api/color`. `/api/product/<slug>` gives the description,
+  category path, colors, condition, status, reservation, location and buyer fees. Sellers often
+  set no brand or color, so also run the category with the brands but no color and check the
+  photos of results without one, plus two or three text queries in the category with Estonian
+  terms such as `vöö` (belt), `kott` (bag), `rahakott` (wallet) and `valge` (white).
 - **Vinted (vinted.ee):** open a pasted filtered URL with its full query string. Repeated parameters
   such as several `brand_ids[]` or `color_ids[]` are separate filters, and rebuilding the search
   from text or a single-value map drops them. Men's belts are `catalog[]=96`, white is
