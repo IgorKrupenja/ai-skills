@@ -70,7 +70,7 @@ async (p, env) => {
     await p.waitForTimeout(1200);
     if (await atLimit()) { limit = true; break; }
     const send = p.locator('dialog, [role="dialog"]').getByRole('button', { name: 'Send without a note' });
-    if (await send.count()) { await send.first().click(); await p.waitForTimeout(800); }
+    if (await send.count() && await send.first().isEnabled()) { await send.first().click(); await p.waitForTimeout(800); }
     if (await atLimit()) { limit = true; break; }
     if (await p.locator(`main [aria-label$="invitation sent to ${q(name)}"]`).count()) { sent++; continue; }
     skipped.push(name);
@@ -91,7 +91,8 @@ async (p, env) => {
 
 A person counts as sent once their control turns into **Pending**. `skipped` lists anyone whose
 invite didn't go through (for example LinkedIn asked for their email): take a screenshot when
-that happens and say why in the report.
+that happens and say why in the report. When LinkedIn asks for their email, **Send without a note**
+stays disabled, so the script leaves it alone and dismisses the dialog.
 
 ### 3. Report summary
 
