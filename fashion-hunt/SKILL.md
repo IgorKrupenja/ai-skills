@@ -36,7 +36,8 @@ profile keeps the user's shop logins, currency and cookie choices, so shops beha
 the user.
 
 Run `playwright-cli list` first. If `personal` is already open, another chat may be using it: open
-a tab of your own, and at the end close only that tab, never the browser.
+a tab of your own, and at the end close only that tab, never the browser. Another chat can also
+join after you start, so keep every command in your own tab, as your global instructions describe.
 
 ```bash
 playwright-cli -s=personal tab-new "<url>"
@@ -47,24 +48,6 @@ Otherwise start it, adding the launch flags your global instructions give, if an
 ```bash
 playwright-cli -s=personal open "<url>" --headed --persistent
 ```
-
-Another chat can start using the browser at any time, even one you opened yourself. Plain commands
-such as `goto`, `click`, `fill`, `eval`, `snapshot` and `tab-close` act on whichever tab is current,
-and that chat's `tab-new` or `tab-select` changes it without warning, so they can land in its tab,
-which may be showing a sign-in or two-factor prompt. So drive your tab through `run-code` from the
-start: find your own page by the URL you last left it on (check `tab-list` that no other tab shares
-it) and act on that page instead of `page`. Read it there too, with `mine.evaluate(...)` or
-`mine.locator('body').ariaSnapshot()`, and close it with `await mine.close()`.
-
-```bash
-playwright-cli -s=personal run-code "async page => {
-  const mine = page.context().pages().find(p => p.url().includes('vinted.ee'));
-  await mine.goto('https://www.vinted.ee/catalog?catalog[]=96');
-  return mine.url();
-}"
-```
-
-Never type into, click in or navigate a tab you didn't open.
 
 The browser is signed in as the user, so only look: don't favourite items, follow sellers, message
 anyone, add to cart or buy.
