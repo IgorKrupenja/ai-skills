@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Print the current user's Vivaldi shop bookmarks from Fashion/Online and Fashion/Tallinn.
+"""Print the shops bookmarked under Fashion/Online and Fashion/Tallinn in BOOKMARKS_FILE.
 
 Pass --city <name> (repeatable) to also read another city's folder, such as Fashion/Helsinki.
+BOOKMARKS_FILE comes from the skills .env, so load that first.
 """
 
 from __future__ import annotations
@@ -16,43 +17,16 @@ from typing import Any
 
 PARENT_FOLDER = "Fashion"
 DEFAULT_FOLDERS = ("Online", "Tallinn")
-BOOKMARK_ROOT = Path.home() / "Library" / "Application Support" / "Vivaldi"
 
 
 def find_bookmarks_file() -> Path:
-    override = os.environ.get("VIVALDI_BOOKMARKS_FILE")
-    if override:
-        path = Path(override).expanduser()
-        if path.is_file():
-            return path
-        raise FileNotFoundError(f"VIVALDI_BOOKMARKS_FILE is not a file: {path}")
-
-    state_path = BOOKMARK_ROOT / "Local State"
-    if state_path.is_file():
-        try:
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-            last_used = state.get("profile", {}).get("last_used")
-            if isinstance(last_used, str) and last_used:
-                candidate = BOOKMARK_ROOT / last_used / "Bookmarks"
-                if candidate.is_file():
-                    return candidate
-        except (OSError, json.JSONDecodeError):
-            pass
-
-    default_profile = BOOKMARK_ROOT / "Default" / "Bookmarks"
-    if default_profile.is_file():
-        return default_profile
-
-    candidates = sorted(path for path in BOOKMARK_ROOT.glob("*/Bookmarks") if path.is_file())
-    if len(candidates) == 1:
-        return candidates[0]
-    if len(candidates) > 1:
-        paths = "\n".join(str(path) for path in candidates)
-        raise RuntimeError(
-            "More than one Vivaldi profile has bookmarks and the active profile is unclear. "
-            "Set VIVALDI_BOOKMARKS_FILE to the active profile's Bookmarks file.\n" + paths
-        )
-    raise FileNotFoundError(f"No Vivaldi Bookmarks file found under {BOOKMARK_ROOT}")
+    value = os.environ.get("BOOKMARKS_FILE")
+    if not value:
+        raise FileNotFoundError("BOOKMARKS_FILE is not set: load the skills .env first")
+    path = Path(value).expanduser()
+    if not path.is_file():
+        raise FileNotFoundError(f"BOOKMARKS_FILE is not a file: {path}")
+    return path
 
 
 def walk_folder(
@@ -142,7 +116,7 @@ def main() -> int:
         bookmarks_path = find_bookmarks_file()
         bookmarks = json.loads(bookmarks_path.read_text(encoding="utf-8"))
         found, available, entries = collect_targets(bookmarks, wanted)
-    except (OSError, json.JSONDecodeError, RuntimeError) as exc:
+    except (OSError, json.JSONDecodeError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
 

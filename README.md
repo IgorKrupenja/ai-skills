@@ -91,7 +91,11 @@ Uses the `gog` Google Calendar CLI. On every crawl `sync_sources.py` syncs the b
 
 Find live listings of a fashion item, mostly designer accessories, in the shops bookmarked in Vivaldi under `Fashion/Online` and `Fashion/Tallinn`, and compare each with the brand's new price. Subagents search all shops and brand stores in parallel, each in its own background tab of the shared `playwright-cli` browser. The report is one table sorted by price, with near matches grouped apart, authenticity risks flagged and changes since the last run.
 
-Needs subagents (e.g. Claude Code), else it searches shops one by one. No `.env` values: bookmarks come from the active Vivaldi profile, or `VIVALDI_BOOKMARKS_FILE` if set.
+In tools without subagents, it searches the shops one at a time instead.
+
+| Variable         | Description                                 |
+| ---------------- | ------------------------------------------- |
+| `BOOKMARKS_FILE` | Path to the Chromium/Vivaldi bookmarks JSON |
 
 ### screenshot
 
