@@ -76,10 +76,6 @@ Uses the `gog` Google Calendar CLI. On every crawl `sync_sources.py` syncs the b
 | `SOCIAL_CALENDAR_EVENT_COLOR`      | `gog` event color id 1-11 so events stand out (`6` = Tangerine)    |
 | `SOCIAL_CALENDAR_TIMEZONE`         | IANA timezone, e.g. `Europe/Tallinn`                               |
 
-## Cloud agents
-
-Skills are built for local use, but some can also run in cloud agents (headless). Each skill's `SKILL.md` has a **"Runs in:"** line (local / cloud). See [`cloud/`](cloud/README.md) for the headless setup (committed `.mcp.json` + a Chromium install step) and the matrix of which skills are cloud-viable (`volta-sales-crawl` is the reference example).
-
 ## Security disclaimer
 
 - All secrets should be in env variables.

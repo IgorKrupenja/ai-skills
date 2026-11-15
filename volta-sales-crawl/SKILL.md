@@ -6,8 +6,6 @@ allowed-tools: Bash, Read
 
 # Volta Sales Crawl Skill
 
-> **Runs in:** local + cloud — fetches the public pages over HTTP and parses them in Python (**no browser**). Trivially cloud-runnable; needs nothing installed.
-
 Report **sold vs unsold** apartments across all Endover Volta buildings — overall, per
 building, and per apartment type (rooms) — WITH and WITHOUT Volta Skai (Krulli 10).
 
@@ -92,5 +90,4 @@ python3 -c "import json; [print(r['ts'], r['units']['UV 10/3'].get('16')) for r 
 - If a page layout changes and the parser can't find a rooms + `Hind` header or an `Nr`
   column, `volta.py` exits with an error naming the URL — fix the parser there.
 - This skill used to drive a headless browser; it's now plain HTTP + HTML parsing because the
-  apartment tables are fully server-rendered. (Cloud browser setup for genuinely JS-only
-  skills lives in [/cloud](../cloud/README.md).)
+  apartment tables are fully server-rendered.

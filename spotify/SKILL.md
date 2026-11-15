@@ -5,8 +5,6 @@ description: Use the Spotify Web API to manage the user's playlists — search a
 
 # Spotify
 
-> **Runs in:** any environment with Python 3, network access, and the Spotify environment variables. The one-time OAuth bootstrap needs a browser signed in to the right account. Local files and browser sessions are not copied into cloud sessions automatically.
-
 Manage the user's Spotify playlists through the **official Web API** using a
 registered-app **user** token. This is the preferred way to add/remove/list
 tracks — it is reliable and not throttled like the scraped web-player token.

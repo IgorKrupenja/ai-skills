@@ -2,7 +2,7 @@
 """Spotify Web API helper — token management + common playlist operations.
 
 Pure Python 3 standard library — no pip installs, no build step, runs anywhere
-python3 exists (macOS + the cloud sandbox both ship it):
+python3 exists (macOS ships it):
 
     python3 spotify.py <command>
 

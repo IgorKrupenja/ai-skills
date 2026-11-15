@@ -1,5 +1,6 @@
 .env
 .playwright-mcp/
+.playwright-cli/
 .claude
 
 # Python bytecode caches, in any folder at any depth

@@ -5,8 +5,6 @@ description: Personal social calendar with events for the soul (culture, leisure
 
 # Social Calendar: Personal Events Skill
 
-Runs in: **local** (needs the browser + the local Vivaldi bookmarks file).
-
 A dead-simple, personal counterpart to the tallinn.dev event skills, but for **culture & leisure** ("для души"), not IT/work. No Coda, no labels, no publishing. Just:
 
 **crawl bookmarked sources → list in chat → add the picks to a private calendar → remember the rejects.**
