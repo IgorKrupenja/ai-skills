@@ -10,6 +10,9 @@ with what the item costs new from the brand. Most of these shops sell pre-owned 
 the point is to show what can be bought right now and whether the price is good. The item is
 open-ended: use whatever brand, model, type and constraints the user gives.
 
+The search runs in parallel, with one subagent per shop and one per brand, each in a browser tab of
+its own, so a full search takes about as long as the slowest shop rather than all of them in turn.
+
 ## Shops to search
 
 Start every search by running `scripts/read_vivaldi_bookmarks.py` from this skill's folder. It
@@ -28,36 +31,6 @@ history, cookies or passwords.
 A URL the user pastes may be inspected even if its site isn't bookmarked, but that doesn't add the
 site to the search. Mark results from it as coming from outside the bookmarks.
 
-## Browser
-
-Browse every shop with `playwright-cli` in the shared `personal` session, like the user's other
-skills (its commands are in the `playwright-cli` skill), not with another browser. That persistent
-profile keeps the user's shop logins, currency and cookie choices, so shops behave as they do for
-the user.
-
-Run `playwright-cli list` first. If `personal` is already open, another chat may be using it: open
-a tab of your own, and at the end close only that tab, never the browser. Another chat can also
-join after you start, so keep every command in your own tab, as your global instructions describe.
-
-```bash
-playwright-cli -s=personal tab-new "<url>"
-```
-
-Otherwise start it, adding the launch flags your global instructions give, if any:
-
-```bash
-playwright-cli -s=personal open "<url>" --headed --persistent
-```
-
-The browser is signed in as the user, so only look: don't favourite items, follow sellers, message
-anyone, add to cart or buy.
-
-Some shops show a Cloudflare or similar check first. Many clear on their own, so wait a few
-seconds and take a fresh snapshot before calling a shop blocked. Don't click through a human check
-yourself. If one stays, or a shop wants a sign-in, carry on with the other shops, then name the
-blocked ones in the report and offer to search them once the user has dealt with it in the browser
-window (it runs headed).
-
 ## Read the request
 
 Break the request into the item type and its criteria: brand, audience or gender, color, material,
@@ -65,117 +38,71 @@ model, size and condition. "A or B" means search both; the other criteria apply 
 white belts from LV or Hugo Boss" is belts AND men's AND white, with Louis Vuitton OR Hugo
 Boss/BOSS as the brand.
 
-Expand each search with likely equivalents: brand aliases ("LV"), spelling variants, translations
-(several shops are Estonian or Finnish) and each shop's own category and color labels. Don't add
-other brands or relax a criterion to get more results. An item that misses one criterion (cream
-instead of white, unisex instead of men's) is a near match, reported separately with what differs.
+List each brand's aliases for the agents (LV for Louis Vuitton; BOSS and HUGO for Hugo Boss). An
+item that misses exactly one criterion (cream instead of white, unisex instead of men's) is a near
+match, reported separately with what differs.
 
-## Search each shop
+## Run the search
 
-Search every shop through its own search, category pages, filters and pagination, then open the
-candidate product pages. Don't use a search engine, even as a fallback: its results are stale and
-incomplete, and what matters is what the shop lists now.
+1. Run `playwright-cli list`. If the shared `personal` browser isn't open, start it now, before any
+   agent needs it, adding the launch flags your global instructions give, if any:
 
-- Use the shop's filters when it has them: category, audience, brand and color, plus material,
-  size or condition when they match the request. If a filter takes one value at a time, run each
-  requested alternative separately.
-- Search each requested brand separately, combined with the other criteria.
-- Go through all result pages or lazy-loaded results before saying a shop has no matches.
-- Confirm each match on the product page. Filter labels aren't proof: a white filter can let
-  through off-white or multicolor items.
-- If a shop's search fails, try its category navigation; if the homepage is blocked, go straight to
-  a category route or a pasted item URL. A shop you couldn't search is reported as not searched,
-  never as having no matches.
-- Never infer price or availability from URL text, cached snippets or blocked pages.
+   ```bash
+   playwright-cli -s=personal open "<any shop url>" --headed --persistent
+   ```
 
-### Site notes
+   If it's already open, other chats may be using it, so leave its tabs alone.
+2. Pick a run id of four random lowercase letters, such as `qkzv`. Each agent's tab tag is the run
+   id plus its shop or brand, such as `qkzv-vinted`.
+3. In a single message, start one subagent per shop the script printed and per URL the user pasted,
+   plus one per requested brand for the new price: in Claude Code, the Agent tool with the
+   general-purpose type. Fill in the briefs below. Tell the user in one line how many agents are
+   searching, then wait for all of them to report, without browsing yourself.
+4. If an agent fails or its report is unusable, start a fresh one for that shop once; if that fails
+   too, report the shop as not searched. If an agent hasn't reported after 15 minutes, stop it and
+   report its shop as not searched (timed out), so one slow shop doesn't hold up the rest.
+5. When all have reported, run `python3 scripts/tab.py cleanup <run id>` from this skill's folder to
+   close any tab an agent left open, then write the report.
 
-- **Yaga (yaga.ee):** search with `/otsi/<query>`, running brand and category terms separately when
-  needed, with Estonian terms such as `kott`/`käekott` (bag/handbag), `rahakott` (wallet), `vöö`
-  (belt), `meestele` (men's) and `valge` (white). Check the listing itself for the item, color,
-  men's category, price, sold state and shipping. Matches can rank below the first few cards, so go
-  through the results, but skip the similar-items carousels. The search cards show no titles, so
-  the site's own JSON, which `/otsi/` loads, is quicker: from a yaga.ee page,
-  `fetch('/api/product/search/?query=<q>&offset=0&limit=60')` lists the slugs (page with
-  `offset`), and `/api/product/<slug>` gives the description, category path, colors, condition,
-  status, reservation, location and buyer fees. Check the photos when the seller set no color.
-- **Vinted (vinted.ee):** open a pasted filtered URL with its full query string. Repeated parameters
-  such as several `brand_ids[]` or `color_ids[]` are separate filters, and rebuilding the search
-  from text or a single-value map drops them. Confirm the filter chips and result count, then check
-  every card in the filtered grid (not sponsored, showcase or recommendation blocks) on its item
-  page: title, photos, price, size, condition and availability. Color filters let through
-  multicolor and off-color items, so separate true matches from near matches. Record the item price
-  apart from the buyer-protection total; shipping is added at checkout. If an item page won't load,
-  report only what the card shows and mark the rest unverified. Men's belts are `catalog[]=96`,
-  white is `color_ids[]=12` and cream `color_ids[]=20`. A brand can have several entries (Hugo Boss
-  has Hugo Boss, BOSS Hugo Boss, HUGO Hugo Boss, Boss, Boss Orange and BOSS Green), so tick each in
-  the brand filter's search and take the ids from the URL. Item pages have no ships-from field, and
-  a description that says SOLD means sold even while Buy now still shows.
-- **Vestiaire Collective (vestiairecollective.com):** use the catalog filters for audience,
-  category, brand and color (men's belts, for example, are under men's accessories). The filters
-  live after `#` in the URL, so open a pasted catalog URL with its query and fragment intact.
-  Confirm the filter chips and result count, then scroll the whole grid: cards lazy-load even when
-  pagination shows one page. If both White and Ecru are selected, White is the match and Ecru a near
-  match. Show prices in EUR (footer, Language/Currency); if that fails, convert at a verified rate
-  and mark it approximate. A price shown in a currency other than the seller's may include a
-  conversion fee of up to 5%. In that dialog, pick the currency before the country (picking a
-  currency resets the country), then Save. A color added to the URL fragment by hand may not apply,
-  so click the Colour filter and check its chip. Boss, Hugo Boss and Boss Orange are separate
-  designers. The item's ships-from country is the "Location" line under DETAILS, and "The seller is
-  on vacation" means it can't be bought now.
-- **Queen Station (queenstation.fi):** search results stop at about 240 products, so filter a brand
-  collection instead: `/collections/louis-vuitton?filter.p.product_type=Belts&filter.v.availability=1`
-  lists only the belts in stock.
-- **YOOX (yoox.com):** a text-search parameter is dropped, so use the category with the Designer
-  filter (men's HUGO belts add `brand[0]=HUGO BOSS-202 > HUGO-22874`). Cards show no color; the
-  item page title does, as in "HUGO Black Men's Leather Belt".
-- **Care of Carl (careofcarl.com):** pick Estonia in the delivery-country dialog first. Besides new
-  items it has a pre-owned section, with Louis Vuitton at `/en/louis-vuitton-pre-owned`.
+Where subagents aren't available, search the shops one at a time yourself, following
+`references/shop-agent.md` and then `references/brand-agent.md`.
 
-## Check each listing
+Shop brief:
 
-On the product page, record the price and currency, condition, size, color and material, and the
-country the item ships from.
+```
+Search <shop name> (<shop url>) for <the request in one line>.
+Criteria: <item type>; brand <brands and aliases>; <audience>; <color>; <other constraints>.
+A near match misses exactly one criterion, such as cream instead of white.
+Today is <date>. Your tab tag is <run id>-<shop slug>. Skill folder: <skill dir>.
+First read <skill dir>/references/shop-agent.md and follow it.
+```
 
-- **Condition:** keep the marketplace's own label; "not stated" if there is none.
-- **Ships from:** use an explicit "ships from" or item-location field. The seller's home country,
-  the shop's registered address and the delivery destination don't count; "not stated" if the
-  origin isn't given.
-- **Availability:** keep only listings that can be bought now. Leave out sold, sold-out, reserved,
-  removed and expired items entirely, near matches included. If nothing active is left, say there
-  are no active matches rather than listing the unavailable ones. Category pages and search
-  snippets aren't offers.
+Brand brief:
 
-## Check the new retail price
+```
+Find the new price at <brand> for <the request in one line>.
+Today is <date>. Your tab tag is <run id>-<brand slug>. Skill folder: <skill dir>.
+First read <skill dir>/references/brand-agent.md and follow it.
+```
 
-For every search, find the exact item, or its current equivalent, on the brand's official website,
-using the Estonia or EU storefront when there is one, and link the page. When neither shows prices,
-use another of the brand's EUR stores, in English if there is one, and say which. A reseller's
-price isn't the retail price. The brand's site gives the reference price only: if the shops have no
-matches, say so rather than offering the brand's own products instead.
+## Compare with the new price
 
-- **Louis Vuitton:** there is no Estonian store, and the EU-wide site (`eu.louisvuitton.com/eng-e1`)
-  shows no prices. Use the Netherlands store in English, `https://en.louisvuitton.com/eng-nl/`,
-  which prices in EUR and uses the same product paths. The product page gives the color and
-  materials, such as "White/Black, canvas strap, leather reverse".
-- **Hugo Boss:** there is no Estonian store (`hugoboss.com/ee` is a 404). Use the Finland store in
-  English, `https://www.hugoboss.com/fi/en/`, which prices in EUR; men's belts, for example, are at
-  `/fi/en/men-belts/`. Under FILTER & SORT, Color lists how many products come in each color, so a
-  color missing there isn't sold new. In the cookie dialog, Save services with only Necessary on
-  declines the rest.
-
-Compare like with like and note when size, material, edition or variant differs. If the brand
-doesn't list the item, write "not currently listed by manufacturer" rather than estimating. When a
-listing and the retail price are in the same currency for a comparable variant, calculate the
-difference and flag listings priced above new. Across currencies, calculate only with a current
-verified exchange rate.
+Match each listing with the brand agent's closest item: same model, material and edition, and note
+when size, material, edition or variant differs. If the brand doesn't list the item, write "not
+currently listed by manufacturer" rather than estimating. When a listing and the retail price are in
+the same currency for a comparable variant, calculate the difference and flag listings priced above
+new. Across currencies, calculate only with a current verified exchange rate. The brand's price is a
+reference only: if the shops have no matches, say so rather than offering the brand's own products
+instead.
 
 ## Report
 
-State the date checked and which shops were searched, naming any that couldn't be. Then give one
-table with a row per live listing from every shop searched, sorted by EUR price, lowest first. When
-the user adds a shop or URL later, the new table still covers every shop searched, not only the new
-one.
+State the date checked and which shops were searched. Name any that were blocked or couldn't be
+searched, and offer to search them again once the user has dealt with the check or sign-in in the
+browser window (it runs headed). Then give one table with a row per live listing from every shop
+searched, merged from all the agents' reports and sorted by EUR price, lowest first. If no shop has
+a live match, say so instead. When the user adds a shop or URL later, the new table still covers
+every shop searched, not only the new one.
 
 | Source website | Item / variant | Condition | Size | Listing price | New at manufacturer | Difference | Ships from |
 | --- | --- | --- | --- | ---: | ---: | ---: | --- |
