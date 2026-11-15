@@ -59,8 +59,10 @@ match, reported separately with what differs.
    general-purpose type. Fill in the briefs below. Tell the user in one line how many agents are
    searching, then wait for all of them to report, without browsing yourself.
 4. If an agent fails or its report is unusable, start a fresh one for that shop once; if that fails
-   too, report the shop as not searched. If an agent hasn't reported after 15 minutes, stop it and
-   report its shop as not searched (timed out), so one slow shop doesn't hold up the rest.
+   too, report the shop as not searched. Set a background timer for 15 minutes when you start
+   them. At that point, message every agent still running to stop, close its tab and report what it
+   has verified so far; stop any that hasn't reported 3 minutes later and list its shop as not
+   searched (timed out), so one slow shop doesn't hold up the rest.
 5. When all have reported, run `python3 scripts/tab.py cleanup <run id>` from this skill's folder to
    close any tab an agent left open, then write the report.
 
