@@ -6,22 +6,27 @@ the brand's new prices, so stay on your shop and reply in the format at the end.
 
 ## Browser
 
-Work only in a tab of your own in the shared `personal` playwright-cli browser, through
-`scripts/tab.py` in this skill's folder (the folder above this file). Other agents search other
-shops in the same browser at the same time, and plain `playwright-cli` commands act on whichever
-tab is current, so they would land in someone else's tab: don't use them, apart from
-`playwright-cli list`. Never switch to, read, close or navigate another tab, and never open or close
-the browser itself; if it isn't open, report that and stop.
+Work only in a tab of your own in the skills repo's own playwright-cli browser (session
+`ai-skills`), through `scripts/tab.ts` in the skill folder your brief gives, `<skill dir>` below
+(the folder above this file). Run it with Bun by its full path, as below, so it works from whatever
+folder you're in.
+
+Other agents search other shops in the same browser at the same time, and plain playwright-cli
+commands act on whichever tab is current, so they would land in someone else's tab: don't use them,
+whether through `<skill dir>/../scripts/browser.ts` or a `playwright-cli` on your PATH (that one
+drives another browser). The one exception is `bun <skill dir>/../scripts/browser.ts list`, which
+shows whether the `ai-skills` browser is open. Never switch to, read, close or navigate another
+tab, and never open or close the browser itself; if it isn't open, report that and stop.
 
 ```bash
-python3 <skill dir>/scripts/tab.py open <tag> "<shop url>"
-python3 <skill dir>/scripts/tab.py run <tag> <<'JS'
+bun <skill dir>/scripts/tab.ts open <tag> "<shop url>"
+bun <skill dir>/scripts/tab.ts run <tag> <<'JS'
 async (p, env) => {
   await p.goto('https://example.com/search?q=belt');
   return await p.evaluate(() => document.body.innerText.slice(0, 3000));
 }
 JS
-python3 <skill dir>/scripts/tab.py close <tag>
+bun <skill dir>/scripts/tab.ts close <tag>
 ```
 
 `p` is your tab's Playwright Page, and `run` prints whatever the function returns. Keep each call

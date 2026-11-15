@@ -13,13 +13,16 @@ open-ended: use whatever brand, model, type and constraints the user gives.
 The search runs in parallel, with one subagent per shop and one per brand, each in a browser tab of
 its own, so a full search takes about as long as the slowest shop rather than all of them in turn.
 
+Run every command in this file from this skill's folder: `scripts/` is the skill's own scripts
+folder, and `../scripts/` the skills repo's shared one. The scripts run with Bun.
+
 ## Shops to search
 
-Start every search by running this from this skill's folder. It loads `BOOKMARKS_FILE`, the path to
-the user's bookmarks file, from the skills `.env`:
+Start every search by running this. It loads `BOOKMARKS_FILE`, the path to the user's bookmarks
+file, from the skills `.env`:
 
 ```bash
-set -a && source "${SKILLS_DIR:-$HOME/.claude/skills}/.env" && set +a && python3 scripts/read_vivaldi_bookmarks.py
+set -a && source "${SKILLS_DIR:-$HOME/.claude/skills}/.env" && set +a && bun scripts/read_vivaldi_bookmarks.ts
 ```
 
 It prints the shops bookmarked in Vivaldi under `Fashion/Online` and `Fashion/Tallinn`, the user's
@@ -53,15 +56,19 @@ not a near match. A reversible item with one side in the requested color is a ma
 white on one side only.
 
 Name the search with a short slug for the history, such as `white-mens-belts-lv-boss`. Run
-`python3 scripts/history.py list` first and reuse the slug of an earlier run of the same request.
+`bun scripts/history.ts list` first and reuse the slug of an earlier run of the same request.
 
 ## Run the search
 
-1. Run `playwright-cli list`. If the shared `personal` browser isn't open, start it now, before any
-   agent needs it, adding the launch flags your global instructions give, if any:
+The search uses the skills repo's own playwright-cli browser, session `ai-skills`, through
+`../scripts/browser.ts` and `scripts/tab.ts`. A `playwright-cli` on your PATH runs another browser,
+so don't use it here.
+
+1. Run `bun ../scripts/browser.ts list`. If the `ai-skills` browser isn't open, start it now,
+   before any agent needs it (the script adds the persistent profile and the repo's config itself):
 
    ```bash
-   playwright-cli -s=personal open "<any shop url>" --headed --persistent
+   bun ../scripts/browser.ts open "<any shop url>" --headed
    ```
 
    If it's already open, other chats may be using it, so leave its tabs alone.
@@ -71,21 +78,23 @@ Name the search with a short slug for the history, such as `white-mens-belts-lv-
    plus one per requested brand for the new price: in Claude Code, the Agent tool with the
    general-purpose type. The big marketplaces, Vinted and Vestiaire Collective, take the longest,
    so when the request names several brands, start one agent per brand there instead (tab tag
-   `<run id>-<shop slug>-<brand slug>`). Fill in the briefs below. Tell the user in one line how
-   many agents are searching, then wait for all of them to report, without browsing yourself.
+   `<run id>-<shop slug>-<brand slug>`). Fill in the briefs below, giving this skill's folder as an
+   absolute path, since an agent may start in another folder. Tell the user in one line how many
+   agents are searching, then wait for all of them to report, without browsing yourself.
 4. If an agent fails or its report is unusable, start a fresh one for that shop once; if that fails
    too, report the shop as not searched. Set a background timer for 15 minutes when you start
    them. At that point, message every agent still running to stop, close its tab and report what it
    has verified so far; stop any that hasn't reported 3 minutes later and list its shop as not
    searched (timed out), so one slow shop doesn't hold up the rest.
-5. When all have reported, run `python3 scripts/tab.py cleanup <run id>` from this skill's folder to
-   close any tab an agent left open.
+5. When all have reported, run `bun scripts/tab.ts cleanup <run id>` to close any tab an agent left
+   open.
 6. Compare with the last run: write the merged matches and near matches as JSON to a file (format
-   in `scripts/history.py`) and run `python3 scripts/history.py diff <slug> <file>`. It prints what
-   is new, gone or repriced since the last run of the same search. Open the page of each gone match
-   in a tab of your own (`scripts/tab.py`): if it's still for sale, this run missed it, so add it
-   back to the file and say so; otherwise note it as sold or removed. Then save the run with
-   `python3 scripts/history.py record <slug> <file>` and write the report.
+   in `scripts/history.ts`) and run `bun scripts/history.ts diff <slug> <file>`. It prints what is
+   new, gone or repriced since the last run of the same search. Open the page of each gone match in
+   a tab of your own (`bun scripts/tab.ts`, used as `references/shop-agent.md` shows): if it's
+   still for sale, this run missed it, so add it back to the file and say so; otherwise note it as
+   sold or removed. Then save the run with `bun scripts/history.ts record <slug> <file>` and write
+   the report.
 
 Where subagents aren't available, search the shops one at a time yourself, following
 `references/shop-agent.md` and then `references/brand-agent.md`.
