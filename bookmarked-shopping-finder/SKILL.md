@@ -1,64 +1,162 @@
 ---
 name: bookmarked-shopping-finder
-description: Find, compare, or price-check current offers for a specific product or shopping item from the user's saved Vivaldi shops. Trigger for requests to find options, listings, deals, or prices even when the user does not mention bookmarks or Vivaldi. Search Clothes/Online and Clothes/Tallinn, then compare matches with the manufacturer's official new retail price.
+description: Find live listings of a specific fashion item (mostly designer bags, wallets, belts and other accessories, sometimes clothes) in the user's bookmarked secondhand and designer shops, such as Vinted and Vestiaire Collective, and compare each with the brand's new retail price. Use whenever the user wants to find, buy or price-check a bag, wallet, accessory or piece of clothing, or asks whether a listing is a good deal (for example "find a white LV belt" or "any secondhand Hugo Boss wallets?"), even if they don't mention the shops or bookmarks.
 ---
 
 # Bookmarked Shopping Finder
 
-Use this skill whenever the user asks in natural language to find, compare, or price-check current offers for a product or shopping item, whether or not they mention Vivaldi, bookmarks, or online stores. For example, “find white men's belts by Louis Vuitton or Hugo Boss” is a shopping search for bookmarked listings. The product is open-ended: use whatever brand, model, item type, or constraints the user specifies.
+Find every live listing of the item the user describes in their bookmarked shops, and compare each
+with what the item costs new from the brand. Most of these shops sell pre-owned designer goods, so
+the point is to show what can be bought right now and whether the price is good. The item is
+open-ended: use whatever brand, model, type and constraints the user gives.
 
-## Source scope
+## Shops to search
 
-At the start of every search, run the helper at scripts/read_vivaldi_bookmarks.py in this skill's folder. Use only the current account's Vivaldi bookmarks in the exact folders Clothes/Online and Clothes/Tallinn. Do not use a remembered store list or add other shops unless the user explicitly asks.
+Start every search by running `scripts/read_vivaldi_bookmarks.py` from this skill's folder. It
+prints the shops bookmarked in Vivaldi under `Clothes/Online` and `Clothes/Tallinn`, the user's
+curated list. Search only those, not shops you remember or come across, unless the user names
+another. If a folder is missing or empty, say so and search the rest rather than widening the
+scope. If the script can't tell which Vivaldi profile is active, ask which one to use. The script
+reads only bookmark titles and URLs, plus Vivaldi's `Local State` to find the active profile, never
+history, cookies or passwords.
 
-Search these bookmarked shops for active offers; do not answer with only products from manufacturer websites. Use official manufacturer pages to verify new retail prices for matching items, not as a substitute for finding offers. If there are no matching bookmarked listings, say so clearly.
+A URL the user pastes may be inspected even if its site isn't bookmarked, but that doesn't add the
+site to the search. Mark results from it as coming from outside the bookmarks.
 
-The helper checks Vivaldi's Local State file only to resolve the active profile path, then reads bookmark titles and URLs from the Bookmarks JSON under the current user's home directory. It does not read browsing history, cookies, passwords, or bookmark folders in other user accounts. If a folder is missing or empty, report that and search only the folder contents that exist; do not widen the scope to compensate. If the current Vivaldi profile cannot be identified unambiguously, stop and ask which profile to use.
+## Browser
 
-## Browser isolation and search completeness
+Browse every shop with `playwright-cli` in the shared `personal` session, like the user's other
+skills (its commands are in the `playwright-cli` skill), not with another browser. That persistent
+profile keeps the user's shop logins, currency and cookie choices, so shops behave as they do for
+the user.
 
-Use an ephemeral, isolated Playwright browser session for website navigation and interaction. Do not load a persistent browser profile, saved cookies, or user storage. Never open, inspect, or attach to a user-owned browser, and do not use extension/CDP connections. Close the Playwright session when finished. If Playwright is unavailable, explain the concrete blocker; do not fall back to a user's personal browser. For a page the user explicitly supplied, a fresh ChatGPT in-app browser tab may be used when Playwright cannot load the page; do not inspect or reuse pre-existing tabs.
+Run `playwright-cli list` first. If `personal` is already open, another chat may be using it: work
+in a tab of your own and close only that tab at the end, never the browser.
 
-For every bookmarked website, search directly on that website using its own search and filters in the isolated Playwright session, then inspect candidate product pages. Do not use search engines to search for listings or as a fallback for a website's native search. If the site's search is unavailable, try its category navigation, filters, and pagination directly; if direct searching still fails, report that site as unsearchable instead of relying on search-engine results. Do not stop after a blocked homepage or one failed search URL: try the shop's native category or collection route and any user-supplied item URL directly in the isolated browser. Do not conclude that a site is inaccessible from the first challenge screen: wait for the interstitial to settle and inspect the visible state. If the user explicitly asks you to pass a Cloudflare check, you may click one clearly visible, single-step ‘Verify you are human’ button or checkbox once in the isolated browser (or a fresh in-app tab for a user-supplied URL). Do not solve image or audio puzzles, use CAPTCHA-solving services, inject challenge tokens, alter browser fingerprints, or use scripts or other methods to evade the check. If it becomes a puzzle, asks for repeated interactions, or has no simple visible control, report it as inaccessible. Never infer current availability or price from URL text, cached snippets, or blocked pages. Search each requested brand separately and combine it with the other criteria. Use common aliases, local-language terms, and the shop's own category/color labels. Inspect relevant pagination or loaded results before concluding there are no matches. Record shops that are inaccessible or that could not be searched as such, rather than reporting them as having no matches.
+```bash
+playwright-cli -s=personal tab-new "<url>"
+playwright-cli -s=personal tab-close
+```
 
-A URL supplied by the user is explicit authorization to inspect that page even if its site is not among the bookmarks. It does not authorize widening the rest of the search to that site's catalog. Keep results from user-supplied non-bookmarked sites clearly identified separately from bookmarked-shop results.
+Otherwise start it, adding the launch flags your global instructions give, if any:
 
-### Site-specific notes
+```bash
+playwright-cli -s=personal open "<url>" --headed --persistent
+```
 
-- **Yaga (yaga.ee):** Use the native product search (`/otsi/<query>`) in the isolated Playwright session. Search brand and category terms separately when needed. For belts, include Estonian terms such as `vöö` / `vööd`; for men's and white criteria, try `meestele` and `valge` as targeted variants. Inspect the listing itself for product identity, colour, men's category, price, active/sold state, and shipping information. Search results can rank matching items below the first few cards; inspect relevant result cards and continue through available results rather than relying on a domain search-engine query. Ignore recommendation/similar-item carousels unless they are part of the actual search results.
-- **Vinted (vinted.ee):** When Vinted appears in the bookmark helper output, search it as a normal bookmarked shop in isolated Playwright. A user-supplied Vinted URL also authorizes inspecting that page even if Vinted is not currently bookmarked. Preserve the complete query string, including repeated array-style parameters such as multiple `brand_ids[]` and `color_ids[]` values, as well as category and pagination parameters; do not parse them into a single-value map, drop a repeated brand, or rebuild the search from text alone. Confirm the active filter chips and result count. Inspect every actual catalog card across the filtered results and verify its title, photos, price, size, condition, and availability on the item page when accessible; color filters may include multicolor or visibly off-color belts, so the filter alone is not proof of a white match. Separate true matches from near matches. Ignore sponsored, showcase, or recommendation modules that are not part of the counted filtered result grid. Exclude unavailable items per the general report rule. Record the item price separately from any Vinted buyer-protection fee total shown; shipping may be added at checkout. If item-page details do not load, report only details supported by the live card/photos and mark uncertain attributes as unverified instead of inferring them from the filter.
-- **Vestiaire Collective (vestiairecollective.com):** Search in the native catalog using the requested audience, category, brand, and color filters. For men's belts, use the men's accessories/belts catalog and its filter pickers. Vestiaire stores picker selections in URL-fragment parameters after `#` (including category, gender, designer, and color); when a user supplies a filtered catalog URL, open it with the complete query and fragment intact. Do not reduce it to a guessed category or brand path, because stripping the fragment can drop the selected filters and miss the matching inventory. Confirm the visible filter chips and result count, then inspect and scroll through the full result grid; additional cards may lazy-load below the initial viewport even when pagination shows one page. Verify candidate product pages and report only purchasable listings, excluding sold or otherwise unavailable items per the general report rule. If the selected color set includes both White and Ecru, keep White as the exact match and label Ecru separately as a near match. For users comparing in EUR (including Estonia), use Vestiaire's currency preference (website footer → Language/Currency, or app International Preferences) to display listing prices in EUR. If the site's EUR display cannot be retrieved, convert the source price using a current verified rate, label it approximate, and retain the original amount and currency. Note that a displayed price in a currency different from the seller's listing currency may include a currency-conversion fee of up to 5%. If a route is challenged, follow the general Cloudflare check guidance above; never infer availability or price from URL text or blocked pages.
+The browser is signed in as the user, so only look: don't favourite items, follow sellers, message
+anyone, add to cart or buy.
 
+Some shops show a Cloudflare or similar check first. Many clear on their own, so wait a few
+seconds and take a fresh snapshot before calling a shop blocked. Don't click through a human check
+yourself. If one stays, or a shop wants a sign-in, carry on with the other shops, then name the
+blocked ones in the report and offer to search them once the user has dealt with it in the browser
+window (it runs headed).
 
-## Interpret the request
+## Read the request
 
-Break the request into the product category and its criteria, such as brand, audience or gender, color, material, model, size, and condition. Preserve the user's logic: “A or B” means search both alternatives; other stated criteria normally apply together.
+Break the request into the item type and its criteria: brand, audience or gender, color, material,
+model, size and condition. "A or B" means search both; the other criteria apply together. "Men's
+white belts from LV or Hugo Boss" is belts AND men's AND white, with Louis Vuitton OR Hugo
+Boss/BOSS as the brand.
 
-Expand searches with a small set of likely equivalents: common brand aliases, spelling variants, translations, and the terms shops use for the same category or attribute. For example, interpret “men's white belts from LV or Hugo Boss” as belts AND men's AND white, with Louis Vuitton OR Hugo Boss/BOSS as the brand; search the full brand names as well as “LV” and relevant catalog terms. Do not broaden to different brands or relax a stated criterion just to get more results.
+Expand each search with likely equivalents: brand aliases ("LV"), spelling variants, translations
+(several shops are Estonian or Finnish) and each shop's own category and color labels. Don't add
+other brands or relax a criterion to get more results. An item that misses one criterion (cream
+instead of white, unisex instead of men's) is a near match, reported separately with what differs.
 
-On each bookmarked shop, inspect the available filters and use the relevant ones when offered, especially category, audience or gender, brand, and color; also use material, size, or condition filters when they match the request. Preserve alternatives when applying filters: if a filter accepts only one brand or value at a time, search each requested alternative separately. Confirm the product page itself supports the match rather than relying on filter labels alone.
+## Search each shop
 
-Treat explicit criteria as required for the main results. If only close alternatives are available (for example, cream instead of white, or unisex instead of men's), report them separately as near matches and state which criterion differs. Do not silently present them as exact matches.
+Search every shop through its own search, category pages, filters and pagination, then open the
+candidate product pages. Don't use a search engine, even as a fallback: its results are stale and
+incomplete, and what matters is what the shop lists now.
 
-## Find current listings
+- Use the shop's filters when it has them: category, audience, brand and color, plus material,
+  size or condition when they match the request. If a filter takes one value at a time, run each
+  requested alternative separately.
+- Search each requested brand separately, combined with the other criteria.
+- Go through all result pages or lazy-loaded results before saying a shop has no matches.
+- Confirm each match on the product page. Filter labels aren't proof: a white filter can let
+  through off-white or multicolor items.
+- If a shop's search fails, try its category navigation; if the homepage is blocked, go straight to
+  a category route or a pasted item URL. A shop you couldn't search is reported as not searched,
+  never as having no matches.
+- Never infer price or availability from URL text, cached snippets or blocked pages.
 
-Search each bookmarked shop directly using the parsed criteria, exact terms, and targeted equivalents through that shop's own search, category navigation, filters, and pagination in the isolated Playwright session. Never use a search engine to find listings or to replace a direct shop search. For JavaScript-rendered catalogs, pagination, or lazy-loaded results, continue using isolated Playwright. Never fall back to CUA, the user's browser, or browser extension/CDP automation.
+### Site notes
 
-In the main results, include only currently accessible listings whose item, model, or variant matches the request. Put close alternatives in a separate “Near matches” section and state which criterion differs. Check each product page for the displayed price, currency, condition, size, color/material, and the country the item will ship from. Put condition in its own report column, preserve the marketplace label, and write “not stated” if it is missing. Prefer an explicit “ships from” or item-location field. Do not substitute the seller's home country, the shop's registered address, or the delivery destination for the shipping-origin country. If origin is not stated, report “not stated.” If a shop requires sign-in or blocks access, note that and continue with the other bookmarked shops.
+- **Yaga (yaga.ee):** search with `/otsi/<query>`, running brand and category terms separately when
+  needed, with Estonian terms such as `kott`/`käekott` (bag/handbag), `rahakott` (wallet), `vöö`
+  (belt), `meestele` (men's) and `valge` (white). Check the listing itself for the item, color,
+  men's category, price, sold state and shipping. Matches can rank below the first few cards, so go
+  through the results, but skip the similar-items carousels.
+- **Vinted (vinted.ee):** open a pasted filtered URL with its full query string. Repeated parameters
+  such as several `brand_ids[]` or `color_ids[]` are separate filters, and rebuilding the search
+  from text or a single-value map drops them. Confirm the filter chips and result count, then check
+  every card in the filtered grid (not sponsored, showcase or recommendation blocks) on its item
+  page: title, photos, price, size, condition and availability. Color filters let through
+  multicolor and off-color items, so separate true matches from near matches. Record the item price
+  apart from the buyer-protection total; shipping is added at checkout. If an item page won't load,
+  report only what the card shows and mark the rest unverified.
+- **Vestiaire Collective (vestiairecollective.com):** use the catalog filters for audience,
+  category, brand and color (men's belts, for example, are under men's accessories). The filters
+  live after `#` in the URL, so open a pasted catalog URL with its query and fragment intact.
+  Confirm the filter chips and result count, then scroll the whole grid: cards lazy-load even when
+  pagination shows one page. If both White and Ecru are selected, White is the match and Ecru a near
+  match. Show prices in EUR (footer, Language/Currency); if that fails, convert at a verified rate
+  and mark it approximate. A price shown in a currency other than the seller's may include a
+  conversion fee of up to 5%.
+
+## Check each listing
+
+On the product page, record the price and currency, condition, size, color and material, and the
+country the item ships from.
+
+- **Condition:** keep the marketplace's own label; "not stated" if there is none.
+- **Ships from:** use an explicit "ships from" or item-location field. The seller's home country,
+  the shop's registered address and the delivery destination don't count; "not stated" if the
+  origin isn't given.
+- **Availability:** keep only listings that can be bought now. Leave out sold, sold-out, reserved,
+  removed and expired items entirely, near matches included. If nothing active is left, say there
+  are no active matches rather than listing the unavailable ones. Category pages and search
+  snippets aren't offers.
 
 ## Check the new retail price
 
-For every product search, look up the exact item or current equivalent on the manufacturer's official website, using the Estonia/EU storefront when available. Record the official retail price and link to that page. Do not use a reseller's price as the manufacturer's retail price.
+For every search, find the exact item, or its current equivalent, on the brand's official website,
+using the Estonia or EU storefront when there is one, and link the page. A reseller's price isn't
+the retail price. The brand's site gives the reference price only: if the shops have no matches,
+say so rather than offering the brand's own products instead.
 
-Compare like with like: note when size, material, edition, or variant differs. If the manufacturer does not currently list the model or price, write “not currently listed by manufacturer”; do not estimate an MSRP. When the listing and official price use the same currency and comparable variant, flag listings priced above new retail and calculate the difference. If currencies differ, keep both displayed prices and do not calculate a difference without a current verified conversion rate.
+Compare like with like and note when size, material, edition or variant differs. If the brand
+doesn't list the item, write "not currently listed by manufacturer" rather than estimating. When a
+listing and the retail price are in the same currency for a comparable variant, calculate the
+difference and flag listings priced above new. Across currencies, calculate only with a current
+verified exchange rate.
 
 ## Report
 
-State the date checked and which bookmarked shops were searched. Whenever the user asks for a table, include active matching results from every source searched for the request, not only the latest or newly added source; combine the sources in one table unless the user asks otherwise. Keep distinct source links in the Source website column, and state clearly if any source could not be searched. Give one row per distinct live listing in a concise table. Put the source website in its own column, separate from the item name and description; link the site name to the listing page. When the listing is a new item sold directly by the brand on its official store, bold the source entry and label it ‘official, new’ (for example, **Louis Vuitton (official, new)**). Do not apply that label to third-party retailers; label those as retailers when useful. Keep manufacturer price sources directly linked as well. Use this layout:
+State the date checked and which shops were searched, naming any that couldn't be. Then give one
+table with a row per live listing from every shop searched, sorted by EUR price, lowest first. When
+the user adds a shop or URL later, the new table still covers every shop searched, not only the new
+one.
 
 | Source website | Item / variant | Condition | Size | Listing price | New at manufacturer | Difference | Ships from |
 | --- | --- | --- | --- | ---: | ---: | ---: | --- |
 
-Always convert non-EUR listing prices to EUR for tables and sort all rows together from lowest to highest EUR price. Prefer the source's EUR-displayed price when available; otherwise use a current verified exchange rate, label the conversion as approximate, and retain the original price and currency alongside it. State the rate and date in a short note and cite the rate source. Keep duties, shipping, and buyer fees identified separately so the listing price remains comparable. Calculate price differences only with a current verified rate and a like-for-like manufacturer price. Bold a shipping-origin country if it is outside the European Union. EU countries are Austria, Belgium, Bulgaria, Croatia, Cyprus, Czechia, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, and Sweden. If origin is unknown, write “not stated” without bold.
+- **Source website:** the shop's name, linked to the listing. A new item sold by the brand's own
+  store is bolded and labelled, like **Louis Vuitton (official, new)**; third-party retailers
+  aren't (call them retailers when useful).
+- **Listing price:** in EUR. Prefer the shop's own EUR price; otherwise convert at a current
+  verified rate, mark it approximate and keep the original amount and currency beside it. Give the
+  rate, its date and its source in a note under the table. Mention duties, shipping and buyer fees
+  separately, so listing prices stay comparable.
+- **New at manufacturer:** linked to the brand's page.
+- **Ships from:** bold a country outside the EU, since import VAT and duties come on top. EU
+  countries are Austria, Belgium, Bulgaria, Croatia, Cyprus, Czechia, Denmark, Estonia, Finland,
+  France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the
+  Netherlands, Poland, Portugal, Romania, Slovakia, Slovenia, Spain and Sweden. "not stated" isn't
+  bolded.
 
-Include only listings that are currently available to buy. Exclude sold, sold-out, reserved, removed, expired, and otherwise unavailable items entirely: do not include them as results, near matches, or individual rows in the report. Treat them as nonmatches. If no active matching listings remain, say there are no active matches; do not enumerate unavailable items. Do not present category pages or search snippets as active offers. Do not add items to carts, contact sellers, or place orders.
+Put near matches in a separate "Near matches" section after the table, each with the criterion it
+misses.
