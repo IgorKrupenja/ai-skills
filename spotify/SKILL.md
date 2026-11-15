@@ -1,47 +1,47 @@
 ---
 name: spotify
-description: Use the Spotify Web API to manage the user's playlists — search albums/tracks, add full albums or individual tracks to a playlist, inspect playlists. Use whenever the user asks to add music to / edit / build a Spotify playlist.
+description: Use the Spotify Web API to manage the user's playlists (search albums/tracks, add full albums or individual tracks to a playlist, inspect playlists). Use whenever the user asks to add music to / edit / build a Spotify playlist.
 ---
 
 # Spotify
 
 Manage the user's Spotify playlists through the **official Web API** using a
 registered-app **user** token. This is the preferred way to add/remove/list
-tracks — it is reliable and not throttled like the scraped web-player token.
+tracks: it is reliable and not throttled like the scraped web-player token.
 
-All operations go through the helper `spotify.py` in this skill's directory — **Python 3,
-standard library only** (`python3 spotify.py <cmd>`, no install or build step). It auto-loads
+All operations go through the helper `spotify.ts` in this skill's directory: **Bun, built-ins
+only** (`bun spotify.ts <cmd>`, no install or build step). It auto-loads
 `.env`, manages the OAuth token (cache + refresh + first-time auth), and exposes simple subcommands.
 
 ## Prerequisites
 
-Env vars live in `.env` (see `.env.example`). `spotify.py` reads them itself, so
+Env vars live in `.env` (see `.env.example`). `spotify.ts` reads them itself, so
 no manual export is needed. It checks `SPOTIFY_ENV_FILE` first, then the `.env` beside the
 canonical skill repository, then `$SKILLS_DIR/.env` when `SKILLS_DIR` is set.
 
-- `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` — from the user's app in the
+- `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`: from the user's app in the
   [Developer Dashboard](https://developer.spotify.com/dashboard) (reuse the **CLI** app).
-- `SPOTIFY_REDIRECT_URI` — must be registered on the app, exactly. Default
+- `SPOTIFY_REDIRECT_URI`: must be registered on the app, exactly. Default
   `http://127.0.0.1:8888/callback`. Spotify requires `127.0.0.1`, not `localhost`.
-- `SPOTIFY_PLAYLIST_ID` — **default** playlist for `playlist` / `add-*` (the user's main
+- `SPOTIFY_PLAYLIST_ID`: **default** playlist for `playlist` / `add-*` (the user's main
   "To Do" list). Override per call with `--playlist <id|name>`.
-- `SPOTIFY_PLAYLIST_<NAME>` — **named** playlists; each becomes the alias `<name>` for
+- `SPOTIFY_PLAYLIST_<NAME>`: **named** playlists; each becomes the alias `<name>` for
   `--playlist` (see [Named playlists](#named-playlists)). IDs live in `.env`, not here.
-- `SPOTIFY_REFRESH_TOKEN` — the user token's long-lived refresh token. With it set, the
+- `SPOTIFY_REFRESH_TOKEN`: the user token's long-lived refresh token. With it set, the
   script renews access tokens forever with **no browser**, on any machine. Minted once
   via the bootstrap below (already set for this user).
 
 Run commands from this skill's directory. When the skill is installed through a symlink, use
-the resolved directory containing `spotify.py`; the script resolves its own path so both agents
+the resolved directory containing `spotify.ts`; the script resolves its own path so both agents
 share the same local token cache.
 
 ## One-time bootstrap (only if `SPOTIFY_REFRESH_TOKEN` is unset)
 
 **Why a browser at all, given the id + secret?** `client_id`+`client_secret` alone yield
-only a _client-credentials_ token — read-only public data, **no** playlist writes. Editing
+only a _client-credentials_ token: read-only public data, **no** playlist writes. Editing
 acts _as the user_, which Spotify only allows after a one-time consent. That consent
 returns a **refresh token**; once it's in `.env` as `SPOTIFY_REFRESH_TOKEN`, secret +
-refresh token renew access silently forever, on any machine — **the browser is never
+refresh token renew access silently forever, on any machine, so **the browser is never
 needed again**. You only redo this if the token is revoked (e.g. password change or
 client-secret regeneration). For this user it's already done, so skip this section.
 
@@ -49,14 +49,17 @@ To mint the refresh token:
 
 1. Run auth in the **background** (serves a local callback, prints `AUTH_URL <url>`):
    ```bash
-   python3 spotify.py auth
+   bun spotify.ts auth
    ```
-2. In the shared personal browser, open the URL and inspect the page before interacting:
-   `playwright-cli -s=personal goto "$AUTH_URL"`, then
-   `playwright-cli -s=personal snapshot`. If Spotify asks for consent, click the **Agree**
-   button by its snapshot reference (or a locator using `playwright-cli -s=personal run-code`).
+2. In the skills repo's own browser (playwright-cli session `ai-skills`), open the URL and
+   inspect the page before interacting:
+   `bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/browser.ts" goto "$AUTH_URL"`, then
+   `bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/browser.ts" snapshot`. If the browser
+   isn't open, start it first with `bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/browser.ts" open --headed`.
+   If Spotify asks for consent, click the **Agree** button by its snapshot reference (or a
+   locator using `bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/browser.ts" run-code`).
    The agent never types credentials.
-3. On success it prints `REFRESH_TOKEN <value>` — put that in `.env` as
+3. On success it prints `REFRESH_TOKEN <value>`: put that in `.env` as
    `SPOTIFY_REFRESH_TOKEN`. Done permanently.
 
 A short-lived access token is also cached in `.spotify_token.json` (gitignored) just to
@@ -65,16 +68,16 @@ avoid a refresh call on every command; safe to delete anytime.
 ## Commands
 
 ```bash
-python3 spotify.py me                                 # verify token + whoami
-python3 spotify.py playlists                          # list named playlists (main, classics, sport)
-python3 spotify.py playlist [ID|name]                 # name / owner / track total
-python3 spotify.py search "QUERY" [--type album|track] [--limit N]
-python3 spotify.py album-tracks ALBUM                 # list a release's tracks
-python3 spotify.py add-album  ALBUM [ALBUM ...] [--playlist ID|name] [--allow-dupes]
-python3 spotify.py add-tracks TRACK [TRACK ...] [--playlist ID|name] [--allow-dupes]
-python3 spotify.py remove-tracks TRACK [TRACK ...] [--playlist ID|name]
-python3 spotify.py move TRACK [TRACK ...] --from ID|name --to ID|name [--allow-dupes]
-python3 spotify.py token                              # print a valid access token (for ad-hoc curl)
+bun spotify.ts me                                 # verify token + whoami
+bun spotify.ts playlists                          # list named playlists (main, classics, sport)
+bun spotify.ts playlist [ID|name]                 # name / owner / track total
+bun spotify.ts search "QUERY" [--type album|track] [--limit N]
+bun spotify.ts album-tracks ALBUM                 # list a release's tracks
+bun spotify.ts add-album  ALBUM [ALBUM ...] [--playlist ID|name] [--allow-dupes]
+bun spotify.ts add-tracks TRACK [TRACK ...] [--playlist ID|name] [--allow-dupes]
+bun spotify.ts remove-tracks TRACK [TRACK ...] [--playlist ID|name]
+bun spotify.ts move TRACK [TRACK ...] --from ID|name --to ID|name [--allow-dupes]
+bun spotify.ts token                              # print a valid access token (for ad-hoc curl)
 ```
 
 `ALBUM` / `TRACK` accept a raw id, a `spotify:album:`/`spotify:track:` URI, or an
@@ -84,21 +87,21 @@ already in the playlist** (reported), unless `--allow-dupes`.
 ## Named playlists
 
 `--playlist` (and the `playlist` command) accept a **name** as well as an id/URI/URL.
-Names resolve from `SPOTIFY_PLAYLIST_<NAME>` env vars — the IDs live in `.env` (gitignored),
+Names resolve from `SPOTIFY_PLAYLIST_<NAME>` env vars. The IDs live in `.env` (gitignored),
 so they're not committed here.
 
 | Name       | Purpose                      |
 | ---------- | ---------------------------- |
-| `main`     | "To Do" — the default target |
+| `main`     | "To Do" (the default target) |
 | `classics` | "To Do: Classics"            |
-| `sport`    | "Fun run" — sport / running  |
+| `sport`    | "Fun run" (sport / running)  |
 
 Synonyms: `running` / `run` → `sport`, `todo` → `main`. So **"add X to sport"** (or "to
-running") → `python3 spotify.py add-album <id> --playlist sport`. Run `python3 spotify.py playlists`
+running") → `bun spotify.ts add-album <id> --playlist sport`. Run `bun spotify.ts playlists`
 to list them with live names + counts. Add another by putting `SPOTIFY_PLAYLIST_<NAME>=<id>`
-in `.env` — no code change needed.
+in `.env`; no code change needed.
 
-## Typical task — "add these albums in full to my playlist"
+## Typical task: "add these albums in full to my playlist"
 
 1. `search` each album to get the right release id. Pick by exact name + artist
    and a sensible track count (EP vs album vs remix single). Use the search query
@@ -108,17 +111,17 @@ in `.env` — no code change needed.
 3. Report what was added / skipped and the new playlist total.
 
 **Cycles / box sets:** if a link is a full cycle or box set (e.g. a complete-symphonies
-album) but the user is curating one specific work, add **only that work's tracks** — use
-`album-tracks` to find them, then `add-tracks` — not the whole set.
+album) but the user is curating one specific work, add **only that work's tracks** (use
+`album-tracks` to find them, then `add-tracks`), not the whole set.
 
 ## Notes & gotchas
 
 - **Scopes:** the token is minted with the **full** user-facing Web API scope set
   (see `SCOPES` in the script; override via `SPOTIFY_SCOPES`), so a missing scope is
   never the blocker. Editing a playlist still requires the token's account to **own or
-  collaborate on** it — `playlist`/`me` confirm this.
+  collaborate on** it; `playlist`/`me` confirm this.
 - **Batch limit:** 100 URIs per add request (the script batches automatically).
 - **Rate limits** apply per rolling 30s window; dev-mode apps are fine for this
   scale. The script honors `Retry-After` on 429.
-- **Don't reach for the browser UI** for playlist edits — the API is better. The
+- **Don't reach for the browser UI** for playlist edits: the API is better. The
   browser is only needed for the one-time `Agree` click during first auth.
