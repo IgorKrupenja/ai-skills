@@ -37,7 +37,7 @@ with `await p.screenshot({ path: env.shots + '/li-connect.png' })` and look at t
 **ALWAYS load environment variables first:**
 
 ```bash
-export $(grep -v '^#' "${SKILLS_DIR:-$HOME/.claude/skills}/.env" | xargs)
+set -a && source "${SKILLS_DIR:-$HOME/.claude/skills}/.env" && set +a
 ```
 
 Required env vars:
