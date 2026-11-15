@@ -13,7 +13,7 @@ open-ended: use whatever brand, model, type and constraints the user gives.
 ## Shops to search
 
 Start every search by running `scripts/read_vivaldi_bookmarks.py` from this skill's folder. It
-prints the shops bookmarked in Vivaldi under `Clothes/Online` and `Clothes/Tallinn`, the user's
+prints the shops bookmarked in Vivaldi under `Fashion/Online` and `Fashion/Tallinn`, the user's
 curated list. Search only those, not shops you remember or come across, unless the user names
 another. If a folder is missing or empty, say so and search the rest rather than widening the
 scope. If the script can't tell which Vivaldi profile is active, ask which one to use. The script

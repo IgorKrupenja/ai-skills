@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read only current user's Vivaldi bookmarks from Clothes/Online and Clothes/Tallinn."""
+"""Read only current user's Vivaldi bookmarks from Fashion/Online and Fashion/Tallinn."""
 
 from __future__ import annotations
 
@@ -91,7 +91,7 @@ def collect_targets(bookmarks: dict[str, Any]) -> tuple[set[str], list[dict[str,
             name = str(node.get("name", ""))
             current = path + ((name,) if name else ())
             if node.get("type") == "folder" and len(current) >= 2:
-                if current[-2] == "Clothes" and current[-1] in TARGET_FOLDERS:
+                if current[-2] == "Fashion" and current[-1] in TARGET_FOLDERS:
                     found.add(current[-1])
                     walk_folder(node, current, current[-1], entries)
                     return
