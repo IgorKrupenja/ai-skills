@@ -64,7 +64,10 @@ incomplete, and what matters is what the shop lists now.
 - Search each requested brand separately, combined with the other criteria.
 - Go through all result pages or lazy-loaded results before saying the shop has no matches.
 - Confirm each match on the product page. Filter labels aren't proof: a white filter can let
-  through off-white or multicolor items.
+  through off-white or multicolor items, such as Damier Azur, which is a blue and white check.
+- Color filters also miss items tagged with another color, such as a reversible belt tagged with
+  its other side. So also search the color word as text (in the shop's languages) within the
+  category, without the color filter.
 - If the search fails, try the category navigation; if the homepage is blocked, go straight to a
   category route or a pasted item URL. A shop you couldn't search is reported as not searched,
   never as having no matches.

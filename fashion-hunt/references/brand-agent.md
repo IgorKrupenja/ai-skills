@@ -31,11 +31,12 @@ choice.
   shows no prices. Use the Netherlands store in English, `https://en.louisvuitton.com/eng-nl/`,
   which prices in EUR and uses the same product paths; search with `/eng-nl/search/<query>`. The
   product page gives the color and materials, such as "White/Black, canvas strap, leather reverse".
-- **Hugo Boss:** there is no Estonian store (`hugoboss.com/ee` is a 404). Use the Finland store in
-  English, `https://www.hugoboss.com/fi/en/`, which prices in EUR; men's belts, for example, are at
-  `/fi/en/men-belts/`. Under FILTER & SORT, Color lists how many products come in each color, so a
-  color missing there isn't sold new. In the cookie dialog, Save services with only Necessary on
-  declines the rest.
+- **Hugo Boss:** use the Estonian store, `https://www.hugoboss.com/ee/en/`, which prices in EUR (the
+  bare `/ee/` path is a 404); men's belts, for example, are at `/ee/en/men-belts/`. Under FILTER &
+  SORT, Color counts only products in stock, so a color can exist but be sold out online: such a
+  page says "Sold out online", and the same style can carry another color name in the EU than in
+  other stores (a belt that is White in the US store is Natural in Estonia). Report sold-out
+  variants as such. In the cookie dialog, Save services with only Necessary on declines the rest.
 
 ## Report back
 
