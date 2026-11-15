@@ -11,8 +11,7 @@ A collection of AI agent skills for automating personal workflows. Uses the comm
 Depending on the skill, you also need:
 
 - Python 3. The scripts use only the standard library.
-- The Playwright MCP server, for `lhv-investment-report`, `linkedin-connect` and `linkedin-grow`.
-- `playwright-cli` (the `@playwright/cli` package), for `fashion-hunt`, `screenshot` and the first `spotify` authorization.
+- `playwright-cli` (the `@playwright/cli` package), for the browser skills and the first `spotify` authorization. They share one persistent browser named `personal`, each in a background tab of its own through `scripts/tab.py`.
 - The `gog` Google Calendar CLI, for `social-calendar`.
 
 ## Skills

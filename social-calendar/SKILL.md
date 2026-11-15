@@ -34,6 +34,8 @@ set -a && source "${SKILLS_DIR:-$HOME/.claude/skills}/.env" && set +a
 State file: **`social-calendar/state.json`** (git-ignored). If missing, create it from `state.example.json`.
 `kokandus.py` keeps its own snapshot in `social-calendar/kokandus.json` (git-ignored); when it's missing, the next run saves a baseline.
 
+**Browser:** `playwright-cli` with the shared `personal` browser, which keeps the user's logins. Other chats may use it at the same time, so work in a background tab of your own through [`../scripts/tab.py`](../scripts/tab.py) (`open`, `run`, `close`; usage in its header).
+
 The calendar was created once with `gog calendar create-calendar "<name>" --timezone "Europe/Tallinn"` and colored in the sidebar with `gog calendar subscribe "$SOCIAL_CALENDAR_ID" --color-id 6`. You don't need to recreate it.
 
 **Paid events get their own calendar**, `New Life · PAID` (created 2026-10-13 the same way).
@@ -103,7 +105,7 @@ recommendation, a link the user pasted) you check against the `bought.py` output
      events through Saturday 10.10). Leave out anything later: the user wants exactly two weeks
      ahead (2026-09-26). The only exception is the cooking listing below, which has no window.
    - **Facebook pages and groups** show empty `blockquote: Facebook` placeholders in snapshots, but
-     the DOM's `innerText` (via `browser_evaluate`) has the posts. Groups: iterate
+     the DOM's `innerText` (read with `p.evaluate`) has the posts. Groups: iterate
      `[role=feed] > div` and open them with `?sorting_setting=CHRONOLOGICAL`, since "Most relevant"
      surfaces year-old posts. Pages: climb from `[data-ad-preview=message]` to the ancestor that
      contains "Write a comment". Page events are at `/<page>/upcoming_hosted_events`, group events
@@ -204,7 +206,7 @@ date +"%Y-%m-%d %A %Z"
 - **FB recurring events** use `facebook.com/events/<series_id>/<occurrence_id>/`. The second id *is* the date the user picked. Dropping it lands on the series and silently changes which occurrence you add. Keep both segments. (The page shows the sibling dates as a row of chips, useful for confirming which one is live.)
 - **Fienta series** live at `fienta.com/[ru/]s/<slug>` and list several dates, each its own page at `fienta.com/[ru/]<slug>-<id>`. A series link is **not** an event: open it, pick the date, and check availability: sold-out dates are marked (`Распродано` / `Sold out`), and a sold-out one is never added without asking (step 3d). If several dates are open and the user didn't say which, add the nearest available one and tell them the others exist.
 
-**2. Extract full content with Playwright.** Open the page in the browser, dismiss cookie/login walls, read the snapshot.
+**2. Extract full content with playwright-cli.** Open the page in the browser, dismiss cookie/login walls, read the snapshot.
 - **Facebook: always click "See more"** before extracting, because FB truncates the body by default.
 - **Facebook mangles links inside the description, twice.** The visible text is cut with `…` (`https://open.spotify.com/artist/4fJ6…`) and the `href` is a `l.facebook.com/l.php?u=<percent-encoded>&fbclid=…` redirect. Neither is usable. Pull the real URL from each `<a>` and decode it:
   ```js

@@ -122,6 +122,3 @@ album) but the user is curating one specific work, add **only that work's tracks
   scale. The script honors `Retry-After` on 429.
 - **Don't reach for the browser UI** for playlist edits — the API is better. The
   browser is only needed for the one-time `Agree` click during first auth.
-- If the Playwright Chrome is stuck on a profile lock ("Browser is already in
-  use ... mcp-chrome-stable"), kill the leftover Chrome and retry:
-  `pkill -f "mcp-chrome"` (note: this logs the browser out of Spotify).
