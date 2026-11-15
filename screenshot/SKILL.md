@@ -6,70 +6,49 @@ allowed-tools: Bash, SendUserFile
 
 # Screenshot Skill
 
-Take a screenshot of a web page with `playwright-cli` (its commands are in the `playwright-cli`
-skill) and send it to the user.
+Take a screenshot of a web page in this repo's own browser and send it to the user.
 
 ## The one rule
 
-**Capture only the visible viewport, never the full page.** Never pass `--full-page`. Full-page
-screenshots of long pages produce multi-megabyte files that fail to download in the chat UI; the
-visible area stays small (~hundreds of KB) and delivers reliably.
+**Capture only the visible viewport, never the full page.** Never pass `--full-page` or
+`fullPage: true`. Full-page screenshots of long pages produce multi-megabyte files that fail to
+download in the chat UI; the visible area stays small (~hundreds of KB) and delivers reliably.
 
 ## Steps
 
-### 1. Open the page
+### 1. Open the browser
 
-Use the shared `personal` browser, so logins carry over. Run `playwright-cli list` first.
+Use this repo's own browser (playwright-cli session `ai-skills`), so logins carry over, through
+`scripts/browser.ts` and `scripts/tab.ts` in the skills folder (the folder above this skill's
+folder). Run `bun <skills dir>/scripts/browser.ts list` first, and if `ai-skills` isn't open,
+start it with `bun <skills dir>/scripts/browser.ts open --headed`.
 
-If `personal` isn't running, start it, adding the launch flags your global instructions give, if
-any, and go on to step 2:
+### 2. Screenshot the visible area in a tab of your own
 
-```bash
-playwright-cli -s=personal open "<url>" --persistent
-```
-
-If it is already running, another chat may be using it. Open the page in a background tab of
-your own, screenshot it and close it in one `run-code` call, then go to step 3. Never use
-`tab-new` or `tab-select`: they pull the browser window in front of the user's other apps.
+Another chat may be using the browser, so open the page in a background tab of your own,
+screenshot it and close the tab. Pick a tag no other chat uses, like `shot-<page>-<time>`:
 
 ```bash
-playwright-cli -s=personal run-code "async page => {
-  const ctx = page.context(), tag = 'claude-' + Date.now();
-  const cdp = await ctx.newCDPSession(page);
-  await cdp.send('Target.createTarget', { url: 'about:blank#' + tag, background: true });
-  await cdp.detach();
-  let mine;
-  for (let i = 0; i < 50 && !mine; i++) {
-    mine = ctx.pages().find(p => p.url().endsWith(tag));
-    if (!mine) await new Promise(r => setTimeout(r, 100));
-  }
-  await mine.goto('<url>');
-  await mine.waitForTimeout(2000);
-  await mine.screenshot({ path: '$PWD/.playwright-cli/<short-descriptive-name>.png' });
-  await mine.close();
-}"
+bun <skills dir>/scripts/tab.ts open shot-example "<url>"
+bun <skills dir>/scripts/tab.ts run shot-example <<'JS'
+async (p, env) => {
+  await p.waitForTimeout(2000);
+  const path = `${env.shots}/<short-descriptive-name>.png`;
+  await p.screenshot({ path });
+  return path;
+}
+JS
+bun <skills dir>/scripts/tab.ts close shot-example
 ```
 
-Keep `$PWD` in the path: a relative path in `run-code` lands in the browser daemon's folder, not
-yours. To show a region lower on the page, add `await mine.mouse.wheel(0, 800);` before the
-screenshot.
-
-### 2. Screenshot the visible area only
-
-In the browser you just started:
-
-```bash
-playwright-cli -s=personal screenshot --filename=.playwright-cli/<short-descriptive-name>.png
-```
-
-If the user wants a different region in view (e.g. lower on the page), scroll first
-(`playwright-cli -s=personal mousewheel 0 800`), then take the screenshot, **still without
-`--full-page`**.
+`run` prints the file's absolute path (`env.shots` is `.playwright-cli/` in the current folder).
+To show a region lower on the page, add `await p.mouse.wheel(0, 800);` before the screenshot,
+**still without `fullPage`**.
 
 ### 3. Deliver
 
-Send the file to the user with `SendUserFile`, passing its absolute path. Never close a browser
-that was already running.
+Send the file to the user with `SendUserFile`, passing its absolute path. Close only your own
+tab, never the browser.
 
 ## Notes
 
@@ -77,4 +56,4 @@ that was already running.
   one-off deliverable, not a source artifact.
 - Keep the filename short and descriptive of the page content.
 - If `SendUserFile` succeeds but the user reports they can't download or open it, the file is
-  probably too large: check that `--full-page` wasn't used.
+  probably too large: check that `fullPage` wasn't used.

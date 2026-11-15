@@ -1,5 +1,5 @@
-// The code tab.py runs in the shared browser. `playwright-cli run-code` evaluates this file as one
-// function expression and calls it with whichever tab is current. Before that, tab.py fills in the
+// The code tab.ts runs in the browser. `playwright-cli run-code` evaluates this file as one
+// function expression and calls it with whichever tab is current. Before that, tab.ts fills in the
 // two placeholders below: the call's arguments as JSON, and in `run` mode the caller's
 // `async (p, env) => {...}` code. The arguments are one of:
 //
@@ -8,7 +8,7 @@
 //   { mode: 'close', tids }             close these tabs
 //
 // A tid is Chrome's target id for a tab, which, unlike its URL, stays the same across navigations.
-// The returned object reaches tab.py as JSON.
+// The returned object reaches tab.ts as JSON.
 async page => {
   const { mode, url, tid, tag, shots, tids } = __ARGS__;
   const ctx = page.context();

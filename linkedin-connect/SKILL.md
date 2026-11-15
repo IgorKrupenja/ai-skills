@@ -10,21 +10,22 @@ Automatically send connection requests (without a note) to people in LinkedIn se
 
 ## Browser
 
-Use `playwright-cli` with the shared `personal` browser, which keeps the LinkedIn login. Run
-`playwright-cli list` first, and if `personal` isn't open, start it with
-`playwright-cli -s=personal open --headed --persistent`, adding the launch flags your global
-instructions give, if any. Other chats may be using the same browser, and plain `playwright-cli`
-commands act on whichever tab is current, so work only in a background tab of your own through
-`scripts/tab.py` in the skills folder (the folder above this skill's folder):
+Use this repo's own browser (playwright-cli session `ai-skills`), which keeps the LinkedIn login,
+through `scripts/browser.ts` and `scripts/tab.ts` in the skills folder (the folder above this
+skill's folder). Run
+`bun <skills dir>/scripts/browser.ts list` first, and if `ai-skills` isn't open, start it with
+`bun <skills dir>/scripts/browser.ts open --headed`. Other chats may be using the same browser,
+and plain playwright-cli commands act on whichever tab is current, so work only in a background
+tab of your own:
 
 ```bash
-python3 <skills dir>/scripts/tab.py open li-connect "<url>"
-python3 <skills dir>/scripts/tab.py run li-connect <<'JS'
+bun <skills dir>/scripts/tab.ts open li-connect "<url>"
+bun <skills dir>/scripts/tab.ts run li-connect <<'JS'
 async (p, env) => {
   return await p.locator('body').ariaSnapshot();
 }
 JS
-python3 <skills dir>/scripts/tab.py close li-connect
+bun <skills dir>/scripts/tab.ts close li-connect
 ```
 
 `p` is your tab's Playwright Page, and `run` prints what the function returns. Save screenshots
@@ -45,7 +46,7 @@ Required env vars:
 - `$LINKEDIN_CONNECT_URL` - LinkedIn people search URL to use (see `.env.example` for default)
 
 Open your tab at `$LINKEDIN_CONNECT_URL`. If LinkedIn shows a sign-in page instead of results,
-ask the user to sign in in that tab of the `personal` browser window, then load the URL again.
+ask the user to sign in in that tab of the `ai-skills` browser window, then load the URL again.
 
 ### 2. Process the pages
 

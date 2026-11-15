@@ -23,21 +23,21 @@ Required env vars:
 
 ## Browser
 
-Use `playwright-cli` with the shared `personal` browser. Run `playwright-cli list` first, and if
-`personal` isn't open, start it with `playwright-cli -s=personal open --headed --persistent`,
-adding the launch flags your global instructions give, if any. Other chats may be using the same
-browser, and plain `playwright-cli` commands act on whichever tab is current, so work only in a
-background tab of your own through `scripts/tab.py` in the skills folder (the folder above this
-skill's folder):
+Use this repo's own browser (playwright-cli session `ai-skills`) through `scripts/browser.ts`
+and `scripts/tab.ts` in the skills folder (the folder above this skill's folder). Run
+`bun <skills dir>/scripts/browser.ts list` first, and if `ai-skills` isn't open, start it with
+`bun <skills dir>/scripts/browser.ts open --headed`. Other chats may be using the same browser,
+and plain playwright-cli commands act on whichever tab is current, so work only in a background
+tab of your own:
 
 ```bash
-python3 <skills dir>/scripts/tab.py open lhv "https://www.lhv.ee/ibank/cf/portfolio/reports_inv"
-python3 <skills dir>/scripts/tab.py run lhv <<'JS'
+bun <skills dir>/scripts/tab.ts open lhv "https://www.lhv.ee/ibank/cf/portfolio/reports_inv"
+bun <skills dir>/scripts/tab.ts run lhv <<'JS'
 async (p, env) => {
   return await p.locator('body').ariaSnapshot();
 }
 JS
-python3 <skills dir>/scripts/tab.py close lhv
+bun <skills dir>/scripts/tab.ts close lhv
 ```
 
 `p` is your tab's Playwright Page, and `run` prints what the function returns. Save screenshots
@@ -99,4 +99,4 @@ async (p, env) => {
   automated.
 - `$LHV_ACCOUNT_EXTERNAL` is the Revolut account. Only transfers to/from this account are relevant
   for the investment account tax report.
-- If the tab gets stuck, close it with `tab.py close lhv` and open a new one.
+- If the tab gets stuck, close it with `tab.ts close lhv` and open a new one.
