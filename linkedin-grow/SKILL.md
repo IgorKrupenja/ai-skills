@@ -55,8 +55,9 @@ ask the user to sign in in that tab of the `personal` browser window, then load 
 Look for the section **"People you may know in $LINKEDIN_GROW_LOCATION"**. It loads further down
 the page, sometimes only after **Load more**. If it doesn't show up, use **"People you may know
 based on your recent activity"** instead (in November 2026 only that one appeared). Each section
-has a **Show all** link that opens a modal with all its suggestions. This `run` does all of that
-(put `$LINKEDIN_GROW_LOCATION` in `location`):
+has a **Show all** link that opens a modal with all its suggestions. The page scrolls inside
+`<main>`, not the window, so `p.mouse.wheel` doesn't move it. This `run` does all of that (put
+`$LINKEDIN_GROW_LOCATION` in `location`):
 
 ```js
 async (p, env) => {
@@ -64,7 +65,7 @@ async (p, env) => {
   const sections = [`People you may know in ${location}`, 'People you may know based on your recent activity'];
   const showAll = h => p.locator(`[aria-label="Show all suggestions for ${h}"]`);
   for (let i = 0; i < 6 && !(await showAll(sections[0]).count()); i++) {
-    await p.mouse.wheel(0, 3000);
+    await p.evaluate(() => { const m = document.querySelector('main'); m ? m.scrollTop += 3000 : window.scrollBy(0, 3000); });
     await p.waitForTimeout(1500);
     const more = p.getByRole('button', { name: 'Load more', exact: true });
     if (await more.count()) { await more.first().click(); await p.waitForTimeout(2500); }
