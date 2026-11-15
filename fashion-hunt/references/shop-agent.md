@@ -73,7 +73,11 @@ incomplete, and what matters is what the shop lists now.
   never as having no matches.
 - Never infer price or availability from URL text, cached snippets or blocked pages.
 - An item that misses exactly one criterion (cream instead of white, unisex or women's instead of
-  men's) is a near match; one that misses more is left out.
+  men's) is a near match; one that misses more is left out. For color, only a neighbouring shade
+  counts (for white: off-white, cream, ecru, ivory, light beige), or a pattern on a mostly white
+  ground (Damier Azur, a print on white). Another color with trim in the requested one, such as
+  navy with white edging, is not a near match. A reversible item with one side in the requested
+  color is a match: say "white on one side only" in its Notes.
 
 ## Check each listing
 
@@ -89,6 +93,10 @@ country the item ships from.
 - **Availability:** keep only listings that can be bought now. Leave out sold, sold-out, reserved,
   removed and expired items entirely, near matches included. Category pages and search snippets
   aren't offers.
+- **Authenticity:** note whether the platform checks it for this listing (included, optional at
+  checkout, or not offered). Flag "authenticity risk" with the reason when the price is far below
+  similar listings or under about a third of the brand's new price, when the seller left the brand
+  unset or says they can't vouch for it, or when the shop has hidden or flagged the listing.
 
 ## Site notes
 
@@ -163,7 +171,7 @@ MATCHES: none, or
 | Link | Item / variant | Condition | Size | Price | Ships from | Notes |
 NEAR MATCHES: none, or
 | Link | Item / variant | Condition | Price | Misses |
-NOTES: fees, shipping, currency, anything left unverified
+NOTES: fees, shipping, currency, authentication offered, anything left unverified
 ```
 
 Give full listing URLs in Link and prices with their currency. Put the model, material and color

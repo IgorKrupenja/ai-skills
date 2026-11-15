@@ -40,7 +40,14 @@ Boss/BOSS as the brand.
 
 List each brand's aliases for the agents (LV for Louis Vuitton; BOSS and HUGO for Hugo Boss). An
 item that misses exactly one criterion (cream instead of white, unisex instead of men's) is a near
-match, reported separately with what differs.
+match, reported separately with what differs. For color, only a neighbouring shade counts (for
+white: off-white, cream, ecru, ivory, light beige), or a pattern on a mostly white ground (Damier
+Azur, a print on white). Another color with trim in the requested one (navy with white edging) is
+not a near match. A reversible item with one side in the requested color is a match, labelled as
+white on one side only.
+
+Name the search with a short slug for the history, such as `white-mens-belts-lv-boss`. Run
+`python3 scripts/history.py list` first and reuse the slug of an earlier run of the same request.
 
 ## Run the search
 
@@ -56,15 +63,23 @@ match, reported separately with what differs.
    id plus its shop or brand, such as `qkzv-vinted`.
 3. In a single message, start one subagent per shop the script printed and per URL the user pasted,
    plus one per requested brand for the new price: in Claude Code, the Agent tool with the
-   general-purpose type. Fill in the briefs below. Tell the user in one line how many agents are
-   searching, then wait for all of them to report, without browsing yourself.
+   general-purpose type. The big marketplaces, Vinted and Vestiaire Collective, take the longest,
+   so when the request names several brands, start one agent per brand there instead (tab tag
+   `<run id>-<shop slug>-<brand slug>`). Fill in the briefs below. Tell the user in one line how
+   many agents are searching, then wait for all of them to report, without browsing yourself.
 4. If an agent fails or its report is unusable, start a fresh one for that shop once; if that fails
    too, report the shop as not searched. Set a background timer for 15 minutes when you start
    them. At that point, message every agent still running to stop, close its tab and report what it
    has verified so far; stop any that hasn't reported 3 minutes later and list its shop as not
    searched (timed out), so one slow shop doesn't hold up the rest.
 5. When all have reported, run `python3 scripts/tab.py cleanup <run id>` from this skill's folder to
-   close any tab an agent left open, then write the report.
+   close any tab an agent left open.
+6. Compare with the last run: write the merged matches and near matches as JSON to a file (format
+   in `scripts/history.py`) and run `python3 scripts/history.py diff <slug> <file>`. It prints what
+   is new, gone or repriced since the last run of the same search. Open the page of each gone match
+   in a tab of your own (`scripts/tab.py`): if it's still for sale, this run missed it, so add it
+   back to the file and say so; otherwise note it as sold or removed. Then save the run with
+   `python3 scripts/history.py record <slug> <file>` and write the report.
 
 Where subagents aren't available, search the shops one at a time yourself, following
 `references/shop-agent.md` and then `references/brand-agent.md`.
@@ -73,8 +88,9 @@ Shop brief:
 
 ```
 Search <shop name> (<shop url>) for <the request in one line>.
-Criteria: <item type>; brand <brands and aliases>; <audience>; <color>; <other constraints>.
-A near match misses exactly one criterion, such as cream instead of white.
+Criteria: <item type>; brand <brands and aliases, or the one brand of a split agent>; <audience>;
+<color>; <other constraints>.
+A near match misses exactly one criterion, such as cream instead of white (rules in your file).
 Today is <date>. Your tab tag is <run id>-<shop slug>. Skill folder: <skill dir>.
 First read <skill dir>/references/shop-agent.md and follow it.
 ```
@@ -116,6 +132,8 @@ every shop searched, not only the new one.
   verified rate, mark it approximate and keep the original amount and currency beside it. Give the
   rate, its date and its source in a note under the table. Mention duties, shipping and buyer fees
   separately, so listing prices stay comparable.
+- **Item / variant:** add "new since <date>" or "price cut from €X" from the history, "white on
+  one side only" for a reversible item, and "authenticity risk: <why>" when an agent flagged one.
 - **New at manufacturer:** linked to the brand's page.
 - **Ships from:** bold a country outside the EU, since import VAT and duties come on top. EU
   countries are Austria, Belgium, Bulgaria, Croatia, Cyprus, Czechia, Denmark, Estonia, Finland,
@@ -123,5 +141,11 @@ every shop searched, not only the new one.
   Netherlands, Poland, Portugal, Romania, Slovakia, Slovenia, Spain and Sweden. "not stated" isn't
   bolded. For a shop from a city folder, write "in store, <city>".
 
-Put near matches in a separate "Near matches" section after the table, each with the criterion it
-misses.
+Put near matches in a separate "Near matches" section after the table, grouped by the criterion
+they miss (such as "listed as women's", "cream or light beige", "Damier Azur"). Link each one in a
+small group; for a group of more than about five, give the count and price range and link the
+cheapest few.
+
+Then add short notes: which platforms check authenticity (Vestiaire on some listings, for example),
+what changed since the last run (matches that sold, and any this run had missed), and fees,
+shipping and duties.
