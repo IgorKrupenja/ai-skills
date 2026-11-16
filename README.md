@@ -10,11 +10,9 @@ A collection of AI agent skills for automating personal workflows. Uses the comm
 4. Run `cp .env.example .env` and fill in your values in the `.env` file.
 5. Skills look for the `.env` in `~/.claude/skills`. If you cloned the repo somewhere else, also set `SKILLS_DIR` to its path in your shell environment: a value inside `.env` can't help find the `.env` itself.
 
-The scripts are TypeScript run by Bun; `bun run typecheck` checks them. Their only dependency is [skills-kit](https://github.com/IgorKrupenja/skills-kit), shared with [tallinn-dev](https://github.com/IgorKrupenja/tallinn-dev), which brings playwright-cli and gws and the helpers below.
-
 ### Browser
 
-The browser skills share one persistent Chrome profile that belongs to this repo: the playwright-cli in `node_modules` names its browser `ai-skills` (after the package) and keeps its logins apart from any other playwright-cli on the machine. Skills reach it through skills-kit's `browser.ts` (any playwright-cli command, e.g. `bun node_modules/skills-kit/src/browser.ts open --headed`) and `tab.ts` (a background tab per caller, so parallel chats don't collide). Sign in to the sites the skills use once in that browser.
+The browser skills share one persistent Chrome profile that belongs to this repo: the playwright-cli in `node_modules` names its browser `ai-skills` (after the package) and keeps its logins apart from any other playwright-cli on the machine. Skills reach it through [skills-kit](https://github.com/IgorKrupenja/skills-kit)'s `browser.ts` (any playwright-cli command, e.g. `bun node_modules/skills-kit/src/browser.ts open --headed`) and `tab.ts` (a background tab per caller, so parallel chats don't collide). Sign in to the sites the skills use once in that browser.
 
 ### Google Calendar
 
