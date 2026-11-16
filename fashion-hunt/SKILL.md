@@ -77,8 +77,8 @@ so don't use it here.
    id plus its shop or brand, such as `qkzv-vinted`.
 3. In a single message, start one subagent per shop the script printed and per URL the user pasted,
    plus one per requested brand for the new price: in Claude Code, the Agent tool with the
-   general-purpose type. The big marketplaces, Vinted, Vestiaire Collective and eBay.de, take the
-   longest, so when the request names several brands, start one agent per brand there instead (tab
+   general-purpose type. The big marketplaces, Vinted, Vestiaire Collective, eBay.de and JoliCloset,
+   take the longest, so when the request names several brands, start one agent per brand there instead (tab
    tag `<run id>-<shop slug>-<brand slug>`). A popular model can have hundreds of listings even
    for one brand, so split those shops further, such as Vestiaire into its men's catalog and
    everything else, each agent told which part is its own. Fill in the briefs below, giving this skill's folder as an
