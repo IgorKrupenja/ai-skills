@@ -4,21 +4,18 @@ A collection of AI agent skills for automating personal workflows. Uses the comm
 
 ## Setup
 
-1. Install [Bun](https://bun.sh): `curl -fsSL https://bun.sh/install | bash`, or `brew install oven-sh/bun/bun`. The browser skills also need [Google Chrome](https://www.google.com/chrome/).
+1. Pre-requisites:
+   - Install [Google Chrome](https://www.google.com/chrome/).
+   - Install [Bun](https://bun.sh): `curl -fsSL https://bun.sh/install | bash` or `brew install oven-sh/bun/bun`.
+   - For `social-calendar`, configure OAuth client (a Desktop app) with `~/.config/gws/client_secret.json`, as the [gws README](https://github.com/googleworkspace/cli) explains.
 2. Clone this repo into a folder your agentic AI tool uses for skills.
 3. Run `bun install` in it.
 4. Run `cp .env.example .env` and fill in your values in the `.env` file.
-5. Skills look for the `.env` in `~/.claude/skills`. If you cloned the repo somewhere else, also set `SKILLS_DIR` to its path in your shell environment: a value inside `.env` can't help find the `.env` itself.
+5. Sign in to a Google account you want to use `social-calendar` with:
 
-### Google Calendar
-
-`social-calendar` reaches Google Calendar through gws (skills-kit's `gws.ts`). Sign it in once to the Google account that owns the calendars, with Calendar access:
-
-```bash
-bun node_modules/skills-kit/src/gws.ts auth login --scopes 'openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/calendar'
-```
-
-It needs an OAuth client (a Desktop app) in `~/.config/gws/client_secret.json`, as the [gws README](https://github.com/googleworkspace/cli) explains.
+    ```bash
+    bun node_modules/skills-kit/src/gws.ts auth login --scopes 'openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/calendar'
+    ```
 
 ## Skills
 
