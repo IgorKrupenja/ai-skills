@@ -77,7 +77,7 @@ All operations go through `spotify/spotify.ts` (`bun spotify.ts <cmd>`), with no
 
 ### social-calendar
 
-Find culture and leisure events in the sources you bookmark, list them in chat and add the ones you pick to a private Google Calendar. Events and series you reject are not suggested again.
+Find culture and leisure events in the sources you bookmark, list them in chat and add the ones you pick to a private Google Calendar. Events and series you reject are not suggested again. The off-duty twin of the [tallinn.dev](https://tallinn.dev) event skills: same crawling, fewer lanyards.
 
 | Variable                           | Description                                                        |
 | ---------------------------------- | ------------------------------------------------------------------ |
