@@ -5,9 +5,10 @@ A collection of AI agent skills for automating personal workflows. Uses the comm
 ## Setup
 
 1. Install [Bun](https://bun.sh): `curl -fsSL https://bun.sh/install | bash`, or `brew install oven-sh/bun/bun`. The browser skills also need [Google Chrome](https://www.google.com/chrome/).
-2. Clone this repo into a folder your agentic AI tool uses for skills and run `bun install` in it. That installs everything else the skills run: [playwright-cli](https://github.com/microsoft/playwright-cli) and [gws](https://github.com/googleworkspace/cli), the Google Workspace CLI.
-3. Run `cp .env.example .env` and fill in your values in the `.env` file.
-4. Skills look for the `.env` in `~/.claude/skills`. If you cloned the repo somewhere else, also set `SKILLS_DIR` to its path in your shell environment: a value inside `.env` can't help find the `.env` itself.
+2. Clone this repo into a folder your agentic AI tool uses for skills.
+3. Run `bun install` in it.
+4. Run `cp .env.example .env` and fill in your values in the `.env` file.
+5. Skills look for the `.env` in `~/.claude/skills`. If you cloned the repo somewhere else, also set `SKILLS_DIR` to its path in your shell environment: a value inside `.env` can't help find the `.env` itself.
 
 The scripts are TypeScript run by Bun; `bun run typecheck` checks them. Their only dependency is [skills-kit](https://github.com/IgorKrupenja/skills-kit), shared with [tallinn-dev](https://github.com/IgorKrupenja/tallinn-dev), which brings playwright-cli and gws and the helpers below.
 
