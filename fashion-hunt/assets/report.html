@@ -104,6 +104,7 @@ details .hint { margin-top: 8px; }
     <p class="hint" id="hint"></p>
     <div class="row">
       <div class="chips" id="sizes" role="group"><span class="count" id="l-size"></span></div>
+      <div class="chips" id="conds" role="group"><span class="count" id="l-cond"></span></div>
       <label for="shop" id="shopbox"><span id="l-shop"></span> <select id="shop"></select></label>
       <label for="norisk" id="riskbox"><input type="checkbox" id="norisk"> <span id="l-norisk"></span> <span class="risk">⚠</span></label>
       <label for="eu" id="eubox"><input type="checkbox" id="eu"> <span id="l-eu"></span></label>
@@ -133,14 +134,14 @@ details .hint { margin-top: 8px; }
 const R = /*REPORT*/;
 const TEXT = {
   en: {
-    size: "Size:", shop: "Shop", all: "all", noRisk: "hide", eu: "EU only", price: "Price", asc: "cheapest first", desc: "priciest first",
+    size: "Size:", cond: "Condition:", conds: "Condition", shop: "Shop", all: "all", noRisk: "hide", eu: "EU only", price: "Price", asc: "cheapest first", desc: "priciest first",
     shown: (n, m) => `showing ${n} of ${m}`, risk: "authenticity risk", noSize: "not stated", noPrice: "price unknown",
     cols: ["Shop", "Item", "Condition", "Size", "Price", "New", "Difference", "Ships from", "Notes"],
     empty: "Nothing matches these filters. Clear the size or switch tabs.", unverified: "Not checked yet",
     filters: "Filters", tabs: "Group", sizes: "Size", summary: "Summary", notes: "Notes", locale: "en-IE",
   },
   ru: {
-    size: "Размер:", shop: "Магазин", all: "все", noRisk: "без", eu: "только из ЕС", price: "Цена", asc: "сначала дешёвые", desc: "сначала дорогие",
+    size: "Размер:", cond: "Состояние:", conds: "Состояние", shop: "Магазин", all: "все", noRisk: "без", eu: "только из ЕС", price: "Цена", asc: "сначала дешёвые", desc: "сначала дорогие",
     shown: (n, m) => `показано ${n} из ${m}`, risk: "риск подделки", noSize: "не указан", noPrice: "цена неизвестна",
     cols: ["Магазин", "Модель и цвет", "Состояние", "Размер", "Цена", "Новая у бренда", "Разница", "Откуда", "Заметки"],
     empty: "Под эти фильтры ничего нет. Снимите размер или переключите вкладку.", unverified: "Ещё не проверены",
@@ -166,7 +167,8 @@ $("notes").setAttribute("aria-label", T.notes);
 $("bar").setAttribute("aria-label", T.filters);
 $("tabs").setAttribute("aria-label", T.tabs);
 $("sizes").setAttribute("aria-label", T.sizes);
-for (const k of ["size", "shop", "price", "asc", "desc"]) $("l-" + k).textContent = T[k];
+$("conds").setAttribute("aria-label", T.conds);
+for (const k of ["size", "cond", "shop", "price", "asc", "desc"]) $("l-" + k).textContent = T[k];
 $("l-norisk").textContent = T.noRisk;
 $("l-eu").textContent = T.eu;
 $("empty").textContent = T.empty;
@@ -182,25 +184,28 @@ $("shopbox").hidden = shops.length < 2;
 $("riskbox").hidden = !R.rows.some(r => r.risk);
 $("eubox").hidden = !R.rows.some(r => r.nonEU);
 $("sizes").hidden = R.sizeOrder.length < 2;
+$("conds").hidden = R.conditionOrder.length < 2;
 
-const state = { group: R.groups[0].id, sizes: new Set(), shop: "", norisk: false, eu: false, sort: "asc" };
+const state = { group: R.groups[0].id, sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, sort: "asc" };
 try {
   const saved = JSON.parse(localStorage.getItem("fashion-hunt-filters") || "null");
   if (saved) {
     if (R.groups.some(g => g.id === saved.group)) state.group = saved.group;
     state.sizes = new Set((saved.sizes || []).filter(z => R.sizeOrder.includes(z)));
+    state.conds = new Set((saved.conds || []).filter(c => R.conditionOrder.includes(c)));
     if (shops.includes(saved.shop)) state.shop = saved.shop;
     state.norisk = !!saved.norisk; state.eu = !!saved.eu;
     if (saved.sort === "desc") state.sort = "desc";
   }
 } catch {}
 function save() {
-  try { localStorage.setItem("fashion-hunt-filters", JSON.stringify({ ...state, sizes: [...state.sizes] })); } catch {}
+  try { localStorage.setItem("fashion-hunt-filters", JSON.stringify({ ...state, sizes: [...state.sizes], conds: [...state.conds] })); } catch {}
 }
 
 function passes(r, anyGroup) {
   if (!anyGroup && r.group !== state.group) return false;
   if (state.sizes.size && !r.sizes.some(z => state.sizes.has(z))) return false;
+  if (state.conds.size && !state.conds.has(r.cond)) return false;
   if (state.shop && r.shop !== state.shop) return false;
   if (state.norisk && r.risk) return false;
   if (state.eu && r.nonEU) return false;
@@ -212,6 +217,11 @@ for (const z of R.sizeOrder) {
   b.type = "button"; b.id = "size-" + z; b.textContent = z; b.dataset.z = z;
   $("sizes").appendChild(b);
 }
+for (const c of R.conditionOrder) {
+  const b = document.createElement("button");
+  b.type = "button"; b.id = "cond-" + c; b.textContent = R.conditionNames[c] || c; b.dataset.c = c;
+  $("conds").appendChild(b);
+}
 
 function render() {
   $("tabs").innerHTML = R.groups.map(g => {
@@ -222,6 +232,7 @@ function render() {
   $("hint").textContent = group.hint || "";
   $("hint").hidden = !group.hint;
   $("sizes").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.sizes.has(b.dataset.z)));
+  $("conds").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.conds.has(b.dataset.c)));
   $("shop").value = state.shop; $("norisk").checked = state.norisk; $("eu").checked = state.eu; $("sort").value = state.sort;
 
   const dir = state.sort === "asc" ? 1 : -1;
@@ -255,6 +266,11 @@ $("tabs").addEventListener("click", e => { const b = e.target.closest("button[da
 $("sizes").addEventListener("click", e => {
   const b = e.target.closest("button[data-z]"); if (!b) return;
   state.sizes.has(b.dataset.z) ? state.sizes.delete(b.dataset.z) : state.sizes.add(b.dataset.z);
+  render();
+});
+$("conds").addEventListener("click", e => {
+  const b = e.target.closest("button[data-c]"); if (!b) return;
+  state.conds.has(b.dataset.c) ? state.conds.delete(b.dataset.c) : state.conds.add(b.dataset.c);
   render();
 });
 $("shop").addEventListener("change", e => { state.shop = e.target.value; render(); });

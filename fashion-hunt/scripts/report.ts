@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 /**
  * Build the fashion-hunt report page from a run file: one self-contained HTML page with every
- * listing, a tab for the matches and one per kind of near match, filters by size, shop,
- * authenticity risk and EU, and the brand's new prices. USAGE below lists the fields.
+ * listing, a tab for the matches and one per kind of near match, filters by size, condition,
+ * shop, authenticity risk and EU, and the brand's new prices. USAGE below lists the fields.
  */
 
 const USAGE = `Build the fashion-hunt report page from a run file.
@@ -16,7 +16,8 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
                     rest when page.groups is left out)
     condition       the shop's own label; the page puts the usual Vinted, Vestiaire and Yaga labels
                     on one scale in its language (new with tags, new, like new, very good, good,
-                    fair) and shows the shop's label on hover. Translate any other label yourself
+                    fair), filters by it and shows the shop's label on hover. Translate any other
+                    label yourself; the condition filter lists it as other
     size            as listed; the size filter works out buckets from it (XS to XL+ from letter,
                     FR, IT, UK and US sizes, or a bare number such as a belt's 90), and sizes,
                     such as ["M"], overrides them
@@ -96,16 +97,22 @@ const CONDITIONS: Record<string, string> = {
   hea: "good", good: "good", "good condition": "good",
   rahuldav: "fair", satisfactory: "fair", fair: "fair", "fair condition": "fair",
 };
+/** The scale from best to worst, then labels it doesn't know and listings without one. */
+const CONDITION_ORDER = ["newTags", "new", "likeNew", "veryGood", "good", "fair", "other", "none"];
 const CONDITION_NAMES: Record<"en" | "ru", Record<string, string>> = {
-  en: { newTags: "New with tags", new: "New", likeNew: "Like new", veryGood: "Very good", good: "Good", fair: "Fair" },
-  ru: { newTags: "Новое с биркой", new: "Новое", likeNew: "Как новое", veryGood: "Очень хорошее", good: "Хорошее", fair: "Удовлетворительное" },
+  en: { newTags: "New with tags", new: "New", likeNew: "Like new", veryGood: "Very good", good: "Good", fair: "Fair", other: "Other", none: "Not stated" },
+  ru: { newTags: "Новое с биркой", new: "Новое", likeNew: "Как новое", veryGood: "Очень хорошее", good: "Хорошее", fair: "Удовлетворительное", other: "Другое", none: "Не указано" },
 };
 
-/** A shop's condition label in the page's language, keeping any note in brackets after it; unknown labels stay as they are. */
-function condition(label: string, lang: "en" | "ru"): string {
+/**
+ * A shop's condition label on the scale: the key the condition filter uses, and the label in the
+ * page's language with any note in brackets kept. A label the scale doesn't know stays as it is.
+ */
+function condition(label: string, lang: "en" | "ru"): { key: string; text: string } {
   const [, head = "", rest = ""] = label.match(/^([^(]*?)\s*(\(.*)?$/) ?? [];
   const key = CONDITIONS[head.trim().toLowerCase()];
-  return key ? [CONDITION_NAMES[lang][key], rest].filter(Boolean).join(" ") : label;
+  if (key) return { key, text: [CONDITION_NAMES[lang][key], rest].filter(Boolean).join(" ") };
+  return { key: label.trim() ? "other" : "none", text: label };
 }
 
 function die(message: string): never {
@@ -155,6 +162,7 @@ async function main(args: string[]): Promise<number> {
   const run: Run = await Bun.file(source).json();
   const page = run.page ?? {};
   const ru = page.lang === "ru";
+  const lang = ru ? "ru" : "en";
   const title = page.title || text(run.request) || "Fashion hunt";
 
   const groups: Group[] = page.groups?.length
@@ -179,12 +187,14 @@ async function main(args: string[]): Promise<number> {
     const group = text(listing.group) || (listing.kind === "match" ? "match" : "near");
     if (!groupIds.has(group)) die(`listing ${index + 1} is in group '${group}', which page.groups doesn't have`);
     const sizes = Array.isArray(listing.sizes) ? listing.sizes.filter(size => typeof size === "string") : sizeBuckets(text(listing.size));
+    const state = condition(text(listing.condition), lang);
     return {
       url: listing.url,
       shop: text(listing.shop) || new URL(listing.url).hostname.replace(/^www\./, ""),
       item: text(listing.item),
-      condition: condition(text(listing.condition), ru ? "ru" : "en"),
+      condition: state.text,
       shopCondition: text(listing.condition),
+      cond: state.key,
       size: text(listing.size),
       sizes,
       price: price(listing.price_eur),
@@ -202,7 +212,7 @@ async function main(args: string[]): Promise<number> {
   });
 
   const data = {
-    lang: ru ? "ru" : "en",
+    lang,
     title,
     lede: page.lede ?? "",
     newLabel: page.new_label ?? "",
@@ -212,6 +222,8 @@ async function main(args: string[]): Promise<number> {
     unverified: page.unverified?.items?.length ? page.unverified : null,
     rows,
     sizeOrder: sizeOrder(new Set(rows.flatMap(row => row.sizes))),
+    conditionOrder: CONDITION_ORDER.filter(key => rows.some(row => row.cond === key)),
+    conditionNames: CONDITION_NAMES[lang],
   };
   const template = await Bun.file(`${import.meta.dir}/../assets/report.html`).text();
   // "<" escaped, so no listing text can close the script tag
