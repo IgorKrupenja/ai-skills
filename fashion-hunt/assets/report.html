@@ -138,6 +138,7 @@ details .hint { margin-top: 8px; }
       <label for="shop" id="shopbox"><span id="l-shop"></span> <select id="shop"></select></label>
       <label for="norisk" id="riskbox"><input type="checkbox" id="norisk"> <span id="l-norisk"></span> <span class="risk">⚠</span></label>
       <label for="eu" id="eubox"><input type="checkbox" id="eu"> <span id="l-eu"></span></label>
+      <label for="cheap" id="cheapbox"><input type="checkbox" id="cheap"> <span id="l-cheap"></span></label>
       <label for="sort"><span id="l-price"></span> <select id="sort"><option value="asc" id="l-asc"></option><option value="desc" id="l-desc"></option></select></label>
       <span class="count" id="count"></span>
     </div>
@@ -167,7 +168,7 @@ const TEXT = {
   en: {
     listed: n => `${n} listed`, from: "from", median: "median", euSellers: "EU sellers", variants: "Variants",
     allTab: "All", allHint: "Every listing at once; near matches are tagged with how they differ.",
-    size: "Size:", cond: "Condition:", conds: "Condition", shop: "Shop", all: "all", noRisk: "hide", eu: "EU only", price: "Price", asc: "cheapest first", desc: "priciest first",
+    size: "Size:", cond: "Condition:", conds: "Condition", shop: "Shop", all: "all", noRisk: "hide", eu: "EU only", cheap: "hide at or above the new price", price: "Price", asc: "cheapest first", desc: "priciest first",
     shown: (n, m) => `showing ${n} of ${m}`, risk: "authenticity risk", noSize: "not stated", noPrice: "price unknown",
     cols: ["Shop", "Item", "Condition", "Size", "Price", "New", "Difference", "Ships from", "Notes"],
     empty: "Nothing matches these filters. Clear the size or switch tabs.", unverified: "Not checked yet",
@@ -176,7 +177,7 @@ const TEXT = {
   ru: {
     listed: n => `${n} ${plural(n, "объявление", "объявления", "объявлений")}`, from: "от", median: "медиана", euSellers: "из ЕС", variants: "Варианты",
     allTab: "Все", allHint: "Все объявления сразу; у близких вариантов отмечено, чем они не подходят.",
-    size: "Размер:", cond: "Состояние:", conds: "Состояние", shop: "Магазин", all: "все", noRisk: "без", eu: "только из ЕС", price: "Цена", asc: "сначала дешёвые", desc: "сначала дорогие",
+    size: "Размер:", cond: "Состояние:", conds: "Состояние", shop: "Магазин", all: "все", noRisk: "без", eu: "только из ЕС", cheap: "скрыть по цене нового и дороже", price: "Цена", asc: "сначала дешёвые", desc: "сначала дорогие",
     shown: (n, m) => `показано ${n} из ${m}`, risk: "риск подделки", noSize: "не указан", noPrice: "цена неизвестна",
     cols: ["Магазин", "Модель и цвет", "Состояние", "Размер", "Цена", "Новая у бренда", "Разница", "Откуда", "Заметки"],
     empty: "Под эти фильтры ничего нет. Снимите размер или переключите вкладку.", unverified: "Ещё не проверены",
@@ -210,6 +211,7 @@ $("conds").setAttribute("aria-label", T.conds);
 for (const k of ["size", "cond", "shop", "price", "asc", "desc"]) $("l-" + k).textContent = T[k];
 $("l-norisk").textContent = T.noRisk;
 $("l-eu").textContent = T.eu;
+$("l-cheap").textContent = T.cheap;
 $("empty").textContent = T.empty;
 const cols = [...T.cols];
 if (R.newLabel) cols[5] = R.newLabel;
@@ -222,6 +224,9 @@ $("shop").innerHTML = `<option value="">${esc(T.all)}</option>` + shops.map(s =>
 $("shopbox").hidden = shops.length < 2;
 $("riskbox").hidden = !R.rows.some(r => r.risk);
 $("eubox").hidden = !R.rows.some(r => r.nonEU);
+// Listings priced at or above the brand's own new price: rarely worth buying second-hand
+const notCheaper = r => r.newPrice !== null && r.price !== null && r.price >= r.newPrice;
+$("cheapbox").hidden = !R.rows.some(notCheaper);
 $("sizes").hidden = R.sizeOrder.length < 2;
 $("conds").hidden = R.conditionOrder.length < 2;
 
@@ -261,7 +266,7 @@ const groupLabels = Object.fromEntries(R.groups.map(g => [g.id, g.label]));
 const tabs = [...R.groups];
 if (new Set(R.rows.map(r => r.group)).size > 1) tabs.push({ id: ALL, label: T.allTab, hint: T.allHint });
 
-const state = { group: MATCH, variant: "", sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, sort: "asc" };
+const state = { group: MATCH, variant: "", sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, cheap: true, sort: "asc" };
 try {
   const saved = JSON.parse(localStorage.getItem("fashion-hunt-filters") || "null");
   if (saved) {
@@ -271,6 +276,7 @@ try {
     state.conds = new Set((saved.conds || []).filter(c => R.conditionOrder.includes(c)));
     if (shops.includes(saved.shop)) state.shop = saved.shop;
     state.norisk = !!saved.norisk; state.eu = !!saved.eu;
+    if (typeof saved.cheap === "boolean") state.cheap = saved.cheap;
     if (saved.sort === "desc") state.sort = "desc";
   }
 } catch {}
@@ -286,6 +292,7 @@ function passes(r, anyGroup) {
   if (state.shop && r.shop !== state.shop) return false;
   if (state.norisk && r.risk) return false;
   if (state.eu && r.nonEU) return false;
+  if (state.cheap && !$("cheapbox").hidden && notCheaper(r)) return false;
   return true;
 }
 
@@ -311,7 +318,7 @@ function render() {
   $("variants").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.variant === b.dataset.v));
   $("sizes").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.sizes.has(b.dataset.z)));
   $("conds").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.conds.has(b.dataset.c)));
-  $("shop").value = state.shop; $("norisk").checked = state.norisk; $("eu").checked = state.eu; $("sort").value = state.sort;
+  $("shop").value = state.shop; $("norisk").checked = state.norisk; $("eu").checked = state.eu; $("cheap").checked = state.cheap; $("sort").value = state.sort;
 
   const dir = state.sort === "asc" ? 1 : -1;
   const list = R.rows.filter(r => passes(r, false))
@@ -359,6 +366,7 @@ $("conds").addEventListener("click", e => {
 $("shop").addEventListener("change", e => { state.shop = e.target.value; render(); });
 $("norisk").addEventListener("change", e => { state.norisk = e.target.checked; render(); });
 $("eu").addEventListener("change", e => { state.eu = e.target.checked; render(); });
+$("cheap").addEventListener("change", e => { state.cheap = e.target.checked; render(); });
 $("sort").addEventListener("change", e => { state.sort = e.target.value; render(); });
 
 if (R.unverified && R.unverified.items.length) {
