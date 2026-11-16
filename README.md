@@ -4,7 +4,7 @@ A collection of AI agent skills for automating personal workflows. Uses the comm
 
 ## Setup
 
-1. Install [Bun](https://bun.sh): `curl -fsSL https://bun.sh/install | bash`, or `brew install oven-sh/bun/bun`. The skills also need [Node.js](https://nodejs.org), which playwright-cli runs on, and [Google Chrome](https://www.google.com/chrome/) for the browser skills.
+1. Install [Bun](https://bun.sh): `curl -fsSL https://bun.sh/install | bash`, or `brew install oven-sh/bun/bun`. The browser skills also need [Google Chrome](https://www.google.com/chrome/).
 2. Clone this repo into a folder your agentic AI tool uses for skills and run `bun install` in it. That installs everything else the skills run: [playwright-cli](https://github.com/microsoft/playwright-cli) and [gws](https://github.com/googleworkspace/cli), the Google Workspace CLI.
 3. Run `cp .env.example .env` and fill in your values in the `.env` file.
 4. Skills look for the `.env` in `~/.claude/skills`. If you cloned the repo somewhere else, also set `SKILLS_DIR` to its path in your shell environment: a value inside `.env` can't help find the `.env` itself.
@@ -20,7 +20,7 @@ The browser skills share one persistent Chrome profile that belongs to this repo
 `social-calendar` reaches Google Calendar through gws (`scripts/gws.ts`). Sign it in once to the Google account that owns the calendars, with Calendar access:
 
 ```bash
-node_modules/.bin/gws auth login --scopes 'openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/calendar'
+bun scripts/gws.ts auth login --scopes 'openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/calendar'
 ```
 
 It needs an OAuth client (a Desktop app) in `~/.config/gws/client_secret.json`, as the [gws README](https://github.com/googleworkspace/cli) explains.
