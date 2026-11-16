@@ -15,10 +15,11 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
 
     group           its tab: an id from page.groups ("match" for matches and "near" for the
                     rest when page.groups is left out)
-    condition       the shop's own label; the page puts the usual Vinted, Vestiaire and Yaga labels
-                    on one scale in its language (new with tags, new, like new, very good, good,
-                    fair), filters by it and shows the shop's label on hover. Translate any other
-                    label yourself; the condition filter lists it as other
+    condition       the shop's own label; the page puts the usual Vinted, Vestiaire, Yaga, Care of
+                    Carl and Collector's Cage labels, and its own Russian names, on one scale in
+                    its language (new with tags, new, like new, very good, good, fair), filters by
+                    it and shows the shop's label on hover. Map any other label onto that scale
+                    yourself, or translate it; the condition filter lists it as other
     size            as listed; the size filter works out buckets from it (XS to XL+ from letter,
                     FR, IT, UK and US sizes, or a bare number such as a belt's 90), and sizes,
                     such as ["M"], overrides them
@@ -32,10 +33,14 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
                     filter hides it
     change          from the history, such as "new since 2026-11-15" or "price cut from €420"
     note            anything else worth knowing about the listing
+    variant         such as "Damier Ebene": the page draws a card per variant with its count,
+                    lowest and median price, and a click on a card filters the table to it
 
 and the run has one page object:
 
-    {"lang": "ru", "title": "...", "lede": "...", "new_label": "...",
+    {"lang": "ru", "title": "...", "eyebrow": "...", "lede": "...", "hero": "...",
+     "new_label": "...", "css": "...", "fonts": "https://fonts.googleapis.com/css2?family=...",
+     "variants": [{"name": "Damier Ebene", "swatch": "<svg ...>", "hint": "..."}],
      "facts": [{"title": "...", "html": "..."}],
      "groups": [{"id": "match", "label": "...", "hint": "..."}],
      "notes": [{"title": "...", "html": "..."}],
@@ -43,8 +48,13 @@ and the run has one page object:
 
 All of it is optional: title falls back to the request. lang is "en" (the default) or "ru" and
 sets the language of the page's controls; write the rest in the same language. new_label renames
-the new-price column. lede, the facts and notes html, and the unverified hint are HTML you write;
-listing fields are plain text and get escaped.
+the new-price column. eyebrow is a short line above the title. css comes after the template's
+own styles, so it can set the color and font tokens (--bg, --surface, --fg, --muted, --line,
+--accent, --accent-soft, --link, --warn, --warn-soft, --chip, --display, --body) for light and
+dark and restyle anything else; fonts is the Google Fonts stylesheet it needs. variants orders
+the variant cards and gives each a swatch and a hint. lede, hero, the swatches, the facts and
+notes html, and the unverified hint are HTML you write; listing fields are plain text and get
+escaped.
 `;
 
 type Listing = {
@@ -66,12 +76,18 @@ type Listing = {
   risk?: unknown;
   change?: unknown;
   note?: unknown;
+  variant?: unknown;
 };
 type Group = { id: string; label: string; hint?: string };
 type Page = {
   lang?: string;
   title?: string;
+  eyebrow?: string;
   lede?: string;
+  hero?: string;
+  css?: string;
+  fonts?: string;
+  variants?: { name: string; swatch?: string; hint?: string }[];
   new_label?: string;
   facts?: { title: string; html: string }[];
   groups?: Group[];
@@ -97,6 +113,11 @@ const CONDITIONS: Record<string, string> = {
   "väga hea": "veryGood", "very good": "veryGood", "very good condition": "veryGood",
   hea: "good", good: "good", "good condition": "good",
   rahuldav: "fair", satisfactory: "fair", fair: "fair", "fair condition": "fair",
+  // Pre-owned shops such as Care of Carl and Collector's Cage
+  excellent: "likeNew", "excellent condition": "likeNew", pristine: "likeNew", "very nice": "veryGood",
+  // The page's own Russian names, for labels already translated
+  "новое с биркой": "newTags", "новое": "new", "как новое": "likeNew", "очень хорошее": "veryGood", "хорошее": "good",
+  "удовлетворительное": "fair",
 };
 /** The scale from best to worst, then labels it doesn't know and listings without one. */
 const CONDITION_ORDER = ["newTags", "new", "likeNew", "veryGood", "good", "fair", "other", "none"];
@@ -176,6 +197,13 @@ async function main(args: string[]): Promise<number> {
   if (groupIds.size !== groups.length || groups.some(group => !group.id || !group.label)) {
     die("each page group needs a label and an id of its own");
   }
+  const css = text(page.css);
+  if (/<\/style/i.test(css)) die("page.css can't contain </style");
+  const fonts = text(page.fonts);
+  if (fonts && !fonts.startsWith("https://fonts.googleapis.com/")) die("page.fonts must be a Google Fonts stylesheet URL");
+  const variants = (Array.isArray(page.variants) ? page.variants : [])
+    .filter(variant => typeof variant?.name === "string" && variant.name !== "")
+    .map(variant => ({ name: variant.name, swatch: text(variant.swatch), hint: text(variant.hint) }));
 
   if (!Array.isArray(run.listings)) die("the run needs a 'listings' list");
   const seen = new Set<string>();
@@ -208,6 +236,7 @@ async function main(args: string[]): Promise<number> {
       risk: text(listing.risk),
       change: text(listing.change),
       note: text(listing.note),
+      variant: text(listing.variant),
       group,
     };
   });
@@ -215,7 +244,10 @@ async function main(args: string[]): Promise<number> {
   const data = {
     lang,
     title,
+    eyebrow: text(page.eyebrow),
     lede: page.lede ?? "",
+    hero: text(page.hero),
+    variants,
     newLabel: page.new_label ?? "",
     facts: page.facts ?? [],
     groups,
@@ -229,13 +261,28 @@ async function main(args: string[]): Promise<number> {
   const template = await Bun.file(`${import.meta.dir}/../assets/report.html`).text();
   // "<" escaped, so no listing text can close the script tag
   const json = JSON.stringify(data).replace(/</g, "\\u003c");
-  await Bun.write(out, template.replace("{{TITLE}}", () => escapeHtml(title)).replace("/*REPORT*/", () => json));
+  const fontLink = fonts ? `<link rel="stylesheet" href="${escapeHtml(fonts)}">` : "";
+  await Bun.write(
+    out,
+    template
+      .replace("{{TITLE}}", () => escapeHtml(title))
+      .replace("{{FONTS}}", () => fontLink)
+      .replace("/*THEME*/", () => css)
+      .replace("/*REPORT*/", () => json),
+  );
 
   for (const group of groups) {
     const prices = rows.filter(row => row.group === group.id).map(row => row.price);
     const known = prices.filter(value => value !== null);
     const range = known.length ? `, €${Math.min(...known)} to €${Math.max(...known)}` : "";
     console.log(`${group.label}: ${prices.length}${range}`);
+  }
+  const variantCounts = new Map<string, number>();
+  for (const row of rows) if (row.variant) variantCounts.set(row.variant, (variantCounts.get(row.variant) ?? 0) + 1);
+  if (variantCounts.size) {
+    console.log(`variants: ${[...variantCounts].map(([name, count]) => `${name} ${count}`).join(", ")}`);
+    const bare = [...variantCounts.keys()].filter(name => !variants.some(variant => variant.name === name && variant.swatch));
+    if (bare.length) console.warn(`variants without a swatch: ${bare.join(", ")}`);
   }
   console.log(`wrote ${out}`);
   return 0;

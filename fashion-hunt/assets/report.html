@@ -3,6 +3,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Unbounded:wght@600&display=swap">
+{{FONTS}}
 <style>
 /* The fashion-hunt report page, built by scripts/report.ts, which fills in the title and the data below.
    Layout: one column. Summary boxes, a sticky filter bar, then the listings table, which turns into cards on phones. */
@@ -76,6 +77,17 @@ details .hint { margin-top: 8px; }
 .notes { display: grid; gap: 6px; font-size: 14px; color: var(--muted); max-width: 80ch; }
 .notes h2 { color: var(--fg); }
 .notes p { margin: 0; }
+.eyebrow { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.hero { margin-top: 14px; }
+.variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.variant { font: inherit; color: inherit; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; display: grid; gap: 4px; align-content: start; min-width: 0; }
+.variant:hover, .variant[aria-pressed="true"] { border-color: var(--accent); }
+.variant[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
+.variant .vname { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; margin-bottom: 2px; }
+.variant .sw { flex: none; width: 26px; height: 26px; border-radius: 6px; overflow: hidden; display: inline-flex; }
+.variant .sw svg { width: 100%; height: 100%; display: block; }
+.variant .vstat { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.variant .vstat b { color: var(--fg); font-weight: 600; }
 @media (max-width: 760px) {
   .tablebox { overflow: visible; }
   table, tbody { display: block; background: none; border: 0; }
@@ -91,12 +103,17 @@ details .hint { margin-top: 8px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
+<style id="theme">/*THEME*/</style>
 
 <div class="wrap">
   <header>
+    <p class="eyebrow" id="eyebrow" hidden></p>
     <h1 id="title"></h1>
     <p class="lede" id="lede"></p>
+    <div class="hero" id="hero" hidden></div>
   </header>
+
+  <section class="variants" id="variants" hidden></section>
 
   <section class="facts" id="facts"></section>
 
@@ -133,8 +150,10 @@ details .hint { margin-top: 8px; }
 
 <script>
 const R = /*REPORT*/;
+const plural = (n, one, few, many) => n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? few : many;
 const TEXT = {
   en: {
+    listed: n => `${n} listed`, from: "from", median: "median", euSellers: "EU sellers", variants: "Variants",
     allTab: "All", allHint: "Every listing at once; near matches are tagged with how they differ.",
     size: "Size:", cond: "Condition:", conds: "Condition", shop: "Shop", all: "all", noRisk: "hide", eu: "EU only", price: "Price", asc: "cheapest first", desc: "priciest first",
     shown: (n, m) => `showing ${n} of ${m}`, risk: "authenticity risk", noSize: "not stated", noPrice: "price unknown",
@@ -143,6 +162,7 @@ const TEXT = {
     filters: "Filters", tabs: "Group", sizes: "Size", summary: "Summary", notes: "Notes", locale: "en-IE",
   },
   ru: {
+    listed: n => `${n} ${plural(n, "объявление", "объявления", "объявлений")}`, from: "от", median: "медиана", euSellers: "из ЕС", variants: "Варианты",
     allTab: "Все", allHint: "Все объявления сразу; у близких вариантов отмечено, чем они не подходят.",
     size: "Размер:", cond: "Состояние:", conds: "Состояние", shop: "Магазин", all: "все", noRisk: "без", eu: "только из ЕС", price: "Цена", asc: "сначала дешёвые", desc: "сначала дорогие",
     shown: (n, m) => `показано ${n} из ${m}`, risk: "риск подделки", noSize: "не указан", noPrice: "цена неизвестна",
@@ -161,6 +181,10 @@ document.documentElement.lang = R.lang || "en";
 $("title").textContent = R.title;
 $("lede").innerHTML = R.lede || "";
 $("lede").hidden = !R.lede;
+$("eyebrow").textContent = R.eyebrow || "";
+$("eyebrow").hidden = !R.eyebrow;
+$("hero").innerHTML = R.hero || "";
+$("hero").hidden = !R.hero;
 $("facts").innerHTML = R.facts.map(f => `<div class="fact"><span class="k">${esc(f.title)}</span><p>${f.html}</p></div>`).join("");
 $("facts").hidden = !R.facts.length;
 $("facts").setAttribute("aria-label", T.summary);
@@ -189,6 +213,35 @@ $("eubox").hidden = !R.rows.some(r => r.nonEU);
 $("sizes").hidden = R.sizeOrder.length < 2;
 $("conds").hidden = R.conditionOrder.length < 2;
 
+// A card per variant: in the order page.variants gives, then the rest by count
+const variantCount = new Map();
+for (const r of R.rows) if (r.variant) variantCount.set(r.variant, (variantCount.get(r.variant) || 0) + 1);
+const variantDefs = new Map(R.variants.map(v => [v.name, v]));
+const variants = [
+  ...R.variants.map(v => v.name).filter(name => variantCount.has(name)),
+  ...[...variantCount.keys()].filter(name => !variantDefs.has(name)).sort((a, b) => variantCount.get(b) - variantCount.get(a)),
+];
+const median = xs => { const s = [...xs].sort((a, b) => a - b), n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null; };
+const whole = x => money.format(Math.round(x));
+$("variants").setAttribute("aria-label", T.variants);
+$("variants").hidden = !variants.length;
+$("variants").innerHTML = variants.map(name => {
+  const rows = R.rows.filter(r => r.variant === name);
+  const prices = rows.map(r => r.price).filter(p => p !== null);
+  const euPrices = rows.filter(r => !r.nonEU).map(r => r.price).filter(p => p !== null);
+  const def = variantDefs.get(name) || {};
+  const stats = [esc(T.listed(rows.length)) + (prices.length ? ` · ${esc(T.from)} <b>${whole(Math.min(...prices))}</b>` : "")];
+  if (prices.length > 1) {
+    stats.push(`${esc(T.median)} <b>${whole(median(prices))}</b>` +
+      (euPrices.length && euPrices.length < prices.length ? `, ${esc(T.euSellers)} <b>${whole(median(euPrices))}</b>` : ""));
+  }
+  if (def.hint) stats.push(esc(def.hint));
+  return `<button type="button" class="variant" data-v="${esc(name)}" aria-pressed="false">
+    <span class="vname">${def.swatch ? `<span class="sw" aria-hidden="true">${def.swatch}</span>` : ""}${esc(name)}</span>
+    ${stats.map(s => `<span class="vstat">${s}</span>`).join("")}
+  </button>`;
+}).join("");
+
 // The groups as tabs, plus one with every listing when more than one group has any
 const ALL = "_all";
 const MATCH = R.groups[0].id;
@@ -196,11 +249,12 @@ const groupLabels = Object.fromEntries(R.groups.map(g => [g.id, g.label]));
 const tabs = [...R.groups];
 if (new Set(R.rows.map(r => r.group)).size > 1) tabs.push({ id: ALL, label: T.allTab, hint: T.allHint });
 
-const state = { group: MATCH, sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, sort: "asc" };
+const state = { group: MATCH, variant: "", sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, sort: "asc" };
 try {
   const saved = JSON.parse(localStorage.getItem("fashion-hunt-filters") || "null");
   if (saved) {
     if (tabs.some(g => g.id === saved.group)) state.group = saved.group;
+    if (variants.includes(saved.variant)) state.variant = saved.variant;
     state.sizes = new Set((saved.sizes || []).filter(z => R.sizeOrder.includes(z)));
     state.conds = new Set((saved.conds || []).filter(c => R.conditionOrder.includes(c)));
     if (shops.includes(saved.shop)) state.shop = saved.shop;
@@ -214,6 +268,7 @@ function save() {
 
 function passes(r, anyGroup) {
   if (!anyGroup && state.group !== ALL && r.group !== state.group) return false;
+  if (state.variant && r.variant !== state.variant) return false;
   if (state.sizes.size && !r.sizes.some(z => state.sizes.has(z))) return false;
   if (state.conds.size && !state.conds.has(r.cond)) return false;
   if (state.shop && r.shop !== state.shop) return false;
@@ -241,6 +296,7 @@ function render() {
   const group = tabs.find(g => g.id === state.group);
   $("hint").textContent = group.hint || "";
   $("hint").hidden = !group.hint;
+  $("variants").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.variant === b.dataset.v));
   $("sizes").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.sizes.has(b.dataset.z)));
   $("conds").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.conds.has(b.dataset.c)));
   $("shop").value = state.shop; $("norisk").checked = state.norisk; $("eu").checked = state.eu; $("sort").value = state.sort;
@@ -273,6 +329,11 @@ function render() {
 }
 
 $("tabs").addEventListener("click", e => { const b = e.target.closest("button[data-g]"); if (b) { state.group = b.dataset.g; render(); } });
+$("variants").addEventListener("click", e => {
+  const b = e.target.closest("button[data-v]"); if (!b) return;
+  state.variant = state.variant === b.dataset.v ? "" : b.dataset.v;
+  render();
+});
 $("sizes").addEventListener("click", e => {
   const b = e.target.closest("button[data-z]"); if (!b) return;
   state.sizes.has(b.dataset.z) ? state.sizes.delete(b.dataset.z) : state.sizes.add(b.dataset.z);

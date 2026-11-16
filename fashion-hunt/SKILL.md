@@ -132,9 +132,8 @@ instead.
 
 ## Report
 
-The report is a page with every listing, published as an Artifact, plus a short summary in chat.
-When a run has five listings or fewer in all, skip the page and give them as a table in chat (see
-the end of this section). Write both in the user's language.
+The report is always a page with every listing, published as an Artifact, plus a short summary in
+chat, however few listings the run found. Write both in the user's language.
 
 ### The page
 
@@ -165,9 +164,11 @@ Each listing's fields:
 - **Shop:** the shop's name; the page links it to the listing. Name a new item sold by the brand's
   own store like "Louis Vuitton (official, new)"; third-party retailers aren't labelled (call them
   retailers when useful).
-- **Condition:** the shop's own label. The page puts the usual Vinted, Vestiaire and Yaga labels on
-  one scale in its language, so the column doesn't mix Estonian and English; translate any other
-  label into the user's language yourself, and do the same in a chat table.
+- **Condition:** the shop's own label. The page puts the usual Vinted, Vestiaire, Yaga, Care of
+  Carl and Collector's Cage labels on one scale in its language, so the column doesn't mix
+  Estonian and English. Put any other label on that scale yourself, as its name in the page's
+  language with the shop's own words in brackets (such as "Очень хорошее (minimal marks)"), so
+  the condition filter sorts it too.
 - **Price:** in EUR. Prefer the shop's own EUR price; otherwise convert at a current verified rate
   and give the original amount and currency in `price_note`, marked approximate. Keep duties,
   shipping and buyer fees out of it, so prices stay comparable.
@@ -190,6 +191,29 @@ search, update that one instead, so its link stays the same: read it with the Ar
 publish the new file with its URL. Without an Artifact tool, open the file with `open`. Put the
 page's link in the run file as `page_url` before recording the run.
 
+### Its look
+
+The template keeps what every report needs: the listings table, a tab per group plus the one with
+every listing, the filters, and conditions on one scale in the page's language. Design the rest
+for this search, so each report looks like what was searched for:
+
+- **Palette and type** (`page.css`, `page.fonts`): colors and fonts that suit the item, such as
+  browns and caramel for a brown Louis Vuitton bag, or Canada Goose red for its jackets. Set the
+  template's tokens (`--bg`, `--surface`, `--fg`, `--muted`, `--line`, `--accent`, `--accent-soft`,
+  `--link`, `--warn`, `--warn-soft`, `--chip`, `--display`, `--body`) for light and dark alike, with
+  the three selectors the template uses (`:root`, `:root:not([data-theme="light"])` inside
+  `@media (prefers-color-scheme: dark)`, and `:root[data-theme="dark"]`), and restyle anything
+  else you like. Keep text at least 4.5:1 against its background. Fonts come only from Google
+  Fonts, through the css2 URL in `page.fonts`.
+- **Variant cards** (`variant` on each listing, `page.variants`): when the listings fall into
+  variants worth comparing (canvases, colors, models), name each listing's variant and give every
+  variant a `swatch`, a small inline SVG that draws its pattern or color (a Damier check, a
+  flower print, a color chip), with ids of its own if it defines patterns. The page draws a card
+  per variant with its count, lowest and median price, and a click on a card filters the table.
+- **Eyebrow and hero** (`page.eyebrow`, `page.hero`): a short line above the title, such as
+  "Fashion hunt · Louis Vuitton · checked 16 Nov 2026", and optional HTML under the lede, such as
+  an inline SVG of the item. No scripts, external images or brand logos.
+
 ### In chat
 
 Keep the reply short:
@@ -202,16 +226,4 @@ Keep the reply short:
   out, and the brand's new price to compare;
 - what changed since the last run: matches that sold, and any this run had missed.
 
-If no shop has a live match, say so instead.
-
-### Five listings or fewer
-
-Give one table in chat instead of the page, sorted by EUR price, lowest first, with the same rules
-for each field:
-
-| Source website | Item / variant | Condition | Size | Listing price | New at manufacturer | Difference | Ships from |
-| --- | --- | --- | --- | ---: | ---: | ---: | --- |
-
-Bold a country outside the EU and a new item from the brand's own store. Put near matches after
-the table, grouped by the criterion they miss and each linked, then short notes: which platforms
-check authenticity, what changed since the last run, and fees, shipping and duties.
+If no shop has a single live listing, near matches included, skip the page and say so in chat.
