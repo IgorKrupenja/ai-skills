@@ -404,7 +404,8 @@ function render() {
 // Sticky headings need the table out of its sideways-scrolling box, so only take it out when it fits
 const tablebox = document.querySelector(".tablebox");
 function fitTable() {
-  document.documentElement.style.setProperty("--bar-h", `${$("bar").offsetHeight}px`);
+  // The bar's height is often fractional: tuck the headings a pixel under it, or rows show through a hairline gap
+  document.documentElement.style.setProperty("--bar-h", `${$("bar").getBoundingClientRect().height - 1}px`);
   tablebox.classList.add("fits");
   tablebox.classList.toggle("fits", tablebox.querySelector("table").offsetWidth <= tablebox.clientWidth + 1);
 }
