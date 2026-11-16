@@ -239,7 +239,7 @@ function render() {
     return `<tr>
       <td class="shop" data-l="${esc(cols[0])}">${link(r.url, r.shop)}</td>
       <td class="item">${esc(r.item)}${r.change ? ` <span class="chg">${esc(r.change)}</span>` : ""}</td>
-      <td class="cond" data-l="${esc(cols[2])}">${esc(r.condition)}</td>
+      <td class="cond" data-l="${esc(cols[2])}"${r.shopCondition && r.shopCondition !== r.condition ? ` title="${esc(r.shopCondition)}"` : ""}>${esc(r.condition)}</td>
       <td class="size" data-l="${esc(cols[3])}">${esc(r.size || T.noSize)}</td>
       <td class="price">${r.price === null ? esc(T.noPrice) : money.format(r.price)}${r.priceNote ? `<span class="sub">${esc(r.priceNote)}</span>` : ""}</td>
       <td class="new" data-l="${esc(cols[5])}">${newCell}</td>

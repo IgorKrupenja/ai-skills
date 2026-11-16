@@ -14,7 +14,9 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
 
     group           its tab: an id from page.groups ("match" for matches and "near" for the
                     rest when page.groups is left out)
-    condition       the shop's own label
+    condition       the shop's own label; the page puts the usual Vinted, Vestiaire and Yaga labels
+                    on one scale in its language (new with tags, new, like new, very good, good,
+                    fair) and shows the shop's label on hover. Translate any other label yourself
     size            as listed; the size filter works out buckets from it (XS to XL+ from letter,
                     FR, IT, UK and US sizes, or a bare number such as a belt's 90), and sizes,
                     such as ["M"], overrides them
@@ -84,6 +86,27 @@ const CHARTS: Record<string, number[]> = {
   UK: [4, 6, 10, 14, 18],
   US: [0, 2, 6, 10, 14],
 };
+
+/** The condition labels of Vinted (in Estonian and English), Vestiaire Collective and Yaga, on one scale. */
+const CONDITIONS: Record<string, string> = {
+  "uus koos hinnasildiga": "newTags", "new with tags": "newTags", "new with tag": "newTags", "never worn, with tag": "newTags",
+  "uus ilma hinnasildita": "new", "new without tags": "new", "never worn": "new", "uus": "new", new: "new",
+  "like new": "likeNew", "nagu uus": "likeNew",
+  "väga hea": "veryGood", "very good": "veryGood", "very good condition": "veryGood",
+  hea: "good", good: "good", "good condition": "good",
+  rahuldav: "fair", satisfactory: "fair", fair: "fair", "fair condition": "fair",
+};
+const CONDITION_NAMES: Record<"en" | "ru", Record<string, string>> = {
+  en: { newTags: "New with tags", new: "New", likeNew: "Like new", veryGood: "Very good", good: "Good", fair: "Fair" },
+  ru: { newTags: "Новое с биркой", new: "Новое", likeNew: "Как новое", veryGood: "Очень хорошее", good: "Хорошее", fair: "Удовлетворительное" },
+};
+
+/** A shop's condition label in the page's language, keeping any note in brackets after it; unknown labels stay as they are. */
+function condition(label: string, lang: "en" | "ru"): string {
+  const [, head = "", rest = ""] = label.match(/^([^(]*?)\s*(\(.*)?$/) ?? [];
+  const key = CONDITIONS[head.trim().toLowerCase()];
+  return key ? [CONDITION_NAMES[lang][key], rest].filter(Boolean).join(" ") : label;
+}
 
 function die(message: string): never {
   console.error(message);
@@ -160,7 +183,8 @@ async function main(args: string[]): Promise<number> {
       url: listing.url,
       shop: text(listing.shop) || new URL(listing.url).hostname.replace(/^www\./, ""),
       item: text(listing.item),
-      condition: text(listing.condition),
+      condition: condition(text(listing.condition), ru ? "ru" : "en"),
+      shopCondition: text(listing.condition),
       size: text(listing.size),
       sizes,
       price: price(listing.price_eur),

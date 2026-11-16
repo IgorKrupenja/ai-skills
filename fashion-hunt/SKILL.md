@@ -165,6 +165,9 @@ Each listing's fields:
 - **Shop:** the shop's name; the page links it to the listing. Name a new item sold by the brand's
   own store like "Louis Vuitton (official, new)"; third-party retailers aren't labelled (call them
   retailers when useful).
+- **Condition:** the shop's own label. The page puts the usual Vinted, Vestiaire and Yaga labels on
+  one scale in its language, so the column doesn't mix Estonian and English; translate any other
+  label into the user's language yourself, and do the same in a chat table.
 - **Price:** in EUR. Prefer the shop's own EUR price; otherwise convert at a current verified rate
   and give the original amount and currency in `price_note`, marked approximate. Keep duties,
   shipping and buyer fees out of it, so prices stay comparable.
