@@ -26,6 +26,8 @@
   color-scheme: dark;
 }
 body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+/* What the script hides stays hidden, also where a rule below gives the element a display */
+[hidden] { display: none !important; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
 .wrap { max-width: 1200px; margin: 0 auto; padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
 a { color: var(--link); text-underline-offset: 2px; }
@@ -66,11 +68,9 @@ td.item { min-width: 200px; }
 .iwrap { display: flex; gap: 10px; align-items: flex-start; }
 .thumb { flex: none; display: block; width: 64px; height: 64px; border-radius: 8px; background: var(--chip); }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 8px; }
-@media (hover: hover) and (min-width: 761px) {
-  .thumb { position: relative; }
-  .thumb img { transition: transform .15s ease; transform-origin: 0 0; }
-  .thumb:hover img { transform: scale(3.2); position: relative; z-index: 4; box-shadow: 0 10px 28px rgba(0, 0, 0, .3); }
-}
+/* A larger copy of the photo on hover, fixed to the window so the table's scroll box can't cut it off */
+.preview { position: fixed; z-index: 20; width: 205px; height: 205px; border-radius: 10px; overflow: hidden; pointer-events: none; background: var(--chip); box-shadow: 0 10px 28px rgba(0, 0, 0, .3); }
+.preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .above { color: var(--warn); font-weight: 600; }
 .nonEU { font-weight: 700; }
 .sub { display: block; color: var(--muted); font-size: 12px; }
@@ -368,5 +368,28 @@ if (R.unverified && R.unverified.items.length) {
   $("uvhint").hidden = !R.unverified.hint;
   $("uv").innerHTML = R.unverified.items.map(u => `<li>${link(u.url, u.label || u.url)}</li>`).join("");
 }
+
+// The hover preview of a listing's photo, over the thumbnail, or above it when there's no room below
+const preview = document.createElement("div");
+preview.className = "preview";
+preview.hidden = true;
+preview.setAttribute("aria-hidden", "true");
+preview.appendChild(document.createElement("img")).alt = "";
+document.body.appendChild(preview);
+const canHover = matchMedia("(hover: hover) and (min-width: 761px)");
+$("rows").addEventListener("mouseover", e => {
+  const thumb = e.target.closest(".thumb");
+  if (!thumb || !canHover.matches) return;
+  const img = thumb.querySelector("img"), box = thumb.getBoundingClientRect(), size = 205, gap = 8;
+  preview.firstChild.src = img.currentSrc || img.src;
+  preview.style.top = `${box.top + size + gap <= innerHeight ? box.top : Math.max(gap, box.bottom - size)}px`;
+  preview.style.left = `${Math.max(gap, Math.min(box.left, innerWidth - size - gap))}px`;
+  preview.hidden = false;
+});
+$("rows").addEventListener("mouseout", e => {
+  if (e.target.closest(".thumb") && !e.relatedTarget?.closest(".thumb")) preview.hidden = true;
+});
+// Scrolling the page or the table moves the thumbnail away from the preview
+addEventListener("scroll", () => { preview.hidden = true; }, { capture: true, passive: true });
 render();
 </script>
