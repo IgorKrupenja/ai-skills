@@ -59,6 +59,11 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: v
 tbody tr:last-child td { border-bottom: 0; }
 td.price, td.new, td.diff { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
 th.r { text-align: right; }
+th .sorth { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+th .sorth:hover { color: var(--fg); }
+th .sorth:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+th .arr { font-size: 11px; opacity: .35; }
+th[aria-sort="ascending"] .arr, th[aria-sort="descending"] .arr { opacity: 1; color: var(--accent); }
 td.price { font-weight: 600; }
 td.price .sub { font-weight: 400; }
 /* Notes under a price wrap, so a long one doesn't stretch its column */
@@ -139,7 +144,7 @@ details .hint { margin-top: 8px; }
       <label for="norisk" id="riskbox"><input type="checkbox" id="norisk"> <span id="l-norisk"></span> <span class="risk">⚠</span></label>
       <label for="eu" id="eubox"><input type="checkbox" id="eu"> <span id="l-eu"></span></label>
       <label for="cheap" id="cheapbox"><input type="checkbox" id="cheap"> <span id="l-cheap"></span></label>
-      <label for="sort"><span id="l-price"></span> <select id="sort"><option value="asc" id="l-asc"></option><option value="desc" id="l-desc"></option></select></label>
+      <label for="sort"><span id="l-sort"></span> <select id="sort"></select></label>
       <span class="count" id="count"></span>
     </div>
   </section>
@@ -173,6 +178,8 @@ const TEXT = {
     cols: ["Shop", "Item", "Condition", "Size", "Price", "New", "Difference", "Ships from", "Notes"],
     empty: "Nothing matches these filters. Clear the size or switch tabs.", unverified: "Not checked yet",
     filters: "Filters", tabs: "Group", sizes: "Size", summary: "Summary", notes: "Notes", locale: "en-IE",
+    sortBy: "Sort", sortDirs: { money: ["cheapest first", "priciest first"], diff: ["furthest below new first", "furthest above new first"],
+      cond: ["best first", "worst first"], text: ["A to Z", "Z to A"], size: ["smallest first", "largest first"] },
   },
   ru: {
     listed: n => `${n} ${plural(n, "объявление", "объявления", "объявлений")}`, from: "от", median: "медиана", euSellers: "из ЕС", variants: "Варианты",
@@ -182,6 +189,8 @@ const TEXT = {
     cols: ["Магазин", "Модель и цвет", "Состояние", "Размер", "Цена", "Новая у бренда", "Разница", "Откуда", "Заметки"],
     empty: "Под эти фильтры ничего нет. Снимите размер или переключите вкладку.", unverified: "Ещё не проверены",
     filters: "Фильтры", tabs: "Группа", sizes: "Размер", summary: "Главное", notes: "Примечания", locale: "ru-RU",
+    sortBy: "Сортировка", sortDirs: { money: ["сначала дешёвые", "сначала дорогие"], diff: ["сначала дешевле нового", "сначала дороже нового"],
+      cond: ["сначала лучшие", "сначала худшие"], text: ["от А до Я", "от Я до А"], size: ["сначала маленькие", "сначала большие"] },
   },
 };
 const T = TEXT[R.lang] || TEXT.en;
@@ -208,14 +217,14 @@ $("bar").setAttribute("aria-label", T.filters);
 $("tabs").setAttribute("aria-label", T.tabs);
 $("sizes").setAttribute("aria-label", T.sizes);
 $("conds").setAttribute("aria-label", T.conds);
-for (const k of ["size", "cond", "shop", "price", "asc", "desc"]) $("l-" + k).textContent = T[k];
+for (const k of ["size", "cond", "shop"]) $("l-" + k).textContent = T[k];
+$("l-sort").textContent = T.sortBy;
 $("l-norisk").textContent = T.noRisk;
 $("l-eu").textContent = T.eu;
 $("l-cheap").textContent = T.cheap;
 $("empty").textContent = T.empty;
 const cols = [...T.cols];
 if (R.newLabel) cols[5] = R.newLabel;
-$("head").innerHTML = cols.map((c, i) => `<th${[4, 5, 6].includes(i) ? ' class="r"' : ""}>${esc(c)}</th>`).join("");
 
 const shopCounts = new Map();
 for (const r of R.rows) shopCounts.set(r.shop, (shopCounts.get(r.shop) || 0) + 1);
@@ -266,7 +275,24 @@ const groupLabels = Object.fromEntries(R.groups.map(g => [g.id, g.label]));
 const tabs = [...R.groups];
 if (new Set(R.rows.map(r => r.group)).size > 1) tabs.push({ id: ALL, label: T.allTab, hint: T.allHint });
 
-const state = { group: MATCH, variant: "", sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, cheap: true, sort: "asc" };
+// The columns the table sorts by, each with the value it sorts on; a missing value always goes last
+const COND_RANK = Object.fromEntries(["newTags", "new", "likeNew", "veryGood", "good", "fair", "other"].map((k, i) => [k, i]));
+const SORTS = {
+  shop: { col: 0, kind: "text", value: r => r.shop || null },
+  cond: { col: 2, kind: "cond", value: r => COND_RANK[r.cond] ?? null },
+  size: { col: 3, kind: "size", value: r => { const i = Math.min(...r.sizes.map(z => R.sizeOrder.indexOf(z)).filter(i => i >= 0)); return Number.isFinite(i) ? i : null; } },
+  price: { col: 4, kind: "money", value: r => r.price },
+  new: { col: 5, kind: "money", value: r => r.newPrice },
+  diff: { col: 6, kind: "diff", value: r => r.newPrice !== null && r.price !== null ? r.price - r.newPrice : null },
+  ships: { col: 7, kind: "text", value: r => r.ships || null },
+};
+// Only columns with at least two different values are worth sorting by
+const sortKeys = Object.keys(SORTS).filter(k => new Set(R.rows.map(SORTS[k].value).filter(v => v !== null)).size > 1);
+if (!sortKeys.includes("price")) sortKeys.unshift("price");
+$("sort").innerHTML = sortKeys.flatMap(k => ["asc", "desc"].map((d, i) =>
+  `<option value="${k}-${d}">${esc(cols[SORTS[k].col])}: ${esc(T.sortDirs[SORTS[k].kind][i])}</option>`)).join("");
+
+const state = { group: MATCH, variant: "", sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, cheap: true, sortKey: "price", sortDir: "asc" };
 try {
   const saved = JSON.parse(localStorage.getItem("fashion-hunt-filters") || "null");
   if (saved) {
@@ -277,7 +303,9 @@ try {
     if (shops.includes(saved.shop)) state.shop = saved.shop;
     state.norisk = !!saved.norisk; state.eu = !!saved.eu;
     if (typeof saved.cheap === "boolean") state.cheap = saved.cheap;
-    if (saved.sort === "desc") state.sort = "desc";
+    if (sortKeys.includes(saved.sortKey)) state.sortKey = saved.sortKey;
+    // Pages before column sorting saved only the price order, as sort
+    if (saved.sortDir === "desc" || (!saved.sortKey && saved.sort === "desc")) state.sortDir = "desc";
   }
 } catch {}
 function save() {
@@ -307,7 +335,27 @@ for (const c of R.conditionOrder) {
   $("conds").appendChild(b);
 }
 
+function renderHead() {
+  $("head").innerHTML = cols.map((c, i) => {
+    const cls = [4, 5, 6].includes(i) ? ' class="r"' : "";
+    const k = sortKeys.find(k => SORTS[k].col === i);
+    if (!k) return `<th${cls}>${esc(c)}</th>`;
+    const on = state.sortKey === k;
+    const sort = on ? (state.sortDir === "asc" ? "ascending" : "descending") : "none";
+    return `<th${cls} aria-sort="${sort}"><button type="button" class="sorth" data-k="${k}">${esc(c)}<span class="arr" aria-hidden="true">${on ? (state.sortDir === "asc" ? "↑" : "↓") : "↕"}</span></button></th>`;
+  }).join("");
+}
+
+function compare(a, b) {
+  const s = SORTS[state.sortKey] || SORTS.price, dir = state.sortDir === "asc" ? 1 : -1;
+  const va = s.value(a), vb = s.value(b);
+  if ((va === null) !== (vb === null)) return va === null ? 1 : -1;
+  if (va !== null && va !== vb) return dir * (typeof va === "string" ? va.localeCompare(vb, T.locale) : va - vb);
+  return (a.price === null) - (b.price === null) || (a.price ?? 0) - (b.price ?? 0);
+}
+
 function render() {
+  renderHead();
   $("tabs").innerHTML = tabs.map(g => {
     const n = R.rows.filter(r => (g.id === ALL || r.group === g.id) && passes(r, true)).length;
     return `<button type="button" id="tab-${esc(g.id)}" data-g="${esc(g.id)}" aria-pressed="${state.group === g.id}">${esc(g.label)}<span class="n">${n}</span></button>`;
@@ -318,11 +366,9 @@ function render() {
   $("variants").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.variant === b.dataset.v));
   $("sizes").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.sizes.has(b.dataset.z)));
   $("conds").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.conds.has(b.dataset.c)));
-  $("shop").value = state.shop; $("norisk").checked = state.norisk; $("eu").checked = state.eu; $("cheap").checked = state.cheap; $("sort").value = state.sort;
+  $("shop").value = state.shop; $("norisk").checked = state.norisk; $("eu").checked = state.eu; $("cheap").checked = state.cheap; $("sort").value = `${state.sortKey}-${state.sortDir}`;
 
-  const dir = state.sort === "asc" ? 1 : -1;
-  const list = R.rows.filter(r => passes(r, false))
-    .sort((a, b) => (a.price === null) - (b.price === null) || dir * ((a.price ?? 0) - (b.price ?? 0)));
+  const list = R.rows.filter(r => passes(r, false)).sort(compare);
   $("count").textContent = T.shown(list.length, R.rows.filter(r => state.group === ALL || r.group === state.group).length);
   $("empty").hidden = list.length > 0;
   $("rows").innerHTML = list.map(r => {
@@ -367,7 +413,14 @@ $("shop").addEventListener("change", e => { state.shop = e.target.value; render(
 $("norisk").addEventListener("change", e => { state.norisk = e.target.checked; render(); });
 $("eu").addEventListener("change", e => { state.eu = e.target.checked; render(); });
 $("cheap").addEventListener("change", e => { state.cheap = e.target.checked; render(); });
-$("sort").addEventListener("change", e => { state.sort = e.target.value; render(); });
+$("sort").addEventListener("change", e => { [state.sortKey, state.sortDir] = e.target.value.split("-"); render(); });
+// A click on a column heading sorts by it, and a second click turns the order round
+$("head").addEventListener("click", e => {
+  const b = e.target.closest("button[data-k]"); if (!b) return;
+  if (state.sortKey === b.dataset.k) state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+  else { state.sortKey = b.dataset.k; state.sortDir = "asc"; }
+  render();
+});
 
 if (R.unverified && R.unverified.items.length) {
   $("uvbox").hidden = false;
