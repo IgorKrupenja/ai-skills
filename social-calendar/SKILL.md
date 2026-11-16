@@ -29,7 +29,7 @@ set -a && source "${SKILLS_DIR:-$HOME/.claude/skills}/.env" && set +a
 | `SOCIAL_CALENDAR_EVENT_COLOR`      | Event `colorId` 1-11 (so events stand out). `6` = Tangerine        |
 | `SOCIAL_CALENDAR_TIMEZONE`         | IANA timezone, e.g. `Europe/Tallinn`                               |
 | `SOCIAL_CALENDAR_PAID_ID`          | Second private calendar, for events the user paid or registered for |
-| `GOOGLE_PLACES_API_KEY`            | Google Places key for `goplaces` (venue name → full address)       |
+| `GOOGLE_PLACES_API_KEY`            | Google Places key for skills-kit's `places.ts` (venue → address)  |
 
 State file: **`social-calendar/state.json`** (git-ignored). If missing, create it from `state.example.json`.
 `kokandus.ts` keeps its own snapshot in `social-calendar/kokandus.json` (git-ignored); when it's missing, the next run saves a baseline.
@@ -275,7 +275,7 @@ every pick first and ask before creating any of them, so nothing half-runs. The 
 
 **4. Resolve the location** to a full street address:
 ```bash
-goplaces search "Venue Name, Tallinn" --api-key "$GOOGLE_PLACES_API_KEY" --json
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/src/places.ts" "Venue Name, Tallinn"
 ```
 Use the `address` field. Sanity-check the `name` in the result actually matches the venue: Places happily returns a plausible wrong bar. Also glance at `business_status`: `CLOSED_PERMANENTLY` on a venue hosting a future event means you resolved the wrong place.
 

@@ -97,6 +97,7 @@ Uses Google Calendar through gws. On every crawl `sync_sources.ts` syncs the boo
 | `SOCIAL_CALENDAR_PAID_ID`          | Second private calendar, for events you paid or registered for     |
 | `SOCIAL_CALENDAR_EVENT_COLOR`      | Event color id 1-11 so events stand out (`6` = Tangerine)          |
 | `SOCIAL_CALENDAR_TIMEZONE`         | IANA timezone, e.g. `Europe/Tallinn`                               |
+| `GOOGLE_PLACES_API_KEY`            | Google Places API (New) key, to turn venue names into addresses    |
 
 ### fashion-hunt
 
