@@ -93,7 +93,7 @@ Uses Google Calendar through gws. On every crawl `sync_sources.ts` syncs the boo
 
 ### fashion-hunt
 
-Find live listings of a fashion item, mostly designer accessories, in the shops bookmarked in Vivaldi under `Fashion/Online` and `Fashion/Tallinn`, and compare each with the brand's new price. Subagents search all shops and brand stores in parallel, each in its own background tab of the repo's browser. The report is one table sorted by price, with near matches grouped apart, authenticity risks flagged and changes since the last run.
+Find live listings of a fashion item, mostly designer accessories, in the shops bookmarked in Vivaldi under `Fashion/Online` and `Fashion/Tallinn`, and compare each with the brand's new price. Subagents search all shops and brand stores in parallel, each in its own background tab of the repo's browser. The report is a page published as an Artifact: every listing sorted by price, a tab for the matches and one per kind of near match, filters by size, shop, authenticity risk and EU, and changes since the last run. Small results come as a table in chat instead.
 
 In tools without subagents, it searches the shops one at a time instead.
 

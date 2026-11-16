@@ -89,13 +89,14 @@ so don't use it here.
    searched (timed out), so one slow shop doesn't hold up the rest.
 5. When all have reported, run `bun scripts/tab.ts cleanup <run id>` to close any tab an agent left
    open.
-6. Compare with the last run: write the merged matches and near matches as JSON to a file (format
-   in `scripts/history.ts`) and run `bun scripts/history.ts diff <slug> <file>`. It prints what is
-   new, gone or repriced since the last run of the same search. Open the page of each gone match in
-   a tab of your own (`bun scripts/tab.ts`, used as `references/shop-agent.md` shows): if it's
-   still for sale, this run missed it, so add it back to the file and say so; otherwise note it as
-   sold or removed. Then save the run with `bun scripts/history.ts record <slug> <file>` and write
-   the report.
+6. Compare with the last run: write the merged matches and near matches as JSON to a run file
+   (format in `scripts/history.ts`) and run `bun scripts/history.ts diff <slug> <file>`. Keep the
+   file in the session's scratchpad folder or another temporary one, never in this skill's folder:
+   the repo is public. The diff prints what is new, gone or repriced since the last run of the same
+   search. Open the page of each gone match in a tab of your own (`bun scripts/tab.ts`, used as
+   `references/shop-agent.md` shows): if it's still for sale, this run missed it, so add it back to
+   the file and say so; otherwise note it as sold or removed. Then write the report (below), and
+   once its page is published, save the run with `bun scripts/history.ts record <slug> <file>`.
 
 Where subagents aren't available, search the shops one at a time yourself, following
 `references/shop-agent.md` and then `references/brand-agent.md`.
@@ -131,37 +132,83 @@ instead.
 
 ## Report
 
-State the date checked and which shops were searched. Name any that were blocked or couldn't be
-searched, and offer to search them again once the user has dealt with the check or sign-in in the
-browser window (it runs headed). Then give one table with a row per live listing from every shop
-searched, merged from all the agents' reports and sorted by EUR price, lowest first. If no shop has
-a live match, say so instead. When the user adds a shop or URL later, the new table still covers
-every shop searched, not only the new one.
+The report is a page with every listing, published as an Artifact, plus a short summary in chat.
+When a run has five listings or fewer in all, skip the page and give them as a table in chat (see
+the end of this section). Write both in the user's language.
+
+### The page
+
+Add the page fields `scripts/report.ts` lists to the run file, then build the page next to it:
+
+```bash
+bun scripts/report.ts <run file> <run file's folder>/<slug>.html
+```
+
+- **Rows:** one per live listing from every shop searched, merged from all the agents' reports; the
+  page sorts them by EUR price. When the user adds a shop or URL later, rebuild the page with every
+  shop searched, not only the new one.
+- **Tabs:** the first, `match`, holds the matches. Give each kind of near match a tab of its own,
+  named by the criterion it misses (such as "listed as women's", "cream or light beige", "Damier
+  Azur"), with a one-line hint on what's in it.
+- **Language:** write the title, lede, facts, tab labels and notes in the user's language, and set
+  `lang` to `ru` when that's Russian, so the page's controls match.
+- **Title:** a short name for the search, such as "White LV and BOSS belts". **Lede:** what was
+  searched, the date checked and how many shops.
+- **Facts:** two to four short boxes: the brand's new prices (linked), authenticity (which
+  platforms check it, and that risky listings are flagged), and fees, shipping and duties.
+- **Notes:** the shops searched and which had nothing, which were blocked or only partly checked,
+  how prices and differences were worked out, and any exchange rate with its date and source.
+- **Unverified:** listings an agent shortlisted but couldn't open in time, so the user can look.
+
+Each listing's fields:
+
+- **Shop:** the shop's name; the page links it to the listing. Name a new item sold by the brand's
+  own store like "Louis Vuitton (official, new)"; third-party retailers aren't labelled (call them
+  retailers when useful).
+- **Price:** in EUR. Prefer the shop's own EUR price; otherwise convert at a current verified rate
+  and give the original amount and currency in `price_note`, marked approximate. Keep duties,
+  shipping and buyer fees out of it, so prices stay comparable.
+- **Item:** model, colour and material, specific enough to compare with the brand's range, and
+  "white on one side only" for a reversible item. Put "new since <date>" or "price cut from €X"
+  from the history in `change`.
+- **Risk:** an agent's authenticity flag, with its reason.
+- **New price:** the brand agent's closest item with its link, and in `new_note` what differs
+  (size, material, edition, variant); or only a `new_note` saying "not currently listed by
+  manufacturer".
+- **Ships from:** set `non_eu` for a country outside the EU, since import VAT and duties come on
+  top. EU countries are Austria, Belgium, Bulgaria, Croatia, Cyprus, Czechia, Denmark, Estonia,
+  Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta,
+  the Netherlands, Poland, Portugal, Romania, Slovakia, Slovenia, Spain and Sweden. "not stated"
+  isn't outside the EU. For a shop from a city folder, write "in store, <city>".
+
+Publish the page with the Artifact tool, with a one-word icon for the item type (bag, belt, jacket,
+wallet) and a one-sentence description. If `bun scripts/history.ts list` shows a page for this
+search, update that one instead, so its link stays the same: read it with the Artifact tool, then
+publish the new file with its URL. Without an Artifact tool, open the file with `open`. Put the
+page's link in the run file as `page_url` before recording the run.
+
+### In chat
+
+Keep the reply short:
+
+- the page's link;
+- the date checked and the shops searched; name any that were blocked or couldn't be searched, and
+  offer to search them again once the user has dealt with the check or sign-in in the browser
+  window (it runs headed);
+- three to five picks worth a look first, each linked with its price and size and why it stands
+  out, and the brand's new price to compare;
+- what changed since the last run: matches that sold, and any this run had missed.
+
+If no shop has a live match, say so instead.
+
+### Five listings or fewer
+
+Give one table in chat instead of the page, sorted by EUR price, lowest first, with the same rules
+for each field:
 
 | Source website | Item / variant | Condition | Size | Listing price | New at manufacturer | Difference | Ships from |
 | --- | --- | --- | --- | ---: | ---: | ---: | --- |
 
-- **Source website:** the shop's name, linked to the listing. A new item sold by the brand's own
-  store is bolded and labelled, like **Louis Vuitton (official, new)**; third-party retailers
-  aren't (call them retailers when useful).
-- **Listing price:** in EUR. Prefer the shop's own EUR price; otherwise convert at a current
-  verified rate, mark it approximate and keep the original amount and currency beside it. Give the
-  rate, its date and its source in a note under the table. Mention duties, shipping and buyer fees
-  separately, so listing prices stay comparable.
-- **Item / variant:** add "new since <date>" or "price cut from €X" from the history, "white on
-  one side only" for a reversible item, and "authenticity risk: <why>" when an agent flagged one.
-- **New at manufacturer:** linked to the brand's page.
-- **Ships from:** bold a country outside the EU, since import VAT and duties come on top. EU
-  countries are Austria, Belgium, Bulgaria, Croatia, Cyprus, Czechia, Denmark, Estonia, Finland,
-  France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the
-  Netherlands, Poland, Portugal, Romania, Slovakia, Slovenia, Spain and Sweden. "not stated" isn't
-  bolded. For a shop from a city folder, write "in store, <city>".
-
-Put near matches in a separate "Near matches" section after the table, grouped by the criterion
-they miss (such as "listed as women's", "cream or light beige", "Damier Azur"). Link each one in a
-small group; for a group of more than about five, give the count and price range and link the
-cheapest few.
-
-Then add short notes: which platforms check authenticity (Vestiaire on some listings, for example),
-what changed since the last run (matches that sold, and any this run had missed), and fees,
-shipping and duties.
+Bold a country outside the EU and a new item from the brand's own store. Put near matches after
+the table, grouped by the criterion they miss and each linked, then short notes: which platforms
+check authenticity, what changed since the last run, and fees, shipping and duties.

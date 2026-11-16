@@ -1,0 +1,273 @@
+<title>{{TITLE}}</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Unbounded:wght@600&display=swap">
+<style>
+/* The fashion-hunt report page, built by scripts/report.ts, which fills in the title and the data below.
+   Layout: one column. Summary boxes, a sticky filter bar, then the listings table, which turns into cards on phones. */
+:root {
+  --bg: #f1f4f6; --surface: #ffffff; --fg: #15212c; --muted: #5a6774; --line: #d7dee4;
+  --accent: #94643a; --accent-soft: #f2e8dc; --link: #1d4e86; --warn: #ad4a17; --warn-soft: #fae7db; --chip: #e5ebef;
+  --display: "Unbounded", "Golos Text", system-ui, sans-serif;
+  --body: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141b; --surface: #142029; --fg: #e5ebf0; --muted: #93a1ae; --line: #253441;
+    --accent: #d6a571; --accent-soft: #2b2218; --link: #8fb9ea; --warn: #f39260; --warn-soft: #36221a; --chip: #1c2a36;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141b; --surface: #142029; --fg: #e5ebf0; --muted: #93a1ae; --line: #253441;
+  --accent: #d6a571; --accent-soft: #2b2218; --link: #8fb9ea; --warn: #f39260; --warn-soft: #36221a; --chip: #1c2a36;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap { max-width: 1200px; margin: 0 auto; padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+a { color: var(--link); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1 { font-family: var(--display); font-weight: 600; font-size: clamp(22px, 4.2vw, 34px); letter-spacing: -0.01em; line-height: 1.15; margin: 0; text-wrap: balance; }
+h2 { font-size: 17px; font-weight: 600; margin: 8px 0 0; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 70ch; margin: 8px 0 0; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 14px; min-width: 0; }
+.fact .k { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); font-weight: 600; margin-bottom: 4px; }
+.fact p { margin: 0; }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs button, .chips button { font: inherit; font-size: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.tabs .n { font-variant-numeric: tabular-nums; opacity: .7; margin-left: 4px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.chips button { padding: 3px 10px; background: var(--chip); border-color: transparent; }
+.chips button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.row label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+select { font: inherit; font-size: 14px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); }
+.hint { color: var(--muted); font-size: 14px; margin: 0; }
+.count { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.tablebox { overflow-x: auto; min-width: 0; }
+table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td.price, td.new, td.diff { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+th.r { text-align: right; }
+td.price { font-weight: 600; }
+td.price .sub { font-weight: 400; }
+td.shop a { font-weight: 500; }
+td.item { min-width: 200px; }
+.above { color: var(--warn); font-weight: 600; }
+.nonEU { font-weight: 700; }
+.sub { display: block; color: var(--muted); font-size: 12px; }
+.risk { display: inline-block; background: var(--warn-soft); color: var(--warn); border-radius: 4px; padding: 0 5px; font-size: 13px; }
+.chg { display: inline-block; background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 0 5px; font-size: 12px; font-weight: 500; }
+.note { color: var(--muted); font-size: 13px; min-width: 180px; }
+.empty { padding: 24px; text-align: center; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+summary { cursor: pointer; font-weight: 600; }
+details .hint { margin-top: 8px; }
+.ulist { columns: 2 280px; column-gap: 24px; margin: 10px 0 0; padding-left: 18px; font-size: 14px; }
+.ulist li { break-inside: avoid; margin-bottom: 4px; }
+.notes { display: grid; gap: 6px; font-size: 14px; color: var(--muted); max-width: 80ch; }
+.notes h2 { color: var(--fg); }
+.notes p { margin: 0; }
+@media (max-width: 760px) {
+  .tablebox { overflow: visible; }
+  table, tbody { display: block; background: none; border: 0; }
+  thead { display: none; }
+  tbody { display: grid; gap: 10px; }
+  tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  td { display: block; padding: 0; border: 0; min-width: 0; }
+  td.item { grid-column: 1; grid-row: 1; font-weight: 600; min-width: 0; }
+  td.price { grid-column: 2; grid-row: 1; }
+  td.shop, td.cond, td.size, td.new, td.diff, td.ships, td.note { grid-column: 1 / -1; text-align: left; font-size: 13px; white-space: normal; }
+  td[data-l]::before { content: attr(data-l) ": "; color: var(--muted); }
+  td.new:empty, td.diff:empty, td.note:empty, td.cond:empty { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1 id="title"></h1>
+    <p class="lede" id="lede"></p>
+  </header>
+
+  <section class="facts" id="facts"></section>
+
+  <section class="bar" id="bar">
+    <div class="tabs" id="tabs" role="group"></div>
+    <p class="hint" id="hint"></p>
+    <div class="row">
+      <div class="chips" id="sizes" role="group"><span class="count" id="l-size"></span></div>
+      <label for="shop" id="shopbox"><span id="l-shop"></span> <select id="shop"></select></label>
+      <label for="norisk" id="riskbox"><input type="checkbox" id="norisk"> <span id="l-norisk"></span> <span class="risk">⚠</span></label>
+      <label for="eu" id="eubox"><input type="checkbox" id="eu"> <span id="l-eu"></span></label>
+      <label for="sort"><span id="l-price"></span> <select id="sort"><option value="asc" id="l-asc"></option><option value="desc" id="l-desc"></option></select></label>
+      <span class="count" id="count"></span>
+    </div>
+  </section>
+
+  <div class="tablebox">
+    <table>
+      <thead><tr id="head"></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" hidden></div>
+  </div>
+
+  <details id="uvbox" hidden>
+    <summary id="uvtitle"></summary>
+    <p class="hint" id="uvhint"></p>
+    <ul class="ulist" id="uv"></ul>
+  </details>
+
+  <section class="notes" id="notes"></section>
+</div>
+
+<script>
+const R = /*REPORT*/;
+const TEXT = {
+  en: {
+    size: "Size:", shop: "Shop", all: "all", noRisk: "hide", eu: "EU only", price: "Price", asc: "cheapest first", desc: "priciest first",
+    shown: (n, m) => `showing ${n} of ${m}`, risk: "authenticity risk", noSize: "not stated", noPrice: "price unknown",
+    cols: ["Shop", "Item", "Condition", "Size", "Price", "New", "Difference", "Ships from", "Notes"],
+    empty: "Nothing matches these filters. Clear the size or switch tabs.", unverified: "Not checked yet",
+    filters: "Filters", tabs: "Group", sizes: "Size", summary: "Summary", notes: "Notes", locale: "en-IE",
+  },
+  ru: {
+    size: "Размер:", shop: "Магазин", all: "все", noRisk: "без", eu: "только из ЕС", price: "Цена", asc: "сначала дешёвые", desc: "сначала дорогие",
+    shown: (n, m) => `показано ${n} из ${m}`, risk: "риск подделки", noSize: "не указан", noPrice: "цена неизвестна",
+    cols: ["Магазин", "Модель и цвет", "Состояние", "Размер", "Цена", "Новая у бренда", "Разница", "Откуда", "Заметки"],
+    empty: "Под эти фильтры ничего нет. Снимите размер или переключите вкладку.", unverified: "Ещё не проверены",
+    filters: "Фильтры", tabs: "Группа", sizes: "Размер", summary: "Главное", notes: "Примечания", locale: "ru-RU",
+  },
+};
+const T = TEXT[R.lang] || TEXT.en;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const money = new Intl.NumberFormat(T.locale, { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const link = (url, text) => `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(text)}</a>`;
+
+document.documentElement.lang = R.lang || "en";
+$("title").textContent = R.title;
+$("lede").innerHTML = R.lede || "";
+$("lede").hidden = !R.lede;
+$("facts").innerHTML = R.facts.map(f => `<div class="fact"><span class="k">${esc(f.title)}</span><p>${f.html}</p></div>`).join("");
+$("facts").hidden = !R.facts.length;
+$("facts").setAttribute("aria-label", T.summary);
+$("notes").innerHTML = R.notes.map(n => (n.title ? `<h2>${esc(n.title)}</h2>` : "") + `<p>${n.html}</p>`).join("");
+$("notes").hidden = !R.notes.length;
+$("notes").setAttribute("aria-label", T.notes);
+$("bar").setAttribute("aria-label", T.filters);
+$("tabs").setAttribute("aria-label", T.tabs);
+$("sizes").setAttribute("aria-label", T.sizes);
+for (const k of ["size", "shop", "price", "asc", "desc"]) $("l-" + k).textContent = T[k];
+$("l-norisk").textContent = T.noRisk;
+$("l-eu").textContent = T.eu;
+$("empty").textContent = T.empty;
+const cols = [...T.cols];
+if (R.newLabel) cols[5] = R.newLabel;
+$("head").innerHTML = cols.map((c, i) => `<th${[4, 5, 6].includes(i) ? ' class="r"' : ""}>${esc(c)}</th>`).join("");
+
+const shopCounts = new Map();
+for (const r of R.rows) shopCounts.set(r.shop, (shopCounts.get(r.shop) || 0) + 1);
+const shops = [...shopCounts.keys()].sort((a, b) => shopCounts.get(b) - shopCounts.get(a));
+$("shop").innerHTML = `<option value="">${esc(T.all)}</option>` + shops.map(s => `<option>${esc(s)}</option>`).join("");
+$("shopbox").hidden = shops.length < 2;
+$("riskbox").hidden = !R.rows.some(r => r.risk);
+$("eubox").hidden = !R.rows.some(r => r.nonEU);
+$("sizes").hidden = R.sizeOrder.length < 2;
+
+const state = { group: R.groups[0].id, sizes: new Set(), shop: "", norisk: false, eu: false, sort: "asc" };
+try {
+  const saved = JSON.parse(localStorage.getItem("fashion-hunt-filters") || "null");
+  if (saved) {
+    if (R.groups.some(g => g.id === saved.group)) state.group = saved.group;
+    state.sizes = new Set((saved.sizes || []).filter(z => R.sizeOrder.includes(z)));
+    if (shops.includes(saved.shop)) state.shop = saved.shop;
+    state.norisk = !!saved.norisk; state.eu = !!saved.eu;
+    if (saved.sort === "desc") state.sort = "desc";
+  }
+} catch {}
+function save() {
+  try { localStorage.setItem("fashion-hunt-filters", JSON.stringify({ ...state, sizes: [...state.sizes] })); } catch {}
+}
+
+function passes(r, anyGroup) {
+  if (!anyGroup && r.group !== state.group) return false;
+  if (state.sizes.size && !r.sizes.some(z => state.sizes.has(z))) return false;
+  if (state.shop && r.shop !== state.shop) return false;
+  if (state.norisk && r.risk) return false;
+  if (state.eu && r.nonEU) return false;
+  return true;
+}
+
+for (const z of R.sizeOrder) {
+  const b = document.createElement("button");
+  b.type = "button"; b.id = "size-" + z; b.textContent = z; b.dataset.z = z;
+  $("sizes").appendChild(b);
+}
+
+function render() {
+  $("tabs").innerHTML = R.groups.map(g => {
+    const n = R.rows.filter(r => r.group === g.id && passes(r, true)).length;
+    return `<button type="button" id="tab-${esc(g.id)}" data-g="${esc(g.id)}" aria-pressed="${state.group === g.id}">${esc(g.label)}<span class="n">${n}</span></button>`;
+  }).join("");
+  const group = R.groups.find(g => g.id === state.group);
+  $("hint").textContent = group.hint || "";
+  $("hint").hidden = !group.hint;
+  $("sizes").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.sizes.has(b.dataset.z)));
+  $("shop").value = state.shop; $("norisk").checked = state.norisk; $("eu").checked = state.eu; $("sort").value = state.sort;
+
+  const dir = state.sort === "asc" ? 1 : -1;
+  const list = R.rows.filter(r => passes(r, false))
+    .sort((a, b) => (a.price === null) - (b.price === null) || dir * ((a.price ?? 0) - (b.price ?? 0)));
+  $("count").textContent = T.shown(list.length, R.rows.filter(r => r.group === state.group).length);
+  $("empty").hidden = list.length > 0;
+  $("rows").innerHTML = list.map(r => {
+    const diff = r.newPrice !== null && r.price !== null ? r.price - r.newPrice : null;
+    const newCell = r.newPrice !== null
+      ? (r.newUrl ? link(r.newUrl, money.format(r.newPrice)) : esc(money.format(r.newPrice))) + (r.newNote ? `<span class="sub">${esc(r.newNote)}</span>` : "")
+      : (r.newNote ? `<span class="sub">${esc(r.newNote)}</span>` : "");
+    const diffCell = diff === null ? "" : `<span${diff > 0 ? ' class="above"' : ""}>${diff < 0 ? "−" : "+"}${money.format(Math.abs(diff))}</span>`;
+    const notes = [r.risk ? `<span class="risk">⚠ ${esc(T.risk)}: ${esc(r.risk)}</span>` : "", esc(r.note)].filter(Boolean).join(" ");
+    return `<tr>
+      <td class="shop" data-l="${esc(cols[0])}">${link(r.url, r.shop)}</td>
+      <td class="item">${esc(r.item)}${r.change ? ` <span class="chg">${esc(r.change)}</span>` : ""}</td>
+      <td class="cond" data-l="${esc(cols[2])}">${esc(r.condition)}</td>
+      <td class="size" data-l="${esc(cols[3])}">${esc(r.size || T.noSize)}</td>
+      <td class="price">${r.price === null ? esc(T.noPrice) : money.format(r.price)}${r.priceNote ? `<span class="sub">${esc(r.priceNote)}</span>` : ""}</td>
+      <td class="new" data-l="${esc(cols[5])}">${newCell}</td>
+      <td class="diff" data-l="${esc(cols[6])}">${diffCell}</td>
+      <td class="ships${r.nonEU ? " nonEU" : ""}" data-l="${esc(cols[7])}">${esc(r.ships)}</td>
+      <td class="note">${notes}</td>
+    </tr>`;
+  }).join("");
+  save();
+}
+
+$("tabs").addEventListener("click", e => { const b = e.target.closest("button[data-g]"); if (b) { state.group = b.dataset.g; render(); } });
+$("sizes").addEventListener("click", e => {
+  const b = e.target.closest("button[data-z]"); if (!b) return;
+  state.sizes.has(b.dataset.z) ? state.sizes.delete(b.dataset.z) : state.sizes.add(b.dataset.z);
+  render();
+});
+$("shop").addEventListener("change", e => { state.shop = e.target.value; render(); });
+$("norisk").addEventListener("change", e => { state.norisk = e.target.checked; render(); });
+$("eu").addEventListener("change", e => { state.eu = e.target.checked; render(); });
+$("sort").addEventListener("change", e => { state.sort = e.target.value; render(); });
+
+if (R.unverified && R.unverified.items.length) {
+  $("uvbox").hidden = false;
+  $("uvtitle").textContent = `${R.unverified.title || T.unverified}: ${R.unverified.items.length}`;
+  $("uvhint").innerHTML = R.unverified.hint || "";
+  $("uvhint").hidden = !R.unverified.hint;
+  $("uv").innerHTML = R.unverified.items.map(u => `<li>${link(u.url, u.label || u.url)}</li>`).join("");
+}
+render();
+</script>

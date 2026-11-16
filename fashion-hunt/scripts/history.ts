@@ -23,14 +23,16 @@ slug for the same request. A run looks like:
 
 where \`kind\` is "match" or "near". History lives in ~/.local/share/fashion-hunt (set
 FASHION_HUNT_HOME to change it), outside the skill's public repo, and holds only listing links,
-titles and prices.
+titles and prices. Other fields, such as the page ones scripts/report.ts reads, are left out
+when a run is saved, except \`page_url\`, the run's published report page: list shows the
+latest one of each search.
 `;
 
 const HOME = Bun.env.FASHION_HUNT_HOME || `${Bun.env.HOME}/.local/share/fashion-hunt`;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,80}$/;
 
 type Listing = { url: string; kind: "match" | "near"; shop?: unknown; item?: unknown; price_eur?: unknown };
-type Run = { date?: unknown; request?: unknown; listings?: Listing[] };
+type Run = { date?: unknown; request?: unknown; page_url?: unknown; listings?: Listing[] };
 
 function die(message: string): never {
   console.error(message);
@@ -93,6 +95,14 @@ async function list(): Promise<number> {
       `${search}: ${saved.length} run${saved.length === 1 ? "" : "s"}, last ${last.date ?? "?"} ` +
         `(${count("match")} matches, ${count("near")} near) - ${last.request ?? ""}`,
     );
+    // The newest report page, which a run without one of its own leaves in place
+    for (const file of saved.toReversed()) {
+      const { page_url }: Run = await Bun.file(file).json();
+      if (typeof page_url === "string") {
+        console.log(`  page: ${page_url}`);
+        break;
+      }
+    }
   }
   return 0;
 }
@@ -136,8 +146,15 @@ async function record(search: string, source: string, save: boolean): Promise<nu
   }
 
   if (!save) return 0;
+  const run: Run = JSON.parse(text);
+  const saved = {
+    date: run.date,
+    request: run.request,
+    ...(typeof run.page_url === "string" ? { page_url: run.page_url } : {}),
+    listings: (listings as Listing[]).map(({ url, shop, item, price_eur, kind }) => ({ url, shop, item, price_eur, kind })),
+  };
   const path = `${HOME}/${search}/${timestamp()}.json`;
-  await Bun.write(path, JSON.stringify(JSON.parse(text), null, 1));
+  await Bun.write(path, JSON.stringify(saved, null, 1));
   console.log(`saved ${path}`);
   return 0;
 }
