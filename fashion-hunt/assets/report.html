@@ -59,6 +59,8 @@ td.price, td.new, td.diff { font-variant-numeric: tabular-nums; white-space: now
 th.r { text-align: right; }
 td.price { font-weight: 600; }
 td.price .sub { font-weight: 400; }
+/* Notes under a price wrap, so a long one doesn't stretch its column */
+td.price .sub, td.new .sub { white-space: normal; max-width: 22ch; margin-left: auto; }
 td.shop a { font-weight: 500; }
 td.item { min-width: 200px; }
 .above { color: var(--warn); font-weight: 600; }
@@ -99,6 +101,7 @@ details .hint { margin-top: 8px; }
   td.price { grid-column: 2; grid-row: 1; }
   td.shop, td.cond, td.size, td.new, td.diff, td.ships, td.note { grid-column: 1 / -1; text-align: left; font-size: 13px; white-space: normal; }
   td[data-l]::before { content: attr(data-l) ": "; color: var(--muted); }
+  td.new .sub { margin-left: 0; max-width: none; }
   td.new:empty, td.diff:empty, td.note:empty, td.cond:empty { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
