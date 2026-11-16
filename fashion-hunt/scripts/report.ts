@@ -35,6 +35,8 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
     note            anything else worth knowing about the listing
     variant         such as "Damier Ebene": the page draws a card per variant with its count,
                     lowest and median price, and a click on a card filters the table to it
+    image           a photo of the listing, as a path published next to the page such as
+                    "img/123.jpg": the page shows it as a thumbnail that opens the listing
 
 and the run has one page object:
 
@@ -77,6 +79,7 @@ type Listing = {
   change?: unknown;
   note?: unknown;
   variant?: unknown;
+  image?: unknown;
 };
 type Group = { id: string; label: string; hint?: string };
 type Page = {
@@ -237,6 +240,7 @@ async function main(args: string[]): Promise<number> {
       change: text(listing.change),
       note: text(listing.note),
       variant: text(listing.variant),
+      image: text(listing.image),
       group,
     };
   });

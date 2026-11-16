@@ -63,6 +63,14 @@ td.price .sub { font-weight: 400; }
 td.price .sub, td.new .sub { white-space: normal; max-width: 22ch; margin-left: auto; }
 td.shop a { font-weight: 500; }
 td.item { min-width: 200px; }
+.iwrap { display: flex; gap: 10px; align-items: flex-start; }
+.thumb { flex: none; display: block; width: 64px; height: 64px; border-radius: 8px; background: var(--chip); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 8px; }
+@media (hover: hover) and (min-width: 761px) {
+  .thumb { position: relative; }
+  .thumb img { transition: transform .15s ease; transform-origin: 0 0; }
+  .thumb:hover img { transform: scale(3.2); position: relative; z-index: 4; box-shadow: 0 10px 28px rgba(0, 0, 0, .3); }
+}
 .above { color: var(--warn); font-weight: 600; }
 .nonEU { font-weight: 700; }
 .sub { display: block; color: var(--muted); font-size: 12px; }
@@ -102,6 +110,7 @@ details .hint { margin-top: 8px; }
   td.shop, td.cond, td.size, td.new, td.diff, td.ships, td.note { grid-column: 1 / -1; text-align: left; font-size: 13px; white-space: normal; }
   td[data-l]::before { content: attr(data-l) ": "; color: var(--muted); }
   td.new .sub { margin-left: 0; max-width: none; }
+  .thumb { width: 72px; height: 72px; }
   td.new:empty, td.diff:empty, td.note:empty, td.cond:empty { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -318,7 +327,7 @@ function render() {
     const notes = [r.risk ? `<span class="risk">⚠ ${esc(T.risk)}: ${esc(r.risk)}</span>` : "", esc(r.note)].filter(Boolean).join(" ");
     return `<tr>
       <td class="shop" data-l="${esc(cols[0])}">${link(r.url, r.shop)}</td>
-      <td class="item">${esc(r.item)}${r.change ? ` <span class="chg">${esc(r.change)}</span>` : ""}${state.group === ALL && r.group !== MATCH ? ` <span class="grp">${esc(groupLabels[r.group])}</span>` : ""}</td>
+      <td class="item"><div class="iwrap">${r.image ? `<a class="thumb" href="${esc(r.url)}" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="${esc(r.image)}" alt="" loading="lazy" decoding="async"></a>` : ""}<div>${esc(r.item)}${r.change ? ` <span class="chg">${esc(r.change)}</span>` : ""}${state.group === ALL && r.group !== MATCH ? ` <span class="grp">${esc(groupLabels[r.group])}</span>` : ""}</div></div></td>
       <td class="cond" data-l="${esc(cols[2])}"${r.shopCondition && r.shopCondition !== r.condition ? ` title="${esc(r.shopCondition)}"` : ""}>${esc(r.condition)}</td>
       <td class="size" data-l="${esc(cols[3])}">${esc(r.size || T.noSize)}</td>
       <td class="price">${r.price === null ? esc(T.noPrice) : money.format(r.price)}${r.priceNote ? `<span class="sub">${esc(r.priceNote)}</span>` : ""}</td>

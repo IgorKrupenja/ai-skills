@@ -1,0 +1,246 @@
+#!/usr/bin/env bun
+/**
+ * Give each listing in a fashion-hunt run file a small photo for the report page. USAGE below says
+ * how; photos come from the URL the shop agent reported, or else from the listing page's og:image.
+ */
+
+const USAGE = `Give each listing in a run file a small photo for the report page.
+
+    photos.ts <run.json>
+
+A listing's photo is the URL of its main photo that the shop agent reported in photo, or else
+the og:image of its page. The script saves a copy about 320 pixels wide in img/ next to the run
+file and sets the listing's image to its path, which report.ts shows as a thumbnail. Listings
+that already have a saved image keep it. Shops that refuse scripts, such as Vestiaire Collective,
+are read inside the ai-skills browser instead, so it must be open (browser.ts open).
+
+It then prints the files to publish with the page, as the JSON list the Artifact tool's files
+takes with root set to the run file's folder, and the listings that share a photo: often one bag
+listed twice, or a seller using someone else's photos.
+`;
+
+const WIDTH = 320;
+/** A downloaded photo larger than this is shrunk with macOS's sips. */
+const MAX_BYTES = 60_000;
+const TYPES: Record<string, string> = { "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png", "image/avif": "avif" };
+const HEADERS = { "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Safari/537.36" };
+const TAB = `${import.meta.dir}/tab.ts`;
+
+type Listing = { url: string; photo?: unknown; image?: unknown };
+type Photo = { type: string; data: Uint8Array };
+/** What inPage returns: an og:image URL or a base64 photo for each URL, or null. */
+type PageResult = Record<string, string | { type: string; b64: string } | null>;
+
+function die(message: string): never {
+  console.error(message);
+  process.exit(1);
+}
+
+/** The og:image of a listing page's HTML, resolved against the page's URL. */
+function ogImage(html: string, page: string): string | null {
+  const tag = html.match(/<meta[^>]+property=["']og:image["'][^>]*>/i)?.[0] ?? html.match(/<meta[^>]+content=["'][^"']+["'][^>]+property=["']og:image["'][^>]*>/i)?.[0];
+  const content = tag?.match(/content=["']([^"']+)["']/i)?.[1]?.replace(/&amp;/g, "&");
+  if (!content) return null;
+  try {
+    return new URL(content, page).href;
+  } catch {
+    return null;
+  }
+}
+
+/** The URL of a smaller copy, where the shop's image service makes one. */
+function smaller(photo: string): string {
+  const url = photo.replace(/^http:/, "https:");
+  if (/images\.vestiairecollective\.com\/images\/resized\//.test(url)) return url.replace(/w=\d+,q=\d+/, `w=${WIDTH},q=70`);
+  if (/\/cdn\/shop\/|cdn\.shopify\.com/.test(url)) return `${url}${url.includes("?") ? "&" : "?"}width=${WIDTH}`;
+  return url;
+}
+
+async function fetchPage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { headers: HEADERS });
+    return res.ok ? await res.text() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchPhoto(url: string): Promise<Photo | null> {
+  try {
+    const res = await fetch(url, { headers: { ...HEADERS, accept: "image/webp,image/jpeg,image/*;q=0.8" } });
+    const type = res.headers.get("content-type")?.split(";")[0] ?? "";
+    return res.ok && TYPES[type] ? { type, data: new Uint8Array(await res.arrayBuffer()) } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Runs in a tab of the shop's own site, where its pages and photos load as they do for a visitor:
+ * "page" returns each URL's og:image, "photo" each photo as base64. It must stay self-contained.
+ */
+async function inPage({ kind, urls }: { kind: "page" | "photo"; urls: string[] }): Promise<PageResult> {
+  const out: PageResult = {};
+  async function read(url: string) {
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) throw new Error(String(res.status));
+    if (kind === "page") {
+      const html = await res.text();
+      const tag = html.match(/<meta[^>]+property=["']og:image["'][^>]*>/i)?.[0] ?? html.match(/<meta[^>]+content=["'][^"']+["'][^>]+property=["']og:image["'][^>]*>/i)?.[0];
+      const content = tag?.match(/content=["']([^"']+)["']/i)?.[1]?.replace(/&amp;/g, "&");
+      if (!content) throw new Error("no og:image");
+      return new URL(content, url).href;
+    }
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    let text = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return { type: res.headers.get("content-type")?.split(";")[0] ?? "", b64: btoa(text) };
+  }
+  let next = 0;
+  async function worker() {
+    while (next < urls.length) {
+      const url = urls[next++]!;
+      out[url] = null;
+      // More tries after a pause, for the odd request a busy shop drops
+      for (let attempt = 0; attempt < 3 && out[url] === null; attempt++) {
+        try {
+          out[url] = await read(url);
+        } catch {
+          // eslint-disable-next-line bun/prefer-builtin-sleep -- this runs in the shop's page, so no Bun globals
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: 8 }, worker));
+  return out;
+}
+
+/** Run inPage in a tab of origin, opened for this call only. */
+async function viaBrowser(origin: string, kind: "page" | "photo", urls: string[]): Promise<PageResult | null> {
+  const tag = `photos-${Math.random().toString(36).slice(2, 8)}`;
+  const opened = await Bun.$`bun ${TAB} open ${tag} ${origin}`.quiet().nothrow();
+  if (opened.exitCode !== 0) {
+    console.warn(`couldn't open ${origin} in the ai-skills browser, so ${urls.length} photos are missing: ${opened.stderr.toString().trim()}`);
+    return null;
+  }
+  try {
+    const code = `async (p) => p.evaluate(${inPage.toString()}, ${JSON.stringify({ kind, urls })})`;
+    const ran = await Bun.$`bun ${TAB} run ${tag} < ${new Response(code)}`.quiet().nothrow();
+    if (ran.exitCode !== 0) {
+      console.warn(`reading ${origin} in the browser failed: ${ran.stderr.toString().trim()}`);
+      return null;
+    }
+    return JSON.parse(ran.stdout.toString());
+  } finally {
+    await Bun.$`bun ${TAB} close ${tag}`.quiet().nothrow();
+  }
+}
+
+/** Group listings by the origin of their page, for one browser tab per shop. */
+function byOrigin(listings: Listing[]): Map<string, Listing[]> {
+  const groups = new Map<string, Listing[]>();
+  for (const listing of listings) {
+    const origin = new URL(listing.url).origin;
+    groups.set(origin, [...(groups.get(origin) ?? []), listing]);
+  }
+  return groups;
+}
+
+/** Shrink a large photo to a JPEG WIDTH pixels wide with sips, and return its new path. */
+async function shrink(path: string): Promise<string> {
+  if (!Bun.which("sips")) return path;
+  const out = path.replace(/\.[a-z]+$/, ".jpg");
+  const done = await Bun.$`sips -s format jpeg -s formatOptions 70 -Z ${WIDTH} ${path} --out ${out}`.quiet().nothrow();
+  if (done.exitCode !== 0) return path;
+  if (out !== path) await Bun.file(path).delete();
+  return out;
+}
+
+async function main(args: string[]): Promise<number> {
+  const [source] = args;
+  if (args.length !== 1 || !source) {
+    console.log(USAGE);
+    return 2;
+  }
+  const run = await Bun.file(source).json();
+  if (!Array.isArray(run.listings)) die("the run needs a 'listings' list");
+  const listings = run.listings as Listing[];
+  const folder = source.includes("/") ? source.slice(0, source.lastIndexOf("/")) : ".";
+
+  const todo: Listing[] = [];
+  for (const listing of listings) {
+    const saved = typeof listing.image === "string" && (await Bun.file(`${folder}/${listing.image}`).exists());
+    if (!saved && typeof listing.url === "string") todo.push(listing);
+  }
+
+  // The photo's URL: the agent's, or the page's og:image, read in the browser where a shop refuses scripts
+  const photoUrl = new Map<Listing, string>();
+  const refused: Listing[] = [];
+  await Promise.all(todo.map(async listing => {
+    if (typeof listing.photo === "string" && listing.photo) return photoUrl.set(listing, listing.photo);
+    const html = await fetchPage(listing.url);
+    const og = html ? ogImage(html, listing.url) : null;
+    if (og) photoUrl.set(listing, og);
+    else refused.push(listing);
+  }));
+  for (const [origin, group] of byOrigin(refused)) {
+    const found = await viaBrowser(origin, "page", group.map(listing => listing.url));
+    for (const listing of group) {
+      const og = found?.[listing.url];
+      if (typeof og === "string") photoUrl.set(listing, og);
+    }
+  }
+
+  // The photo itself, the same way
+  const photos = new Map<Listing, Photo>();
+  const blocked: Listing[] = [];
+  await Promise.all([...photoUrl].map(async ([listing, url]) => {
+    const photo = await fetchPhoto(smaller(url));
+    if (photo) photos.set(listing, photo);
+    else blocked.push(listing);
+  }));
+  for (const [origin, group] of byOrigin(blocked)) {
+    const got = await viaBrowser(origin, "photo", group.map(listing => smaller(photoUrl.get(listing)!)));
+    for (const listing of group) {
+      const photo = got?.[smaller(photoUrl.get(listing)!)];
+      if (photo && typeof photo === "object" && TYPES[photo.type]) {
+        photos.set(listing, { type: photo.type, data: Uint8Array.from(atob(photo.b64), c => c.charCodeAt(0)) });
+      }
+    }
+  }
+
+  for (const [listing, photo] of photos) {
+    let path = `img/${Bun.hash(listing.url).toString(36)}.${TYPES[photo.type]}`;
+    await Bun.write(`${folder}/${path}`, photo.data);
+    if (photo.data.length > MAX_BYTES) path = (await shrink(`${folder}/${path}`)).slice(folder.length + 1);
+    listing.image = path;
+  }
+  await Bun.write(source, JSON.stringify(run, null, 1));
+
+  const missing = todo.filter(listing => !photos.has(listing));
+  console.log(`photos: ${photos.size} new, ${listings.length - todo.length} kept, ${missing.length} missing`);
+  for (const listing of missing) console.log(`  no photo: ${listing.url}`);
+
+  // Listings whose photos are the same file
+  const byPhoto = new Map<string, string[]>();
+  let bytes = 0;
+  const files: { path: string; contentType: string }[] = [];
+  for (const listing of listings) {
+    if (typeof listing.image !== "string") continue;
+    const file = Bun.file(`${folder}/${listing.image}`);
+    if (!(await file.exists())) continue;
+    const data = await file.bytes();
+    bytes += data.length;
+    const hash = Bun.hash(data).toString(36);
+    byPhoto.set(hash, [...(byPhoto.get(hash) ?? []), listing.url]);
+    const ext = listing.image.split(".").pop();
+    files.push({ path: listing.image, contentType: Object.keys(TYPES).find(type => TYPES[type] === ext) ?? "image/jpeg" });
+  }
+  for (const urls of byPhoto.values()) if (urls.length > 1) console.log(`same photo: ${urls.join(" ")}`);
+  console.log(`files (${(bytes / 1024 / 1024).toFixed(1)} MB, publish with root ${folder}):`);
+  console.log(JSON.stringify(files));
+  return 0;
+}
+
+process.exit(await main(Bun.argv.slice(2)));

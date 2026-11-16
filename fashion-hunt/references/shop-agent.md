@@ -86,8 +86,8 @@ incomplete, and what matters is what the shop lists now.
 
 ## Check each listing
 
-On the product page, record the price and currency, condition, size, color and material, and the
-country the item ships from.
+On the product page, record the price and currency, condition, size, color and material, the
+country the item ships from, and the main photo.
 
 - **Price:** prefer the shop's own EUR price. If the shop shows another currency, give that amount;
   the agent that started you converts it. Keep buyer fees and shipping apart from the price.
@@ -102,6 +102,10 @@ country the item ships from.
   checkout, or not offered). Flag "authenticity risk" with the reason when the price is far below
   similar listings or under about a third of the brand's new price, when the seller left the brand
   unset or says they can't vouch for it, or when the shop has hidden or flagged the listing.
+- **Photo:** the full URL of the listing's main photo, as the shop's own data gives it: the page's
+  `og:image`, or the photo field of the JSON you already read (Vinted's item photos, Yaga's
+  product JSON, Shopify's `/products/<handle>.json`). Don't download it or guess one; leave the
+  cell empty if you don't have it, and the agent that started you finds it.
 
 ## Site notes
 
@@ -173,11 +177,12 @@ SHOP: <name>
 STATUS: searched | blocked: <why> | not searched: <why>
 SEARCHED: <queries and filters used, with result counts>
 MATCHES: none, or
-| Link | Item / variant | Condition | Size | Price | Ships from | Notes |
+| Link | Item / variant | Condition | Size | Price | Ships from | Photo | Notes |
 NEAR MATCHES: none, or
-| Link | Item / variant | Condition | Price | Misses |
+| Link | Item / variant | Condition | Price | Misses | Photo |
 NOTES: fees, shipping, currency, authentication offered, anything left unverified
 ```
 
-Give full listing URLs in Link and prices with their currency. Put the model, material and color
-in Item / variant, specific enough to compare with the brand's own range.
+Give full listing URLs in Link, full photo URLs in Photo and prices with their currency. Put the
+model, material and color in Item / variant, specific enough to compare with the brand's own
+range.

@@ -137,11 +137,19 @@ chat, however few listings the run found. Write both in the user's language.
 
 ### The page
 
-Add the page fields `scripts/report.ts` lists to the run file, then build the page next to it:
+Add the page fields `scripts/report.ts` lists to the run file, with the photo URL each agent gave
+in the listing's `photo`, then fetch the photos and build the page next to the run file:
 
 ```bash
+bun scripts/photos.ts <run file>
 bun scripts/report.ts <run file> <run file's folder>/<slug>.html
 ```
+
+`photos.ts` saves a small copy of each listing's photo in `img/` next to the run file, finding it
+on the listing's page when the agent gave none, and inside the `ai-skills` browser for shops such
+as Vestiaire that refuse scripts. It prints the files to publish with the page and the listings
+that share a photo: often one bag listed twice, or a seller using someone else's photos. Say so in
+`note` on both, and flag a `risk` when their prices or the countries they ship from differ.
 
 - **Rows:** one per live listing from every shop searched, merged from all the agents' reports; the
   page sorts them by EUR price. When the user adds a shop or URL later, rebuild the page with every
@@ -185,8 +193,9 @@ Each listing's fields:
   the Netherlands, Poland, Portugal, Romania, Slovakia, Slovenia, Spain and Sweden. "not stated"
   isn't outside the EU. For a shop from a city folder, write "in store, <city>".
 
-Publish the page with the Artifact tool, with a one-word icon for the item type (bag, belt, jacket,
-wallet) and a one-sentence description. If `bun scripts/history.ts list` shows a page for this
+Publish the page with the Artifact tool, with `root` set to the run file's folder and `files` set
+to the list `photos.ts` printed, a one-word icon for the item type (bag, belt, jacket, wallet) and
+a one-sentence description. If `bun scripts/history.ts list` shows a page for this
 search, update that one instead, so its link stays the same: read it with the Artifact tool, then
 publish the new file with its URL. Without an Artifact tool, open the file with `open`. Put the
 page's link in the run file as `page_url` before recording the run.
