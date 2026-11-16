@@ -149,7 +149,7 @@ bun scripts/report.ts <run file> <run file's folder>/<slug>.html
 on the listing's page when the agent gave none, and inside the `ai-skills` browser for shops such
 as Vestiaire that refuse scripts. It prints the files to publish with the page and the listings
 that share a photo: often one bag listed twice, or a seller using someone else's photos. Say so in
-`note` on both, and flag a `risk` when their prices or the countries they ship from differ.
+`note` on both, and flag a `risk` when they ship from different countries.
 
 - **Rows:** one per live listing from every shop searched, merged from all the agents' reports; the
   page sorts them by EUR price. When the user adds a shop or URL later, rebuild the page with every
