@@ -53,6 +53,7 @@ function smaller(photo: string): string {
   const url = photo.replace(/^http:/, "https:");
   if (/images\.vestiairecollective\.com\/images\/resized\//.test(url)) return url.replace(/w=\d+,q=\d+/, `w=${WIDTH},q=70`);
   if (/\/cdn\/shop\/|cdn\.shopify\.com/.test(url)) return `${url}${url.includes("?") ? "&" : "?"}width=${WIDTH}`;
+  if (/i\.ebayimg\.com\//.test(url)) return url.replace(/\/s-l\d+\./, "/s-l300.");
   return url;
 }
 

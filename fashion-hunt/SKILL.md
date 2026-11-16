@@ -77,9 +77,11 @@ so don't use it here.
    id plus its shop or brand, such as `qkzv-vinted`.
 3. In a single message, start one subagent per shop the script printed and per URL the user pasted,
    plus one per requested brand for the new price: in Claude Code, the Agent tool with the
-   general-purpose type. The big marketplaces, Vinted and Vestiaire Collective, take the longest,
-   so when the request names several brands, start one agent per brand there instead (tab tag
-   `<run id>-<shop slug>-<brand slug>`). Fill in the briefs below, giving this skill's folder as an
+   general-purpose type. The big marketplaces, Vinted, Vestiaire Collective and eBay.de, take the
+   longest, so when the request names several brands, start one agent per brand there instead (tab
+   tag `<run id>-<shop slug>-<brand slug>`). A popular model can have hundreds of listings even
+   for one brand, so split those shops further, such as Vestiaire into its men's catalog and
+   everything else, each agent told which part is its own. Fill in the briefs below, giving this skill's folder as an
    absolute path, since an agent may start in another folder. Tell the user in one line how many
    agents are searching, then wait for all of them to report, without browsing yourself.
 4. If an agent fails or its report is unusable, start a fresh one for that shop once; if that fails
@@ -172,9 +174,9 @@ Each listing's fields:
 - **Shop:** the shop's name; the page links it to the listing. Name a new item sold by the brand's
   own store like "Louis Vuitton (official, new)"; third-party retailers aren't labelled (call them
   retailers when useful).
-- **Condition:** the shop's own label. The page puts the usual Vinted, Vestiaire, Yaga, Care of
-  Carl and Collector's Cage labels on one scale in its language, so the column doesn't mix
-  Estonian and English. Put any other label on that scale yourself, as its name in the page's
+- **Condition:** the shop's own label. The page puts the usual Vinted, Vestiaire, Yaga, eBay.de,
+  Care of Carl and Collector's Cage labels on one scale in its language, so the column doesn't mix
+  Estonian, German and English. Put any other label on that scale yourself, as its name in the page's
   language with the shop's own words in brackets (such as "Очень хорошее (minimal marks)"), so
   the condition filter sorts it too.
 - **Price:** in EUR. Prefer the shop's own EUR price; otherwise convert at a current verified rate

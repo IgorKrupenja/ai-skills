@@ -134,6 +134,18 @@ country the item ships from, and the main photo.
   shipping is added at checkout. Item pages have no ships-from field, and a description that says
   SOLD means sold even while Buy now still shows. If an item page won't load, report only what the
   card shows and mark the rest unverified.
+- **eBay.de (ebay.de):** search `/sch/i.html?_nkw=<query>&LH_BIN=1`, which keeps Sofort-Kaufen
+  (Buy It Now) listings only, and page with `&_pgn=2` and so on, 60 a page. The user doesn't want
+  auctions, so also leave out any listing that takes bids ("Gebot"). Results are `li.s-card` cards;
+  skip the "Shop on eBay" ad cards. A card shows the condition, a "Gewerblich" (business) or
+  "Privat" seller, the EUR price, "oder Preisvorschlag" (best offer), shipping, "aus <Land>" when
+  it ships from abroad, and "Mit Echtheitsprüfung" when eBay checks the bag's authenticity before
+  delivery: report that as authentication included. On the item page, the condition is the
+  "Artikelzustand" grade (such as "Gebraucht - Sehr gut"), ships from is the "Standort:" line under
+  "Versand, Rückgabe & Zahlung", and "Rücknahme" says whether returns are taken (private sellers
+  often take none). A seller abroad may price in another currency, shown as "ca. EUR": give the
+  original amount too. eBay has more fakes than the curated shops, so apply the authenticity risk
+  rules strictly, above all to cheap listings from private sellers with few ratings.
 - **Vestiaire Collective (vestiairecollective.com):** use the catalog filters for audience,
   category, brand and color (men's belts, for example, are under men's accessories). The filters
   live after `#` in the URL, so open a pasted catalog URL with its query and fragment intact, but a

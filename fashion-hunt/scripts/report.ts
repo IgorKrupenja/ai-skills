@@ -15,11 +15,11 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
 
     group           its tab: an id from page.groups ("match" for matches and "near" for the
                     rest when page.groups is left out)
-    condition       the shop's own label; the page puts the usual Vinted, Vestiaire, Yaga, Care of
-                    Carl and Collector's Cage labels, and its own Russian names, on one scale in
-                    its language (new with tags, new, like new, very good, good, fair), filters by
-                    it and shows the shop's label on hover. Map any other label onto that scale
-                    yourself, or translate it; the condition filter lists it as other
+    condition       the shop's own label; the page puts the usual Vinted, Vestiaire, Yaga, eBay.de,
+                    Care of Carl and Collector's Cage labels, and its own Russian names, on one
+                    scale in its language (new with tags, new, like new, very good, good, fair),
+                    filters by it and shows the shop's label on hover. Map any other label onto
+                    that scale yourself, or translate it; the condition filter lists it as other
     size            as listed; the size filter works out buckets from it (XS to XL+ from letter,
                     FR, IT, UK and US sizes, or a bare number such as a belt's 90), and sizes,
                     such as ["M"], overrides them
@@ -108,7 +108,7 @@ const CHARTS: Record<string, number[]> = {
   US: [0, 2, 6, 10, 14],
 };
 
-/** The condition labels of Vinted (in Estonian and English), Vestiaire Collective and Yaga, on one scale. */
+/** The condition labels of Vinted (in Estonian and English), Vestiaire Collective, Yaga, eBay.de and other shops, on one scale. */
 const CONDITIONS: Record<string, string> = {
   "uus koos hinnasildiga": "newTags", "new with tags": "newTags", "new with tag": "newTags", "never worn, with tag": "newTags",
   "uus ilma hinnasildita": "new", "new without tags": "new", "never worn": "new", "uus": "new", new: "new",
@@ -118,6 +118,10 @@ const CONDITIONS: Record<string, string> = {
   rahuldav: "fair", satisfactory: "fair", fair: "fair", "fair condition": "fair",
   // Pre-owned shops such as Care of Carl and Collector's Cage
   excellent: "likeNew", "excellent condition": "likeNew", pristine: "likeNew", "very nice": "veryGood",
+  // eBay.de's grades
+  "neu mit etikett": "newTags", "neu ohne etikett": "new", neu: "new", neuwertig: "likeNew",
+  "gebraucht - hervorragend": "likeNew", "gebraucht - sehr gut": "veryGood", "gebraucht - gut": "good",
+  "gebraucht - akzeptabel": "fair",
   // The page's own Russian names, for labels already translated
   "новое с биркой": "newTags", "новое": "new", "как новое": "likeNew", "очень хорошее": "veryGood", "хорошее": "good",
   "удовлетворительное": "fair",
@@ -134,9 +138,10 @@ const CONDITION_NAMES: Record<"en" | "ru", Record<string, string>> = {
  * page's language with any note in brackets kept. A label the scale doesn't know stays as it is.
  */
 function condition(label: string, lang: "en" | "ru"): { key: string; text: string } {
-  const [, head = "", rest = ""] = label.match(/^([^(]*?)\s*(\(.*)?$/) ?? [];
-  const key = CONDITIONS[head.trim().toLowerCase()];
-  if (key) return { key, text: [CONDITION_NAMES[lang][key], rest].filter(Boolean).join(" ") };
+  // A note in brackets is kept; eBay's explanation after a colon ("Gebraucht - Gut: Dieser Artikel ...") isn't
+  const [, head = "", rest = ""] = label.match(/^([^(:]*?)\s*([(:].*)?$/) ?? [];
+  const key = CONDITIONS[head.trim().toLowerCase().replace(/\s*[-–—]\s*/g, " - ")];
+  if (key) return { key, text: [CONDITION_NAMES[lang][key], rest.startsWith(":") ? "" : rest].filter(Boolean).join(" ") };
   return { key: label.trim() ? "other" : "none", text: label };
 }
 
