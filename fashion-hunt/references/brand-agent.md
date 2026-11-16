@@ -10,7 +10,7 @@ Work only in a tab of your own in the skills repo's own playwright-cli browser (
 `ai-skills`), through `bun <skill dir>/scripts/tab.ts`, with the skill folder your brief gives,
 exactly as `<skill dir>/references/shop-agent.md` describes under "Browser": open your tab with
 your tag, drive it with `run`, close it at the end, and never use plain playwright-cli commands
-(apart from `bun <skill dir>/../scripts/browser.ts list`) or touch another tab. Only look: don't
+(apart from `bun <skill dir>/../node_modules/skills-kit/browser.ts list`) or touch another tab. Only look: don't
 add to a cart, wishlist or newsletter. On a cookie banner, pick the most privacy-preserving choice.
 
 ## Find the price

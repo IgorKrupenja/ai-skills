@@ -14,7 +14,8 @@ The search runs in parallel, with one subagent per shop and one per brand, each 
 its own, so a full search takes about as long as the slowest shop rather than all of them in turn.
 
 Run every command in this file from this skill's folder: `scripts/` is the skill's own scripts
-folder, and `../scripts/` the skills repo's shared one. The scripts run with Bun.
+folder (its `tab.ts` links to skills-kit's), and `../node_modules/skills-kit/` holds the skills
+repo's shared helpers. The scripts run with Bun.
 
 ## Shops to search
 
@@ -61,14 +62,14 @@ Name the search with a short slug for the history, such as `white-mens-belts-lv-
 ## Run the search
 
 The search uses the skills repo's own playwright-cli browser, session `ai-skills`, through
-`../scripts/browser.ts` and `scripts/tab.ts`. A `playwright-cli` on your PATH runs another browser,
+`../node_modules/skills-kit/browser.ts` and `scripts/tab.ts`. A `playwright-cli` on your PATH runs another browser,
 so don't use it here.
 
-1. Run `bun ../scripts/browser.ts list`. If the `ai-skills` browser isn't open, start it now,
+1. Run `bun ../node_modules/skills-kit/browser.ts list`. If the `ai-skills` browser isn't open, start it now,
    before any agent needs it (the script adds the persistent profile and the repo's config itself):
 
    ```bash
-   bun ../scripts/browser.ts open "<any shop url>" --headed
+   bun ../node_modules/skills-kit/browser.ts open "<any shop url>" --headed
    ```
 
    If it's already open, other chats may be using it, so leave its tabs alone.

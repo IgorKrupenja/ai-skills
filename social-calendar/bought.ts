@@ -12,7 +12,7 @@
  * A failed calendar read throws Unknown: "couldn't check" must never pass for "nothing bought".
  */
 
-import { gwsItems } from "../scripts/gws.ts";
+import { gwsItems } from "skills-kit/gws.ts";
 
 const DAYS_AHEAD = 400;
 /** Every line break a description can hold, Unicode ones included. */

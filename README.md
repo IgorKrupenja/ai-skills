@@ -9,18 +9,18 @@ A collection of AI agent skills for automating personal workflows. Uses the comm
 3. Run `cp .env.example .env` and fill in your values in the `.env` file.
 4. Skills look for the `.env` in `~/.claude/skills`. If you cloned the repo somewhere else, also set `SKILLS_DIR` to its path in your shell environment: a value inside `.env` can't help find the `.env` itself.
 
-The scripts are TypeScript run by Bun, with no other dependencies; `bun run typecheck` checks them.
+The scripts are TypeScript run by Bun; `bun run typecheck` checks them. Their only dependency is [skills-kit](https://github.com/IgorKrupenja/skills-kit), shared with [tallinn-dev](https://github.com/IgorKrupenja/tallinn-dev), which brings playwright-cli and gws and the helpers below.
 
 ### Browser
 
-The browser skills share one persistent Chrome profile that belongs to this repo: the playwright-cli in `node_modules` names its browser `ai-skills` (after the package) and keeps its logins apart from any other playwright-cli on the machine. Skills reach it through `scripts/browser.ts` (any playwright-cli command, e.g. `bun scripts/browser.ts open --headed`) and `scripts/tab.ts` (a background tab per caller, so parallel chats don't collide). Sign in to the sites the skills use once in that browser.
+The browser skills share one persistent Chrome profile that belongs to this repo: the playwright-cli in `node_modules` names its browser `ai-skills` (after the package) and keeps its logins apart from any other playwright-cli on the machine. Skills reach it through skills-kit's `browser.ts` (any playwright-cli command, e.g. `bun node_modules/skills-kit/browser.ts open --headed`) and `tab.ts` (a background tab per caller, so parallel chats don't collide). Sign in to the sites the skills use once in that browser.
 
 ### Google Calendar
 
-`social-calendar` reaches Google Calendar through gws (`scripts/gws.ts`). Sign it in once to the Google account that owns the calendars, with Calendar access:
+`social-calendar` reaches Google Calendar through gws (skills-kit's `gws.ts`). Sign it in once to the Google account that owns the calendars, with Calendar access:
 
 ```bash
-bun scripts/gws.ts auth login --scopes 'openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/calendar'
+bun node_modules/skills-kit/gws.ts auth login --scopes 'openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/calendar'
 ```
 
 It needs an OAuth client (a Desktop app) in `~/.config/gws/client_secret.json`, as the [gws README](https://github.com/googleworkspace/cli) explains.

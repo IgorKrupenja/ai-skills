@@ -34,14 +34,14 @@ set -a && source "${SKILLS_DIR:-$HOME/.claude/skills}/.env" && set +a
 State file: **`social-calendar/state.json`** (git-ignored). If missing, create it from `state.example.json`.
 `kokandus.ts` keeps its own snapshot in `social-calendar/kokandus.json` (git-ignored); when it's missing, the next run saves a baseline.
 
-**Browser:** this repo's own `playwright-cli` browser (session `ai-skills`), which keeps the user's logins. Plain playwright-cli commands go through [`../scripts/browser.ts`](../scripts/browser.ts): `bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/browser.ts" list` first, and `… browser.ts open --headed` if `ai-skills` isn't open. Other chats may use it at the same time, so work in a background tab of your own through [`../scripts/tab.ts`](../scripts/tab.ts): `bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/tab.ts" open|run|close …` (usage in its header).
+**Browser:** this repo's own `playwright-cli` browser (session `ai-skills`), which keeps the user's logins. Plain playwright-cli commands go through [skills-kit](https://github.com/IgorKrupenja/skills-kit)'s `browser.ts`: `bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/browser.ts" list` first, and `… browser.ts open --headed` if `ai-skills` isn't open. Other chats may use it at the same time, so work in a background tab of your own through its `tab.ts`: `bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/tab.ts" open|run|close …` (usage in its header).
 
-**Google Calendar:** through [`../scripts/gws.ts`](../scripts/gws.ts), this repo's `gws` (Google Workspace CLI): `bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar <resource> <method> --params '<json>' --json '<body>'`. Build the JSON with `jq -n`: it reads the env values as `$ENV.SOCIAL_CALENDAR_ID` and the like, and quotes everything right.
+**Google Calendar:** through skills-kit's `gws.ts`, this repo's `gws` (Google Workspace CLI): `bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/gws.ts" calendar <resource> <method> --params '<json>' --json '<body>'`. Build the JSON with `jq -n`: it reads the env values as `$ENV.SOCIAL_CALENDAR_ID` and the like, and quotes everything right.
 
 The calendar was created once and colored in the sidebar, so you don't need to recreate it. Should it ever be needed again:
 ```bash
-bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar calendars insert --json '{"summary": "<name>", "timeZone": "Europe/Tallinn"}'
-bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar calendarList patch \
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/gws.ts" calendar calendars insert --json '{"summary": "<name>", "timeZone": "Europe/Tallinn"}'
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/gws.ts" calendar calendarList patch \
   --params "$(jq -n '{calendarId: $ENV.SOCIAL_CALENDAR_ID}')" --json '{"colorId": "6"}'
 ```
 
@@ -283,7 +283,7 @@ Use the `address` field. Sanity-check the `name` in the result actually matches 
 calendar id at a time):
 ```bash
 for cal in "$SOCIAL_CALENDAR_ID" "$SOCIAL_CALENDAR_PAID_ID"; do
-  bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar events list --page-all --params "$(jq -n --arg cal "$cal" \
+  bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/gws.ts" calendar events list --page-all --params "$(jq -n --arg cal "$cal" \
     '{calendarId: $cal, timeMin: "2026-09-01T00:00:00+03:00", timeMax: "2026-09-02T00:00:00+03:00", singleEvents: true, orderBy: "startTime"}')" \
     | jq -c '.items[] | {id, summary, start: (.start.dateTime // .start.date), url: .source.url}'
 done
@@ -311,12 +311,12 @@ Once the user says they bought the ticket or registered, the event becomes `[PAI
 the PAID calendar. Move it, then swap `[BOOK]` for `[PAID]` and clear its color there; the event
 id survives the move, and you get it from the `events list` output (`id`). Never create a second event:
 ```bash
-bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar events move --params "$(jq -n --arg id "<eventId>" \
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/gws.ts" calendar events move --params "$(jq -n --arg id "<eventId>" \
   '{calendarId: $ENV.SOCIAL_CALENDAR_ID, eventId: $id, destination: $ENV.SOCIAL_CALENDAR_PAID_ID}')"
 E="${TMPDIR:-/tmp}/event.json"
-bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar events get --params "$(jq -n --arg id "<eventId>" \
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/gws.ts" calendar events get --params "$(jq -n --arg id "<eventId>" \
   '{calendarId: $ENV.SOCIAL_CALENDAR_PAID_ID, eventId: $id}')" | jq '.summary = "… · 60€ [PAID]" | del(.colorId)' > "$E"
-bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar events update --params "$(jq -n --arg id "<eventId>" \
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/gws.ts" calendar events update --params "$(jq -n --arg id "<eventId>" \
   '{calendarId: $ENV.SOCIAL_CALENDAR_PAID_ID, eventId: $id}')" --json "$(cat "$E")"
 ```
 Clearing the color matters: every pick carries an explicit Tangerine `colorId`, which would
@@ -352,7 +352,7 @@ jq -n --rawfile description "$D" \
     source: {url: $url},
     description: ($description | rtrimstr("\n"))
   }' > "$E"
-bun "${SKILLS_DIR:-$HOME/.claude/skills}/scripts/gws.ts" calendar events insert \
+bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/gws.ts" calendar events insert \
   --params "$(jq -n '{calendarId: $ENV.SOCIAL_CALENDAR_ID}')" --json "$(cat "$E")"
 ```
 - Times: local `YYYY-MM-DDTHH:MM:SS` + `timeZone` (Google applies DST correctly). For all-day: `start: {date: "YYYY-MM-DD"}, end: {date: "YYYY-MM-DD"}` (end = next day) and no `timeZone`.

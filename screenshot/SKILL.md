@@ -19,9 +19,9 @@ download in the chat UI; the visible area stays small (~hundreds of KB) and deli
 ### 1. Open the browser
 
 Use this repo's own browser (playwright-cli session `ai-skills`), so logins carry over, through
-`scripts/browser.ts` and `scripts/tab.ts` in the skills folder (the folder above this skill's
-folder). Run `bun <skills dir>/scripts/browser.ts list` first, and if `ai-skills` isn't open,
-start it with `bun <skills dir>/scripts/browser.ts open --headed`.
+`node_modules/skills-kit/browser.ts` and `node_modules/skills-kit/tab.ts` in the skills folder (the folder above this skill's
+folder). Run `bun <skills dir>/node_modules/skills-kit/browser.ts list` first, and if `ai-skills` isn't open,
+start it with `bun <skills dir>/node_modules/skills-kit/browser.ts open --headed`.
 
 ### 2. Screenshot the visible area in a tab of your own
 
@@ -29,8 +29,8 @@ Another chat may be using the browser, so open the page in a background tab of y
 screenshot it and close the tab. Pick a tag no other chat uses, like `shot-<page>-<time>`:
 
 ```bash
-bun <skills dir>/scripts/tab.ts open shot-example "<url>"
-bun <skills dir>/scripts/tab.ts run shot-example <<'JS'
+bun <skills dir>/node_modules/skills-kit/tab.ts open shot-example "<url>"
+bun <skills dir>/node_modules/skills-kit/tab.ts run shot-example <<'JS'
 async (p, env) => {
   await p.waitForTimeout(2000);
   const path = `${env.shots}/<short-descriptive-name>.png`;
@@ -38,7 +38,7 @@ async (p, env) => {
   return path;
 }
 JS
-bun <skills dir>/scripts/tab.ts close shot-example
+bun <skills dir>/node_modules/skills-kit/tab.ts close shot-example
 ```
 
 `run` prints the file's absolute path (`env.shots` is `.playwright-cli/` in the current folder).

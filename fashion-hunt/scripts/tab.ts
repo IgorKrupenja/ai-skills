@@ -1,1 +1,1 @@
-../../scripts/tab.ts
+../../node_modules/skills-kit/tab.ts
