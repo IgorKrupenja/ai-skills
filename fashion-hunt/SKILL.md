@@ -81,7 +81,9 @@ so don't use it here.
    take the longest, so when the request names several brands, start one agent per brand there instead (tab
    tag `<run id>-<shop slug>-<brand slug>`). A popular model can have hundreds of listings even
    for one brand, so split those shops further, such as Vestiaire into its men's catalog and
-   everything else, each agent told which part is its own. Fill in the briefs below, giving this skill's folder as an
+   everything else, each agent told which part is its own. eBay.de blocks the browser after a burst
+   of traffic, and three agents on it at once got it blocked, so give it at most two, split by
+   price with `_udlo` and `_udhi`. Fill in the briefs below, giving this skill's folder as an
    absolute path, since an agent may start in another folder. Tell the user in one line how many
    agents are searching, then wait for all of them to report, without browsing yourself.
 4. If an agent fails or its report is unusable, start a fresh one for that shop once; if that fails
