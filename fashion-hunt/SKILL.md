@@ -147,9 +147,9 @@ bun scripts/report.ts <run file> <run file's folder>/<slug>.html
 - **Rows:** one per live listing from every shop searched, merged from all the agents' reports; the
   page sorts them by EUR price. When the user adds a shop or URL later, rebuild the page with every
   shop searched, not only the new one.
-- **Tabs:** the first, `match`, holds the matches. Give each kind of near match a tab of its own,
-  named by the criterion it misses (such as "listed as women's", "cream or light beige", "Damier
-  Azur"), with a one-line hint on what's in it.
+- **Tabs:** the first, `match`, holds the matches, and the page adds a last one with every listing.
+  Give each kind of near match a tab of its own, named by the criterion it misses (such as "listed
+  as women's", "cream or light beige", "Damier Azur"), with a one-line hint on what's in it.
 - **Language:** write the title, lede, facts, tab labels and notes in the user's language, and set
   `lang` to `ru` when that's Russian, so the page's controls match.
 - **Title:** a short name for the search, such as "White LV and BOSS belts". **Lede:** what was

@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 /**
  * Build the fashion-hunt report page from a run file: one self-contained HTML page with every
- * listing, a tab for the matches and one per kind of near match, filters by size, condition,
- * shop, authenticity risk and EU, and the brand's new prices. USAGE below lists the fields.
+ * listing, a tab for the matches, one per kind of near match and one with all of them, filters by
+ * size, condition, shop, authenticity risk and EU, and the brand's new prices. USAGE below lists
+ * the fields.
  */
 
 const USAGE = `Build the fashion-hunt report page from a run file.

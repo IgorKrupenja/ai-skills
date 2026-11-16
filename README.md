@@ -91,7 +91,7 @@ Find culture and leisure events in the sources you bookmark, list them in chat a
 
 ### fashion-hunt
 
-Find live listings of a fashion item, mostly designer accessories, in the shops bookmarked in Vivaldi under `Fashion/Online` and `Fashion/Tallinn`, and compare each with the brand's new price. Subagents search all shops and brand stores in parallel, each in its own background tab of the repo's browser. The report is a page published as an Artifact: every listing sorted by price, a tab for the matches and one per kind of near match, filters by size, condition, shop, authenticity risk and EU, and changes since the last run. Small results come as a table in chat instead.
+Find live listings of a fashion item, mostly designer accessories, in the shops bookmarked in Vivaldi under `Fashion/Online` and `Fashion/Tallinn`, and compare each with the brand's new price. Subagents search all shops and brand stores in parallel, each in its own background tab of the repo's browser. The report is a page published as an Artifact: every listing sorted by price, a tab for the matches, one per kind of near match and one with all of them, filters by size, condition, shop, authenticity risk and EU, and changes since the last run. Small results come as a table in chat instead.
 
 In tools without subagents, it searches the shops one at a time instead.
 

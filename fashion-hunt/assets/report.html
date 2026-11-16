@@ -65,6 +65,7 @@ td.item { min-width: 200px; }
 .sub { display: block; color: var(--muted); font-size: 12px; }
 .risk { display: inline-block; background: var(--warn-soft); color: var(--warn); border-radius: 4px; padding: 0 5px; font-size: 13px; }
 .chg { display: inline-block; background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 0 5px; font-size: 12px; font-weight: 500; }
+.grp { display: inline-block; background: var(--chip); color: var(--muted); border-radius: 4px; padding: 0 5px; font-size: 12px; font-weight: 500; }
 .note { color: var(--muted); font-size: 13px; min-width: 180px; }
 .empty { padding: 24px; text-align: center; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
 details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
@@ -134,6 +135,7 @@ details .hint { margin-top: 8px; }
 const R = /*REPORT*/;
 const TEXT = {
   en: {
+    allTab: "All", allHint: "Every listing at once; near matches are tagged with how they differ.",
     size: "Size:", cond: "Condition:", conds: "Condition", shop: "Shop", all: "all", noRisk: "hide", eu: "EU only", price: "Price", asc: "cheapest first", desc: "priciest first",
     shown: (n, m) => `showing ${n} of ${m}`, risk: "authenticity risk", noSize: "not stated", noPrice: "price unknown",
     cols: ["Shop", "Item", "Condition", "Size", "Price", "New", "Difference", "Ships from", "Notes"],
@@ -141,6 +143,7 @@ const TEXT = {
     filters: "Filters", tabs: "Group", sizes: "Size", summary: "Summary", notes: "Notes", locale: "en-IE",
   },
   ru: {
+    allTab: "Все", allHint: "Все объявления сразу; у близких вариантов отмечено, чем они не подходят.",
     size: "Размер:", cond: "Состояние:", conds: "Состояние", shop: "Магазин", all: "все", noRisk: "без", eu: "только из ЕС", price: "Цена", asc: "сначала дешёвые", desc: "сначала дорогие",
     shown: (n, m) => `показано ${n} из ${m}`, risk: "риск подделки", noSize: "не указан", noPrice: "цена неизвестна",
     cols: ["Магазин", "Модель и цвет", "Состояние", "Размер", "Цена", "Новая у бренда", "Разница", "Откуда", "Заметки"],
@@ -186,11 +189,18 @@ $("eubox").hidden = !R.rows.some(r => r.nonEU);
 $("sizes").hidden = R.sizeOrder.length < 2;
 $("conds").hidden = R.conditionOrder.length < 2;
 
-const state = { group: R.groups[0].id, sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, sort: "asc" };
+// The groups as tabs, plus one with every listing when more than one group has any
+const ALL = "_all";
+const MATCH = R.groups[0].id;
+const groupLabels = Object.fromEntries(R.groups.map(g => [g.id, g.label]));
+const tabs = [...R.groups];
+if (new Set(R.rows.map(r => r.group)).size > 1) tabs.push({ id: ALL, label: T.allTab, hint: T.allHint });
+
+const state = { group: MATCH, sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, sort: "asc" };
 try {
   const saved = JSON.parse(localStorage.getItem("fashion-hunt-filters") || "null");
   if (saved) {
-    if (R.groups.some(g => g.id === saved.group)) state.group = saved.group;
+    if (tabs.some(g => g.id === saved.group)) state.group = saved.group;
     state.sizes = new Set((saved.sizes || []).filter(z => R.sizeOrder.includes(z)));
     state.conds = new Set((saved.conds || []).filter(c => R.conditionOrder.includes(c)));
     if (shops.includes(saved.shop)) state.shop = saved.shop;
@@ -203,7 +213,7 @@ function save() {
 }
 
 function passes(r, anyGroup) {
-  if (!anyGroup && r.group !== state.group) return false;
+  if (!anyGroup && state.group !== ALL && r.group !== state.group) return false;
   if (state.sizes.size && !r.sizes.some(z => state.sizes.has(z))) return false;
   if (state.conds.size && !state.conds.has(r.cond)) return false;
   if (state.shop && r.shop !== state.shop) return false;
@@ -224,11 +234,11 @@ for (const c of R.conditionOrder) {
 }
 
 function render() {
-  $("tabs").innerHTML = R.groups.map(g => {
-    const n = R.rows.filter(r => r.group === g.id && passes(r, true)).length;
+  $("tabs").innerHTML = tabs.map(g => {
+    const n = R.rows.filter(r => (g.id === ALL || r.group === g.id) && passes(r, true)).length;
     return `<button type="button" id="tab-${esc(g.id)}" data-g="${esc(g.id)}" aria-pressed="${state.group === g.id}">${esc(g.label)}<span class="n">${n}</span></button>`;
   }).join("");
-  const group = R.groups.find(g => g.id === state.group);
+  const group = tabs.find(g => g.id === state.group);
   $("hint").textContent = group.hint || "";
   $("hint").hidden = !group.hint;
   $("sizes").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.sizes.has(b.dataset.z)));
@@ -238,7 +248,7 @@ function render() {
   const dir = state.sort === "asc" ? 1 : -1;
   const list = R.rows.filter(r => passes(r, false))
     .sort((a, b) => (a.price === null) - (b.price === null) || dir * ((a.price ?? 0) - (b.price ?? 0)));
-  $("count").textContent = T.shown(list.length, R.rows.filter(r => r.group === state.group).length);
+  $("count").textContent = T.shown(list.length, R.rows.filter(r => state.group === ALL || r.group === state.group).length);
   $("empty").hidden = list.length > 0;
   $("rows").innerHTML = list.map(r => {
     const diff = r.newPrice !== null && r.price !== null ? r.price - r.newPrice : null;
@@ -249,7 +259,7 @@ function render() {
     const notes = [r.risk ? `<span class="risk">⚠ ${esc(T.risk)}: ${esc(r.risk)}</span>` : "", esc(r.note)].filter(Boolean).join(" ");
     return `<tr>
       <td class="shop" data-l="${esc(cols[0])}">${link(r.url, r.shop)}</td>
-      <td class="item">${esc(r.item)}${r.change ? ` <span class="chg">${esc(r.change)}</span>` : ""}</td>
+      <td class="item">${esc(r.item)}${r.change ? ` <span class="chg">${esc(r.change)}</span>` : ""}${state.group === ALL && r.group !== MATCH ? ` <span class="grp">${esc(groupLabels[r.group])}</span>` : ""}</td>
       <td class="cond" data-l="${esc(cols[2])}"${r.shopCondition && r.shopCondition !== r.condition ? ` title="${esc(r.shopCondition)}"` : ""}>${esc(r.condition)}</td>
       <td class="size" data-l="${esc(cols[3])}">${esc(r.size || T.noSize)}</td>
       <td class="price">${r.price === null ? esc(T.noPrice) : money.format(r.price)}${r.priceNote ? `<span class="sub">${esc(r.priceNote)}</span>` : ""}</td>
