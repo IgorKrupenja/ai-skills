@@ -16,7 +16,7 @@ import { gwsItems } from "skills-kit/gws";
 
 const DAYS_AHEAD = 400;
 /** Every line break a description can hold, Unicode ones included. */
-const LINE_BREAK = /\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]/;
+const LINE_BREAK = /\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]/; // eslint-disable-line no-control-regex -- the file, group and record separators break lines too
 
 /** The PAID calendar could not be read, so what is bought is unknown. */
 export class Unknown extends Error {}

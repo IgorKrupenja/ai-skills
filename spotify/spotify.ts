@@ -502,7 +502,7 @@ type Flags<O extends ParseArgsOptionsConfig> = { [K in keyof O]?: O[K]["type"] e
  * Parse one command's arguments: `-h` prints its usage, and an unknown flag or the wrong number of
  * positional arguments is a usage error.
  */
-function parse<const O extends ParseArgsOptionsConfig = {}>(
+function parse<const O extends ParseArgsOptionsConfig = Record<string, never>>(
   args: string[],
   usage: string,
   [min, max]: [min: number, max: number],
