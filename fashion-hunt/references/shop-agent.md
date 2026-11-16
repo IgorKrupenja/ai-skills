@@ -181,6 +181,31 @@ country the item ships from, and the main photo.
 - **ReSee (resee.com):** filter a designer page with
   `?refinementList[sub_categories_flat_en][0]=Accessories > Belts` (or the category you need). A
   location dialog can cover the photos; read the description text for color instead.
+- **ReLuxe Room (Sofia), Designer Exchange (Dublin), Luxury Helsinki, Labellov (Antwerp), Bam Luxury
+  Store (Barcelona):** Shopify shops in EUR that sell their own stock, so each item ships from the
+  shop's country. A brand's in-stock items are at `/collections/<brand>?filter.v.availability=1`
+  (such as `louis-vuitton`; Bam's paths start with `/en-eu`), the whole catalogue is JSON at
+  `/products.json?limit=250&page=<n>` (title, vendor, product_type, tags and each variant's
+  `available`), and text search is `/search?type=product&q=<query>`. Read the condition and
+  measurements on the product page. Each checks authenticity itself, so report it as included.
+  Delivery to Estonia: ReLuxe Room free from €130, Designer Exchange free, Luxury Helsinki €30 (free
+  from €1,000), Labellov €39 by DHL Express, Bam €25 (free from €2,000). Bam's sales are final.
+- **A Retro Tale (aretrotale.com, Stockholm):** pick "Europe / EUR" in the first-visit popup. A
+  brand's items are at `/en/category/<brand>/<category>` (such as `/en/category/louis-vuitton/bags`),
+  48 a page; text search is `/en/search?q=<query>`, which finds fewer than the category pages.
+  Delivery to Estonia is free with duties included, it checks authenticity itself (a third-party
+  certificate costs €40 more), and a return costs €20.
+- **JoliCloset (jolicloset.com, Paris):** a marketplace of mostly professional sellers in Europe and
+  Japan. Every sold item goes to Paris to be checked before it ships, so report authentication as
+  included, and ships from as the item's location plus "via Paris". Search with the search form's
+  `/en/fashion-women?query=<query>` (switch to the men's section in the filters for men's items) or
+  a designer's category, such as `/en/designers-women/<brand>/womens-bags`. Delivery to Estonia is
+  about €15 for a small item and more for an expensive one; private sellers' items can't be returned.
+- **Eppli (eppli.com, Stuttgart):** an auction house with an online shop: search only the shop, not
+  auction lots. A brand's bags are at `/en/brands/<brand>/bags/`, and text search is
+  `/index.php?lang=1&cl=search&searchparam=<query>`; item names are often German (Tasche,
+  Aktentasche, Geldbörse, Gürtel). Delivery to Estonia costs €15.90, and it checks authenticity
+  itself.
 
 ## Report back
 
