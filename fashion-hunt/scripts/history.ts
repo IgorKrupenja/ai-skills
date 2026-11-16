@@ -42,7 +42,10 @@ function die(message: string): never {
 /** Normalise a listing URL so the same listing matches across runs. */
 function key(url: string): string {
   const bare = url.split(/[#?]/)[0]!.replace(/\/+$/, "").replace(/^https?:\/\/(www\.)?/, "");
-  // A Vinted item is its domain and id, whatever title follows in the URL.
+  // A Vinted item is its domain and id, whatever title follows in the URL, and so is a Vestiaire
+  // one, whose path also changes with the listing's category and colour.
+  const vestiaire = bare.match(/^(vestiairecollective\.[a-z.]+)\/.*-(\d+)\.shtml$/);
+  if (vestiaire) return `${vestiaire[1]}/${vestiaire[2]}`;
   return bare.match(/^vinted\.[a-z.]+\/items\/\d+/)?.[0] ?? bare;
 }
 
