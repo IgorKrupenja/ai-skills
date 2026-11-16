@@ -64,6 +64,8 @@ th .sorth:hover { color: var(--fg); }
 th .sorth:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 th .arr { font-size: 11px; opacity: .35; }
 th[aria-sort="ascending"] .arr, th[aria-sort="descending"] .arr { opacity: 1; color: var(--accent); }
+/* The sort menu stands in for the column headings, which phones don't show */
+@media (min-width: 761px) { label[for="sort"] { display: none; } }
 td.price { font-weight: 600; }
 td.price .sub { font-weight: 400; }
 /* Notes under a price wrap, so a long one doesn't stretch its column */
