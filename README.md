@@ -13,14 +13,14 @@ The scripts are TypeScript run by Bun; `bun run typecheck` checks them. Their on
 
 ### Browser
 
-The browser skills share one persistent Chrome profile that belongs to this repo: the playwright-cli in `node_modules` names its browser `ai-skills` (after the package) and keeps its logins apart from any other playwright-cli on the machine. Skills reach it through skills-kit's `browser.ts` (any playwright-cli command, e.g. `bun node_modules/skills-kit/browser.ts open --headed`) and `tab.ts` (a background tab per caller, so parallel chats don't collide). Sign in to the sites the skills use once in that browser.
+The browser skills share one persistent Chrome profile that belongs to this repo: the playwright-cli in `node_modules` names its browser `ai-skills` (after the package) and keeps its logins apart from any other playwright-cli on the machine. Skills reach it through skills-kit's `browser.ts` (any playwright-cli command, e.g. `bun node_modules/skills-kit/src/browser.ts open --headed`) and `tab.ts` (a background tab per caller, so parallel chats don't collide). Sign in to the sites the skills use once in that browser.
 
 ### Google Calendar
 
 `social-calendar` reaches Google Calendar through gws (skills-kit's `gws.ts`). Sign it in once to the Google account that owns the calendars, with Calendar access:
 
 ```bash
-bun node_modules/skills-kit/gws.ts auth login --scopes 'openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/calendar'
+bun node_modules/skills-kit/src/gws.ts auth login --scopes 'openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/calendar'
 ```
 
 It needs an OAuth client (a Desktop app) in `~/.config/gws/client_secret.json`, as the [gws README](https://github.com/googleworkspace/cli) explains.

@@ -13,8 +13,8 @@ folder you're in.
 
 Other agents search other shops in the same browser at the same time, and plain playwright-cli
 commands act on whichever tab is current, so they would land in someone else's tab: don't use them,
-whether through `<skill dir>/../node_modules/skills-kit/browser.ts` or a `playwright-cli` on your PATH (that one
-drives another browser). The one exception is `bun <skill dir>/../node_modules/skills-kit/browser.ts list`, which
+whether through `<skill dir>/../node_modules/skills-kit/src/browser.ts` or a `playwright-cli` on your PATH (that one
+drives another browser). The one exception is `bun <skill dir>/../node_modules/skills-kit/src/browser.ts list`, which
 shows whether the `ai-skills` browser is open. Never switch to, read, close or navigate another
 tab, and never open or close the browser itself; if it isn't open, report that and stop.
 

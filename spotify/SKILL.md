@@ -53,11 +53,11 @@ To mint the refresh token:
    ```
 2. In the skills repo's own browser (playwright-cli session `ai-skills`), open the URL and
    inspect the page before interacting:
-   `bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/browser.ts" goto "$AUTH_URL"`, then
-   `bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/browser.ts" snapshot`. If the browser
-   isn't open, start it first with `bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/browser.ts" open --headed`.
+   `bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/src/browser.ts" goto "$AUTH_URL"`, then
+   `bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/src/browser.ts" snapshot`. If the browser
+   isn't open, start it first with `bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/src/browser.ts" open --headed`.
    If Spotify asks for consent, click the **Agree** button by its snapshot reference (or a
-   locator using `bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/browser.ts" run-code`).
+   locator using `bun "${SKILLS_DIR:-$HOME/.claude/skills}/node_modules/skills-kit/src/browser.ts" run-code`).
    The agent never types credentials.
 3. On success it prints `REFRESH_TOKEN <value>`: put that in `.env` as
    `SPOTIFY_REFRESH_TOKEN`. Done permanently.

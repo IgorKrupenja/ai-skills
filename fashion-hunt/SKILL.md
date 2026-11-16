@@ -62,14 +62,14 @@ Name the search with a short slug for the history, such as `white-mens-belts-lv-
 ## Run the search
 
 The search uses the skills repo's own playwright-cli browser, session `ai-skills`, through
-`../node_modules/skills-kit/browser.ts` and `scripts/tab.ts`. A `playwright-cli` on your PATH runs another browser,
+`../node_modules/skills-kit/src/browser.ts` and `scripts/tab.ts`. A `playwright-cli` on your PATH runs another browser,
 so don't use it here.
 
-1. Run `bun ../node_modules/skills-kit/browser.ts list`. If the `ai-skills` browser isn't open, start it now,
+1. Run `bun ../node_modules/skills-kit/src/browser.ts list`. If the `ai-skills` browser isn't open, start it now,
    before any agent needs it (the script adds the persistent profile and the repo's config itself):
 
    ```bash
-   bun ../node_modules/skills-kit/browser.ts open "<any shop url>" --headed
+   bun ../node_modules/skills-kit/src/browser.ts open "<any shop url>" --headed
    ```
 
    If it's already open, other chats may be using it, so leave its tabs alone.

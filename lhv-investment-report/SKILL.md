@@ -23,21 +23,21 @@ Required env vars:
 
 ## Browser
 
-Use this repo's own browser (playwright-cli session `ai-skills`) through `node_modules/skills-kit/browser.ts`
-and `node_modules/skills-kit/tab.ts` in the skills folder (the folder above this skill's folder). Run
-`bun <skills dir>/node_modules/skills-kit/browser.ts list` first, and if `ai-skills` isn't open, start it with
-`bun <skills dir>/node_modules/skills-kit/browser.ts open --headed`. Other chats may be using the same browser,
+Use this repo's own browser (playwright-cli session `ai-skills`) through `node_modules/skills-kit/src/browser.ts`
+and `node_modules/skills-kit/src/tab.ts` in the skills folder (the folder above this skill's folder). Run
+`bun <skills dir>/node_modules/skills-kit/src/browser.ts list` first, and if `ai-skills` isn't open, start it with
+`bun <skills dir>/node_modules/skills-kit/src/browser.ts open --headed`. Other chats may be using the same browser,
 and plain playwright-cli commands act on whichever tab is current, so work only in a background
 tab of your own:
 
 ```bash
-bun <skills dir>/node_modules/skills-kit/tab.ts open lhv "https://www.lhv.ee/ibank/cf/portfolio/reports_inv"
-bun <skills dir>/node_modules/skills-kit/tab.ts run lhv <<'JS'
+bun <skills dir>/node_modules/skills-kit/src/tab.ts open lhv "https://www.lhv.ee/ibank/cf/portfolio/reports_inv"
+bun <skills dir>/node_modules/skills-kit/src/tab.ts run lhv <<'JS'
 async (p, env) => {
   return await p.locator('body').ariaSnapshot();
 }
 JS
-bun <skills dir>/node_modules/skills-kit/tab.ts close lhv
+bun <skills dir>/node_modules/skills-kit/src/tab.ts close lhv
 ```
 
 `p` is your tab's Playwright Page, and `run` prints what the function returns. Save screenshots
