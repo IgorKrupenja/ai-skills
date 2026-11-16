@@ -77,9 +77,7 @@ All operations go through `spotify/spotify.ts` (`bun spotify.ts <cmd>`), with no
 
 ### social-calendar
 
-Personal events **"for the soul"** (culture, leisure, run clubs; not work), a simple counterpart to the tallinn.dev event skills. Crawl bookmarked sources → list candidates in chat → add the chosen ones to a private Google Calendar (events colored so they stand out next to mundane entries) → remember the rejects, including whole **banned series** so they never get suggested again. Runs locally.
-
-Uses Google Calendar through gws. On every crawl `sync_sources.ts` syncs the bookmarks folder into `social-calendar/sources.yaml`: new bookmarks are added, deleted ones removed, per-source notes kept. The reject/added/ban memory lives in a git-ignored `social-calendar/state.json` (see `social-calendar/state.example.json` for the shape), and `filter.ts` applies it to each crawl. Events you paid or registered for move to a second private calendar, and `bought.ts` lists the upcoming ones there, so crawls set apart what's already bought. How to crawl run clubs (Instagram schedules, the Estonian sörk club directory) is in `social-calendar/run-clubs.md`. The Tallinna Rahvaülikool cooking courses sell out fast, so `kokandus.ts` watches the whole listing and reports new courses, freed spots and Italian ones on every crawl.
+Find culture and leisure events in the sources you bookmark, list them in chat and add the ones you pick to a private Google Calendar. Events and series you reject are not suggested again.
 
 | Variable                           | Description                                                        |
 | ---------------------------------- | ------------------------------------------------------------------ |
