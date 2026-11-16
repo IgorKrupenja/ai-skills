@@ -118,7 +118,9 @@ country the item ships from, and the main photo.
   men's belts 323, women's belts 138, men's accessories 24 (with its subcategories); Louis Vuitton
   62, Hugo Boss 122 (its only entry, covering BOSS and HUGO); white 13, cream 16. Look up others in
   `/api/category`, `/api/brand` and `/api/color`. `/api/product/<slug>` gives the description,
-  category path, colors, condition, status, reservation, location and buyer fees. Sellers often
+  category path, colors, condition, status, reservation, location and buyer fees, and the seller's
+  shop: give each listing's link as `https://www.yaga.ee/<shop.activeSlug>/toode/<slug>`, since
+  `/toode/<slug>` without the shop is a 404. Sellers often
   set no brand or color, so also run the category with the brands but no color and check the
   photos of results without one, plus two or three text queries in the category with Estonian
   terms such as `vöö` (belt), `kott` (bag), `rahakott` (wallet) and `valge` (white).
