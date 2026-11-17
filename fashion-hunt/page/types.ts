@@ -26,8 +26,10 @@ export type Row = {
   dims: Dims | null;
   price: number | null;
   priceNote: string;
-  /** Where it ships from, as the run gives it, with a country named in the page's language */
+  /** The country it ships from, in the page's language, or the shop's words when they name none */
   ships: string;
+  /** Where it ships from as the shop gives it, town or region included, shown on hover */
+  place: string;
   /** Just the country it ships from, in the page's language, or "" when the listing names none */
   country: string;
   nonEU: boolean;

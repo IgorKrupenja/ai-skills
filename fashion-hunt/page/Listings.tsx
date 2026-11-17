@@ -126,7 +126,7 @@ const Listing = memo(function Listing({ r, S, showGroup }: { r: Row; S: Setup; s
           </span>
         )}
       </td>
-      <td className={r.nonEU ? "ships nonEU" : "ships"} data-l={cols[7]}>
+      <td className={r.nonEU ? "ships nonEU" : "ships"} data-l={cols[7]} title={r.place && r.place !== r.ships ? r.place : undefined}>
         {r.ships}
       </td>
       <td className="note">

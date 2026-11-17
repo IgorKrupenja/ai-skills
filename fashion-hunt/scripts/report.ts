@@ -11,7 +11,7 @@
 
 import { parseArgs } from "node:util";
 import type { Dims, Progress, Report, ShopState } from "../page/types.ts";
-import { countryCode, countryName, isCountry, outsideEU, photoGroups } from "./common.ts";
+import { countryCode, countryName, outsideEU, photoGroups } from "./common.ts";
 
 const USAGE = `Build the fashion-hunt report page from a run file.
 
@@ -42,8 +42,8 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
                     longest side first, since sellers swap width and height, and the size filter
                     goes by that width: under the named sizes in page.sizes, or else in ranges
     price_note      shown under the price, such as "approx., from 950 PLN"
-    ships_from      a country, "not stated" or "in store, <city>". The page names a country in
-                    its own language whatever language it's given in, bolds one outside the EU and
+    ships_from      a country, "not stated" or "in store, <city>". The page shows just the country,
+                    in its own language whatever language it's given in, with any town on hover, bolds one outside the EU and
                     hides it with the EU filter; non_eu: true does the same for a ships_from that
                     names no country, and the script lists those it can't place
     new_price_eur, new_url, new_note
@@ -376,7 +376,8 @@ async function main(argv: string[]): Promise<number> {
     if (!from) return ru ? "не указано" : "not stated";
     const code = countryCode(from);
     if (!code && !/^(not stated|не указано|unknown|in store\b)/i.test(from)) unplaced.set(from, (unplaced.get(from) ?? 0) + 1);
-    return code && isCountry(from) ? countryName(code, lang) : from;
+    // Just the country, so the column sorts and reads alike whatever town or region a shop adds
+    return code ? countryName(code, lang) : from;
   };
   // Just the country, such as Estonia for "Tartumaa, Estonia", for the ships-from filter
   const country = (from: string) => {
@@ -413,6 +414,7 @@ async function main(argv: string[]): Promise<number> {
       price: price(listing.price_eur),
       priceNote: text(listing.price_note),
       ships: ships(text(listing.ships_from)),
+      place: text(listing.ships_from),
       country: country(text(listing.ships_from)),
       nonEU: outsideEU(listing.ships_from, listing.non_eu),
       newPrice: price(listing.new_price_eur),

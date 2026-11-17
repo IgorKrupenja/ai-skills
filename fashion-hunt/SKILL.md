@@ -125,7 +125,10 @@ so don't use it here.
      you can judge yourself and save as an agent would (`references/shop-agent.md`);
    - one or two for the shops without a scan, three to five shops each, and for any URL the user
      pasted;
-   - one per requested brand, for the new price.
+   - one per requested brand, for the new price;
+   - one on the default model that draws the page's hero, a small illustration of the item, from
+     the design brief below, while the others search: `update.ts` puts it on the page once it's
+     saved.
 
    Every agent pays a fixed cost to start, so start only the ones there's work for.
 
@@ -207,6 +210,18 @@ Find the new price at <brand> for <the request in one line>.
 Today is <date>. Run folder: <run dir>. Brand slug: <brand slug>. Your tab tag is
 <run id>-<brand slug>. Skill folder: <skill dir>.
 First read <skill dir>/references/brand-agent.md and follow it.
+```
+
+Design brief:
+
+```
+Draw a small, cute illustration of <the item, as it looks> for the top of its report page, and
+save it as an inline SVG to <run dir>/hero.svg: flat and friendly, a few shapes, no text, logos,
+brand marks, scripts or external images. Colour it only through the page's CSS tokens
+(var(--accent), var(--fg), var(--surface), var(--line), var(--muted), var(--chip)), so it works in
+light and dark; viewBox about 0 0 200 140 with no width or height, under 5 KB, any ids prefixed
+hero-, and role="img" with an aria-label in <the user's language>. Check it on both themes in a
+tab of your own (tag <run id>-design, through <skill dir>/scripts/tab.ts) and refine once or twice.
 ```
 
 ## Compare with the new price
@@ -347,8 +362,9 @@ for this search, so each report looks like what was searched for:
   per variant with the count, lowest and median price of its listings in the open tab under the
   other filters, and clicking cards filters the table to those variants, one or several at once.
 - **Eyebrow and hero** (`page.eyebrow`, `page.hero`): a short line above the title, such as
-  "Fashion hunt · Louis Vuitton · checked 16 Nov 2026", and optional HTML under the lede, such as
-  an inline SVG of the item. No scripts, external images or brand logos.
+  "Fashion hunt · Louis Vuitton · checked 16 Nov 2026", and under the lede the item's
+  illustration, which the design agent draws: `update.ts` puts `<run dir>/hero.svg` in `page.hero`
+  once it's there. No scripts, external images or brand logos.
 
 ### In chat
 

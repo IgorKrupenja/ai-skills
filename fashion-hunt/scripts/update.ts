@@ -12,9 +12,10 @@ const USAGE = `Rebuild the report page from what the agents have saved so far.
 
 Merges the agents' saved listings into the run file (listings.ts merge, with --known and --rate
 passed on), gives them variants and new prices (compare.ts, once the brand agent has saved items
-or <run dir>/compare.json exists), fetches photos for new listings (photos.ts), and builds the
-page with report.ts --inline, whose progress panel shows the shops still being searched. Prints
-how far the search has got and the page's path, to publish.
+or <run dir>/compare.json exists), fetches photos for new listings (photos.ts), puts the design
+agent's <run dir>/hero.svg in page.hero once it's there, and builds the page with report.ts
+--inline, whose progress panel shows the shops still being searched. Prints how far the search
+has got and the page's path, to publish.
 `;
 
 function die(message: string): never {
@@ -58,6 +59,15 @@ async function main(): Promise<number> {
   const hasSpec = await Bun.file(spec).exists();
   if (brandItems || hasSpec) await step("compare.ts", [runFile, ...(hasSpec ? ["--spec", spec] : [])]);
   await step("photos.ts", [runFile]);
+  // The design agent's illustration of the item, once it has saved one
+  const hero = Bun.file(`${dir}/hero.svg`);
+  if (await hero.exists()) {
+    const run = await Bun.file(runFile).json();
+    if (!run.page?.hero) {
+      run.page = { ...run.page, hero: (await hero.text()).trim() };
+      await Bun.write(runFile, JSON.stringify(run, null, 1));
+    }
+  }
   const built = await step("report.ts", ["--inline", runFile, values.out]);
   const run = await Bun.file(runFile).json();
   const progress = built.match(/^progress: .*$/m)?.[0] ?? "progress: every shop is in";
