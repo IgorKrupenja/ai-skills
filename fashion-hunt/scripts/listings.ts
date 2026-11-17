@@ -101,7 +101,8 @@ async function add(runDir: string, shop: string, scanPath: string | undefined, s
     const field = entry.code !== undefined ? "code" : entry.traits !== undefined ? "traits" : null;
     if (!field || entry.id !== undefined || entry.url !== undefined) return [entry];
     const value = String(entry[field]).toUpperCase();
-    const matching = (scan?.candidates ?? []).filter(c => c[field] === value && !explicit.has(String(c.id)));
+    // Candidates the last run judged are carried over at merge, so a group leaves them alone
+    const matching = (scan?.candidates ?? []).filter(c => c[field] === value && !c.known && !explicit.has(String(c.id)));
     if (!matching.length) die(`listing ${i + 1}: no candidate with ${field} ${value} in ${scanPath ?? "a scan file (give it with --scan)"}`);
     const { code: _code, traits: _traits, ...rest } = entry;
     return matching.map(c => ({ ...rest, id: c.id }));
