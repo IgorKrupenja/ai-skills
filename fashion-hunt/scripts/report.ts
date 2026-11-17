@@ -234,6 +234,44 @@ function condition(label: string, lang: "en" | "ru"): { key: string; text: strin
   return { key, text: key === "none" ? "" : (CONDITION_NAMES[lang][key] ?? label) };
 }
 
+/** Who checks a listing's authenticity, as the filter lists it */
+const AUTH_ORDER = ["shop", "listing", "optional", "none", "unknown"];
+const AUTH_NAMES: Record<"en" | "ru", Record<string, string>> = {
+  en: { shop: "Checked by the shop", listing: "Checked for this listing", optional: "Optional check", none: "No check", unknown: "Not stated" },
+  ru: { shop: "Проверяет магазин", listing: "Проверка этого объявления", optional: "Проверка по желанию", none: "Без проверки", unknown: "Не указано" },
+};
+/** The shops that check the authenticity of everything they sell, as their notes in references/shops say */
+const CHECKING_SHOPS = new Set(["Collector's Cage", "ReLuxe Room", "Designer Exchange", "Luxury Helsinki", "Labellov", "Bam Luxury Store", "Queen Station", "A Retro Tale", "Collector Square", "Eppli", "JoliCloset", "Care of Carl"]);
+
+/**
+ * Who checks a listing's authenticity: its key on AUTH_ORDER and the shield's tooltip. eBay and
+ * Vestiaire decide listing by listing, which the scans give as auth (or older runs in the note);
+ * Vinted sells a check for designer items; the shops in CHECKING_SHOPS check everything.
+ */
+function authOf(listing: { auth?: unknown; note?: unknown }, shop: string, lang: "en" | "ru"): { key: string; note: string } {
+  const ru = lang === "ru";
+  const note = text(listing.note);
+  if (/^ebay/i.test(shop)) {
+    const checked = listing.auth === true || (listing.auth === undefined && /eBay checks authenticity|Echtheitspr|authenticity guarantee/i.test(note));
+    return checked
+      ? { key: "listing", note: ru ? "eBay проверяет подлинность до доставки (Echtheitsprüfung)" : "eBay checks its authenticity before delivery (Echtheitsprüfung)" }
+      : { key: "none", note: ru ? "eBay не проверяет это объявление" : "eBay doesn't check this listing" };
+  }
+  if (/^vestiaire/i.test(shop)) {
+    if (listing.auth === true || (listing.auth === undefined && /authentication included/i.test(note))) {
+      return { key: "listing", note: ru ? "Vestiaire проверяет подлинность до доставки, это входит в цену" : "Vestiaire checks its authenticity before delivery, in the price" };
+    }
+    if (listing.auth === false || /authentication optional/i.test(note)) {
+      return { key: "optional", note: ru ? "Проверку Vestiaire можно добавить при оплате, за доплату" : "Vestiaire's check can be added at checkout, for a fee" };
+    }
+    return { key: "unknown", note: "" };
+  }
+  if (/^vinted/i.test(shop)) return { key: "optional", note: ru ? "Vinted проверяет дизайнерские вещи, если покупатель за это заплатит" : "Vinted checks designer items if the buyer pays for it" };
+  if (/^yaga/i.test(shop)) return { key: "none", note: ru ? "Yaga не проверяет подлинность" : "Yaga doesn't check authenticity" };
+  if (CHECKING_SHOPS.has(shop)) return { key: "shop", note: ru ? `${shop} проверяет подлинность всего, что продаёт` : `${shop} checks the authenticity of everything it sells` };
+  return { key: "unknown", note: "" };
+}
+
 function die(message: string): never {
   console.error(message);
   process.exit(1);
@@ -435,6 +473,7 @@ async function main(argv: string[]): Promise<number> {
     if (!groupIds.has(group)) die(`listing ${index + 1} is in group '${group}', which page.groups doesn't have`);
     const state = condition(text(listing.condition), lang);
     const shop = text(listing.shop) || new URL(listing.url).hostname.replace(/^www\./, "");
+    const auth = authOf(listing, shop, lang);
     const offKey = `${shop} "${text(listing.condition)}"`;
     if (state.key === "other") offScale.set(offKey, (offScale.get(offKey) ?? 0) + 1);
     return {
@@ -462,6 +501,8 @@ async function main(argv: string[]): Promise<number> {
       note: text(listing.note),
       variant: text(listing.variant),
       colors: colorsOf(text(listing.item), text(listing.color)),
+      auth: auth.key,
+      authNote: auth.note,
       image: text(listing.image),
       same: [] as { url: string; shop: string; price: number | null }[],
       // The same number on listings that share a photo, for the filter that hides repeats
@@ -595,6 +636,8 @@ async function main(argv: string[]): Promise<number> {
     colorOrder: [...COLORS.map(c => c.key), "none"].filter(key => rows.some(row => row.colors.includes(key))),
     colorNames: Object.fromEntries([...COLORS.map(c => [c.key, c[lang]]), ["none", ru ? "Не указан" : "Not stated"]]),
     colorSwatches: Object.fromEntries(COLORS.map(c => [c.key, c.swatch])),
+    authOrder: AUTH_ORDER.filter(key => rows.some(row => row.auth === key)),
+    authNames: AUTH_NAMES[lang],
   };
   const [shell, style, script] = await Promise.all([Bun.file(`${PAGE}/index.html`).text(), Bun.file(`${PAGE}/style.css`).text(), pageScript()]);
   const fontLink = fonts ? `<link rel="stylesheet" href="${escapeHtml(fonts)}">` : "";

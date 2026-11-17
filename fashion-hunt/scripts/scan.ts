@@ -148,6 +148,8 @@ export type Candidate = {
   material?: string;
   ships_from?: string;
   non_eu?: boolean;
+  /** Whether the platform checks this listing's authenticity before delivery: eBay's guarantee, or Vestiaire's check in the price (else optional at checkout) */
+  auth?: boolean;
   photo?: string;
   description?: string;
   seller?: string;
@@ -670,6 +672,7 @@ async function vestiaire(tag: string, args: VestiaireArgs): Promise<ScanFile> {
       ...(i.currency === "EUR" ? { price_eur: i.price } : { price: i.price, currency: i.currency }),
       condition: i.condition,
       ...(i.measurements ? { size: i.measurements } : {}),
+      ...(typeof i.auth === "boolean" ? { auth: i.auth } : {}),
       color: i.color ?? i.colors,
       ...(i.material ? { material: i.material } : {}),
       ...place(i.country),
@@ -1246,6 +1249,7 @@ async function ebay(tag: string, queries: string[], ids: string[], match: RegExp
       ships_from: code ? (COUNTRY.of(code) ?? from) : from || "not stated",
       ...(code && !EU.has(code) ? { non_eu: true } : {}),
       ...(photo ? { photo } : {}),
+      ...(card ? { auth } : {}),
       ...(model || item?.sellerNote ? { description: clip([model && `model: ${model}`, item?.sellerNote].filter(Boolean).join("; ")) } : {}),
       ...(seller ? { seller } : {}),
       note: [

@@ -90,6 +90,7 @@ export function setup(R: Report) {
       color: R.colorOrder.filter(c => c !== "none").length > 1,
       shop: new Set(R.rows.map(r => r.shop)).size > 1,
       cond: R.conditionOrder.length > 1,
+      auth: R.authOrder.length > 1,
       size: R.sizeOrder.length > 1,
       price: distinct(R.rows.map(r => r.price)) > 1,
       newPrice: distinct(R.rows.map(r => r.newPrice)) > 1,

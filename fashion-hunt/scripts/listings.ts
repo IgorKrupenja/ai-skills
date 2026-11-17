@@ -57,7 +57,7 @@ merge  adds every saved listing to the run file's listings: one already there by
 type Listing = Record<string, unknown> & { url: string; item: string; kind: "match" | "near" | "out" };
 
 /** What a shop agent sets; merge leaves the other fields of a run file's listing alone. */
-const AGENT_FIELDS = ["url", "shop", "item", "kind", "misses", "price_eur", "price", "currency", "condition", "size", "color", "ships_from", "non_eu", "photo", "risk", "note"];
+const AGENT_FIELDS = ["url", "shop", "item", "kind", "misses", "price_eur", "price", "currency", "condition", "size", "color", "ships_from", "non_eu", "photo", "auth", "risk", "note"];
 
 function die(message: string): never {
   console.error(message);
@@ -230,7 +230,7 @@ async function show(runDir: string): Promise<void> {
 }
 
 /** A verdict's fields that a fresh scan replaces, or that belonged to the last run's page only. */
-const STALE = ["image", "change", "price_note", "price_eur", "price", "currency", "condition", "size", "ships_from", "non_eu", "photo"];
+const STALE = ["image", "change", "price_note", "price_eur", "price", "currency", "condition", "size", "ships_from", "non_eu", "photo", "auth"];
 
 /** The last run's verdicts for this run's scan candidates that no agent saved: listings, and those that were out. */
 async function carriedOver(runDir: string, search: string, savedKeys: Set<string>): Promise<Listing[]> {

@@ -323,6 +323,10 @@ Each listing's fields:
   from the history in `change`. The page's colour filter reads the colour from the item (and the shop's
   colour field), so name it in plain words, such as "чёрный", "navy", "gold" or "floral print".
 - **Risk:** an agent's authenticity flag, with its reason.
+- **Authenticity check:** the page draws a shield by the shop when someone checks the item before
+  it ships, with an Authenticity filter: `report.ts` knows which shops check everything they sell
+  (`CHECKING_SHOPS`, from their notes), and on eBay.de and Vestiaire the scans give each listing's
+  `auth`. Add a shop to `CHECKING_SHOPS` when its notes say it checks every item.
 - **New price:** set by `compare.ts` (above): the brand's closest item with its link, and in
   `new_note` what differs (colour, variant, edition); or only a `new_note` saying the brand
   doesn't sell it now.

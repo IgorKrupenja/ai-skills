@@ -22,7 +22,7 @@ const en = {
     cond: ["best first", "worst first"], text: ["A to Z", "Z to A"], size: ["smallest first", "largest first"],
   },
   // The filter pills and what they open
-  color: "Colour", shop: "Shop", cond: "Condition", size: "Size", more: "More", clearAll: "Clear all",
+  color: "Colour", shop: "Shop", cond: "Condition", auth: "Authenticity", size: "Size", more: "More", clearAll: "Clear all",
   show: (n: number) => `Show ${n} ${n === 1 ? "listing" : "listings"}`,
   search: "Search", cm: "cm", euOnly: "EU only",
   inEU: "EU", outsideEU: "Outside the EU", notStated: "Not stated", outsideUnnamed: "Outside the EU, country not named",
@@ -71,7 +71,7 @@ const ru: Text = {
     money: ["сначала дешёвые", "сначала дорогие"], diff: ["сначала дешевле нового", "сначала дороже нового"],
     cond: ["сначала лучшие", "сначала худшие"], text: ["от А до Я", "от Я до А"], size: ["сначала маленькие", "сначала большие"],
   },
-  color: "Цвет", shop: "Магазин", cond: "Состояние", size: "Размер", more: "Ещё", clearAll: "Сбросить все",
+  color: "Цвет", shop: "Магазин", cond: "Состояние", auth: "Подлинность", size: "Размер", more: "Ещё", clearAll: "Сбросить все",
   show: n => `Показать ${n} ${plural(n, "объявление", "объявления", "объявлений")}`,
   search: "Поиск", cm: "см", euOnly: "Только из ЕС",
   inEU: "ЕС", outsideEU: "Вне ЕС", notStated: "Не указано", outsideUnnamed: "Вне ЕС, страна не указана",

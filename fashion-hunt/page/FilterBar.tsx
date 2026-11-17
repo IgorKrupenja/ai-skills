@@ -3,6 +3,7 @@ import { CheckList, Choice, GroupedChecks, RangeFilter, Toggle } from "./control
 import { BELOW, cheapEnough, isOpen, shipKey, type Facet, type Filters, type Range, type SortKey } from "./filters.ts";
 import { Panel, useNarrow } from "./Panel.tsx";
 import type { Setup } from "./setup.ts";
+import { Shield } from "./Shield.tsx";
 import type { Report, Row } from "./types.ts";
 
 type Props = {
@@ -120,6 +121,7 @@ function pillsFor(R: Report, S: Setup, f: Filters): Pill[] {
       on: f.conds.size > 0,
       label: better ? T.orBetter(R.conditionNames[better.grade] ?? better.grade) : `${T.cond}: ${one(f.conds, c => R.conditionNames[c] ?? c)}`,
     },
+    { id: "auth", shown: S.has.auth, name: T.auth, on: f.auths.size > 0, label: `${T.auth}: ${one(f.auths, a => R.authNames[a] ?? a)}` },
     { id: "size", shown: S.has.size, name: T.size, on: f.sizes.size > 0, label: `${T.size}: ${one(f.sizes, sizeName)}` },
     { id: "color", shown: S.has.color, name: T.color, on: f.colors.size > 0, label: `${T.color}: ${one(f.colors, c => R.colorNames[c] ?? c)}` },
     { id: "price", shown: S.has.price, name: cols[4]!, on: !isOpen(f.price), label: `${cols[4]}: ${range(f.price, n => wholeMoney.format(n))}` },
@@ -168,6 +170,21 @@ function FacetBody({ facet, R, S, f, set, rows }: BodyProps) {
         count: n.get(c) ?? 0,
       });
       return <CheckList T={T} options={R.colorOrder.map(option)} picked={f.colors} onChange={colors => set({ colors })} />;
+    }
+    case "auth": {
+      const n = tally(r => [r.auth]);
+      const option = (a: string) => ({
+        id: a,
+        text: R.authNames[a] ?? a,
+        label: (
+          <>
+            <Shield auth={a} lead />
+            {R.authNames[a] ?? a}
+          </>
+        ),
+        count: n.get(a) ?? 0,
+      });
+      return <CheckList T={T} options={R.authOrder.map(option)} picked={f.auths} onChange={auths => set({ auths })} />;
     }
     case "shop": {
       const n = tally(r => [r.shop]);

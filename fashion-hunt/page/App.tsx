@@ -18,6 +18,7 @@ export function App({ report: R }: { report: Report }) {
       variants: S.variants,
       shops: S.shops,
       conds: R.conditionOrder,
+      auths: R.authOrder,
       sizes: R.sizeOrder,
       colors: R.colorOrder,
       ships: [...S.ships.eu, ...S.ships.outside, ...S.ships.other],

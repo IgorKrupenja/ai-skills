@@ -40,7 +40,7 @@ const IN_STORE = /^(in store|в магазине)\b/i;
 export const shipKey = (r: Row) => r.country || (IN_STORE.test(r.ships) ? r.ships : r.nonEU ? OUTSIDE : NONE);
 
 /** The filter pills: one per filterable column, and More for the switches */
-export type Facet = "color" | "shop" | "cond" | "size" | "price" | "new" | "diff" | "ships" | "more";
+export type Facet = "color" | "shop" | "cond" | "auth" | "size" | "price" | "new" | "diff" | "ships" | "more";
 
 export type Filters = {
   group: string;
@@ -49,6 +49,8 @@ export type Filters = {
   colors: Set<string>;
   shops: Set<string>;
   conds: Set<string>;
+  /** Authenticity checks, as report.ts names them */
+  auths: Set<string>;
   /** Size buckets: letter or number sizes, or a bag's named size or range of widths */
   sizes: Set<string>;
   price: Range;
@@ -70,6 +72,7 @@ export function defaults(group: string): Filters {
     colors: new Set(),
     shops: new Set(),
     conds: new Set(),
+    auths: new Set(),
     sizes: new Set(),
     price: OPEN,
     newPrice: OPEN,
@@ -95,6 +98,7 @@ export function passes(r: Row, f: Filters, anyGroup: boolean, skip?: Facet | "va
   if (skip !== "color" && f.colors.size && !r.colors.some(c => f.colors.has(c))) return false;
   if (skip !== "shop" && f.shops.size && !f.shops.has(r.shop)) return false;
   if (skip !== "cond" && f.conds.size && !f.conds.has(r.cond)) return false;
+  if (skip !== "auth" && f.auths.size && !f.auths.has(r.auth)) return false;
   if (skip !== "size" && f.sizes.size && !r.sizes.some(z => f.sizes.has(z))) return false;
   if (skip !== "price" && !inRange(r.price, f.price)) return false;
   if (skip !== "new" && !inRange(r.newPrice, f.newPrice)) return false;
@@ -161,6 +165,7 @@ export type Choices = {
   colors: string[];
   shops: string[];
   conds: string[];
+  auths: string[];
   sizes: string[];
   ships: string[];
   /** The ships-from options not known to be outside the EU, which an old "EU only" switch kept */
@@ -187,6 +192,7 @@ export function loadFilters(key: string, base: Filters, choices: Choices): Filte
     f.colors = new Set(list(saved.colors).filter(among(choices.colors)));
     f.shops = new Set([...list(saved.shops), saved.shop].filter(among(choices.shops)));
     f.conds = new Set(list(saved.conds).filter(among(choices.conds)));
+    f.auths = new Set(list(saved.auths).filter(among(choices.auths)));
     f.sizes = new Set(list(saved.sizes).filter(among(choices.sizes)));
     f.ships = new Set(list(saved.ships).filter(among(choices.ships)));
     // Pages from before the countries could be picked had a switch that hid listings from outside the EU, as eu
@@ -209,7 +215,7 @@ export function loadFilters(key: string, base: Filters, choices: Choices): Filte
 
 export function saveFilters(key: string, f: Filters) {
   try {
-    const sets = { variants: [...f.variants], colors: [...f.colors], shops: [...f.shops], conds: [...f.conds], sizes: [...f.sizes], ships: [...f.ships] };
+    const sets = { variants: [...f.variants], colors: [...f.colors], shops: [...f.shops], conds: [...f.conds], auths: [...f.auths], sizes: [...f.sizes], ships: [...f.ships] };
     localStorage.setItem(key, JSON.stringify({ ...f, ...sets }));
   } catch {
     // No storage: the filters last only as long as the page

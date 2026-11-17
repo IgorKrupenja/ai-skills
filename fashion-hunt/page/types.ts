@@ -42,6 +42,10 @@ export type Row = {
   variant: string;
   /** Its colour families, such as ["black"], or ["none"] when its words name no colour */
   colors: string[];
+  /** Who checks its authenticity: "shop" (the shop checks all it sells), "listing" (the platform checks this one before delivery), "optional" (a check that costs extra), "none" or "unknown" */
+  auth: string;
+  /** Who checks it and when, in the page's language, for the shield's tooltip */
+  authNote: string;
   /** A photo published next to the page, or a data URI */
   image: string;
   /** The other listings with the same photo */
@@ -99,6 +103,9 @@ export type Report = {
   colorOrder: string[];
   colorNames: Record<string, string>;
   colorSwatches: Record<string, string>;
+  /** The authenticity filter's options in order, and their names */
+  authOrder: string[];
+  authNames: Record<string, string>;
   /** Set while the search is still going, so the page shows how far it's got */
   progress: Progress | null;
 };

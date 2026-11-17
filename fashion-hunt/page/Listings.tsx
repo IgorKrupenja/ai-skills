@@ -2,6 +2,7 @@ import { Fragment, memo, useEffect, useRef, useState, type ReactNode, type Ref, 
 import { createPortal } from "react-dom";
 import { ALL, type Filters, type SortKey } from "./filters.ts";
 import type { Setup } from "./setup.ts";
+import { Shield } from "./Shield.tsx";
 import type { Row } from "./types.ts";
 
 type Props = { list: Row[]; S: Setup; f: Filters; onSort: (key: SortKey) => void; boxRef: Ref<HTMLDivElement> };
@@ -89,6 +90,7 @@ const Listing = memo(function Listing({ r, S, showGroup }: { r: Row; S: Setup; s
     <tr>
       <td className="shop" data-l={cols[0]}>
         {link(r.url, r.shop)}
+        <Shield auth={r.auth} note={r.authNote} />
       </td>
       <td className="item">
         <div className="iwrap">

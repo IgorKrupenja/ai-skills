@@ -60,7 +60,8 @@ const opts = (a, extra) => ({ phase: 'Search', ...(a.model ? { model: a.model } 
 // A second round gets the first brief with only the links left, in a tab of its own
 const second = (a, report) => {
   const links = report.shops.flatMap(s => s.unverified.map(u => `- ${u.url} (${u.why})`))
-  const tag = (a.brief.match(/tab tag is ([A-Za-z0-9._-]+)/) || [])[1]
+  // The tag without the sentence's full stop after it
+  const tag = ((a.brief.match(/tab tag is ([A-Za-z0-9._-]+)/) || [])[1] || '').replace(/\.+$/, '')
   return (
     a.brief +
     '\n\nSecond round: an agent before you searched this and shortlisted these links but could not check them. Check only these and save what matches, as your file says' +
