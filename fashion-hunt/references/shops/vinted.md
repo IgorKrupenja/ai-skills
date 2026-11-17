@@ -11,9 +11,9 @@ rendered catalogue pages from a tab, 96 cards a page and a page every 1.5 second
 label gives the title, brand, Vinted's model field (Mudel), size, condition and price with and
 without buyer protection. A specific search has few results (two Marelle listings in November
 2026); a whole brand stops at about 960 cards, so search by model name and add filters rather than
-reading a brand whole. The brands API (`/api/v2/brands`) answers 403 now, so take a brand's id
-from the brand filter's URL (Louis Vuitton is 417) and give it with `--filters`, or give
-`--brand` to keep only cards with that brand label. Judge from the lines, and open the item page
+reading a brand whole. The brands API (`/api/v2/brands`) answers 403 now: find a brand's ids with the filter
+search that shops.md gives for Vinted (Louis Vuitton is 417; one brand can have several) and give
+them with `--filters`, or give `--brand` to keep only cards with that brand label. Judge from the lines, and open the item page
 or photo only for a candidate they can't settle: don't sweep through photos of unlabelled bags.
 
 Without the scan, search the catalogue in your tab as below.

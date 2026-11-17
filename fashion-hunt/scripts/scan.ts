@@ -107,7 +107,7 @@ const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (
 /** The bookmarked shops on Shopify, with the country they ship from. */
 const SHOPIFY: Record<string, { name: string; country: string }> = {
   "curatedbynoar.eu": { name: "Curated by NOAR", country: "Estonia" },
-  "affordableluxurys.com": { name: "Affordable Luxury", country: "not stated" },
+  "affordableluxurys.com": { name: "Affordable Luxury", country: "Sweden" },
   "queenstation.fi": { name: "Queen Station", country: "Finland" },
   "www.reluxeroom.com": { name: "ReLuxe Room", country: "Bulgaria" },
   "www.designerexchange.ie": { name: "Designer Exchange", country: "Ireland" },

@@ -8,9 +8,12 @@
   --match marel --out <run dir>/scan/aretrotale.json`. Delivery to Estonia is free with duties
   included, it checks authenticity itself (a third-party certificate costs €40 more), and a
   return costs €20.
-- **Care of Carl (careofcarl.com):** pick Estonia in the delivery-country dialog first. Besides new
-  items it has a pre-owned section, with Louis Vuitton at `/en/louis-vuitton-pre-owned`. It refuses
-  scripts outside the browser.
+- **Care of Carl (careofcarl.com):** new menswear and accessories, umbrellas included
+  (`/en/accessories/umbrellas`), and a pre-owned section, with Louis Vuitton at
+  `/en/louis-vuitton-pre-owned`. Category pages end "show N of N" and have a Brand filter, and
+  `/en/<brand-slug>` is a 404 for a brand it doesn't carry. Its `/en` home page renders a 404 body,
+  so start from a category. Plain requests got full pages in November 2026, but the browser is
+  safer.
 - **Collector Square (collectorsquare.com):** scan it: `bun <skill dir>/scripts/scan.ts
   collectorsquare --query "louis vuitton marelle" --brand "Louis Vuitton" --match marel --out
   <run dir>/scan/collectorsquare.json` reads its search pages, 120 cards a page, from the data
@@ -31,6 +34,7 @@
   Estonia's prices: `bun <skill dir>/scripts/scan.ts resee --brand "Louis Vuitton" --match
   <regex> --out <run dir>/scan/resee.json`. It sells mostly clothing; items not in Paris say
   where they are.
-- **YOOX (yoox.com):** a text-search parameter is dropped, so use the category with the Designer
-  filter (men's HUGO belts add `brand[0]=HUGO BOSS-202 > HUGO-22874`). Cards show no color; the
+- **YOOX (yoox.com):** new off-season stock. Check the brand first in its designer index
+  (`/ee/designerindex/women`, `/men`, `/kids`); a text-search parameter is dropped, so use the
+  category with the Designer filter (men's HUGO belts add `brand[0]=HUGO BOSS-202 > HUGO-22874`). Cards show no color; the
   item page title does, as in "HUGO Black Men's Leather Belt".

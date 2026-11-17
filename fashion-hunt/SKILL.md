@@ -44,9 +44,11 @@ never history, cookies or passwords.
 A URL the user pastes may be inspected even if its site isn't bookmarked, but that doesn't add the
 site to the search. Mark results from it as coming from outside the bookmarks.
 
-`references/shops.md` says what each bookmarked shop carries (item types and brands) and how to
-search it. Skip a shop that can't have the item, such as YOOX for Louis Vuitton or the bag shops for
-a jacket, and list it in the report's notes as skipped, with why.
+`references/shops.md` says what kinds of items each bookmarked shop sells, how to search it, and
+how to check its brands and categories as they are now. Skip a shop only when the kinds it sells
+rule the item out, such as the bag shops for a jacket, and list it in the report's notes as
+skipped, with why. Never skip one for its brands from memory: the scans look the brand up, and an
+agent searching a shop without a scan starts with its live brand check.
 
 ## Read the request
 

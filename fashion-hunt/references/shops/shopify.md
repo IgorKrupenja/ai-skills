@@ -11,8 +11,9 @@ bun <skill dir>/scripts/scan.ts shopify --brand "Louis Vuitton" --brand LV --mat
 After a day of scans, all nine shops answered 403 to requests from outside the browser, while the
 same JSON loaded in a tab: with `--tag`, the scan reads any shop that answers 403 in a tab instead.
 
-It reads each shop's brand collection (such as `/collections/louis-vuitton`, which holds the
-brand's products in stock), or the whole catalogue where there's none, keeps products in stock
+It reads each shop's brand collection (such as `/collections/louis-vuitton`), or the whole
+catalogue where there's none (brand collections can keep sold items or miss some, as shops.md
+says), keeps products in stock
 whose vendor, title or tags name a `--brand`, and prices them as the shop shows them in euros.
 Without `--match` it lists every in-stock product of the brand, so add one whenever the request
 names a model or type. The scan covers these shops: don't repeat it with their text search or
