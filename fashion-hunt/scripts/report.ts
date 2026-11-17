@@ -3,7 +3,8 @@
  * Build the fashion-hunt report page from a run file: one self-contained HTML page with every
  * listing, a tab for the matches, one per kind of near match and one with all of them, filters by
  * size, condition, shop, authenticity risk and EU, and the brand's new prices, with a filter (on by
- * default) that hides listings priced at or above them, and a table that sorts by its shop,
+ * default) that hides listings priced at or above them, another (on by default) that keeps only the
+ * cheapest of listings that share a photo, and a table that sorts by its shop,
  * condition, size, price, new price, difference and ships-from columns. USAGE below lists the
  * fields.
  */
@@ -50,8 +51,8 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
     image           a photo of the listing, as a path published next to the page such as
                     "img/123.jpg": the page shows it as a thumbnail that opens the listing.
                     Listings whose photos are the same file get a note linking each other (often
-                    one item listed by several shops), and a risk when they ship from different
-                    countries
+                    one item listed by several shops), a filter (on by default) that shows only
+                    the cheapest of them, and a risk when they ship from different countries
 
 and the run has one page object:
 
@@ -319,6 +320,8 @@ async function main(argv: string[]): Promise<number> {
       variant: text(listing.variant),
       image: text(listing.image),
       same: [] as { url: string; shop: string; price: number | null }[],
+      // The same number on listings that share a photo, for the filter that hides repeats
+      dup: 0,
       group,
     };
   });
@@ -337,7 +340,8 @@ async function main(argv: string[]): Promise<number> {
     byPhoto.set(hash, [...(byPhoto.get(hash) ?? []), row]);
   }
   const shared = [...byPhoto.values()].filter(group => group.length > 1);
-  for (const group of shared) {
+  for (const [index, group] of shared.entries()) {
+    for (const row of group) row.dup = index + 1;
     const countries = new Set(group.map(row => countryCode(row.ships)).filter(Boolean));
     for (const row of group) {
       row.same = group.filter(other => other !== row).map(({ url, shop, price }) => ({ url, shop, price }));

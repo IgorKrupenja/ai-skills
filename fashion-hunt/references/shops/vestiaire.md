@@ -31,6 +31,9 @@ vacation), and gives the price in EUR, condition, material, colour, measurements
 ships from (`non_eu` set outside the EU), the photo, the buyer fee and any duties. Material and
 colour are the seller's choice from a list: "Leather" on a Marelle is usually Epi, "Cloth" usually
 Monogram canvas, but read the title and description (and look at the photo when it's unclear).
+Some sellers stuff a description with every model name the brand has, so `--match` and the text
+passes also bring trousers, hats and shoes: judge by the title and the category in the URL (such
+as `/women-shoes/`), not a model name in a long list.
 
 If the scan fails, use the catalog page: its filters live after `#` in the URL, so open a pasted
 catalog URL with its query and fragment intact; confirm the filter chips and result count, then

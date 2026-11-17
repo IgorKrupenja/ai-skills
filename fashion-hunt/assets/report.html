@@ -87,7 +87,7 @@ td.item { min-width: 200px; }
 .preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
 /* What a filter with a short label does, shown on hover, keyboard focus or a tap; fixed to the window like the preview */
 .tip { position: fixed; z-index: 21; box-sizing: border-box; width: max-content; padding: 8px 11px; border-radius: 8px; background: var(--fg); color: var(--bg); font-size: 13px; line-height: 1.4; box-shadow: 0 6px 18px rgba(0, 0, 0, .25); }
-#l-norisk { text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
+#l-norisk, #l-norepeat { text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
 .above { color: var(--warn); font-weight: 600; }
 .nonEU { font-weight: 700; }
 .sub { display: block; color: var(--muted); font-size: 12px; }
@@ -158,6 +158,7 @@ details .hint { margin-top: 8px; }
       <label for="norisk" id="riskbox"><input type="checkbox" id="norisk" aria-describedby="tip-norisk"> <span id="l-norisk"></span> <span class="risk">⚠</span></label>
       <label for="eu" id="eubox"><input type="checkbox" id="eu"> <span id="l-eu"></span></label>
       <label for="cheap" id="cheapbox"><input type="checkbox" id="cheap"> <span id="l-cheap"></span></label>
+      <label for="norepeat" id="repeatbox"><input type="checkbox" id="norepeat" aria-describedby="tip-norepeat"> <span id="l-norepeat"></span></label>
       <label for="sort"><span id="l-sort"></span> <select id="sort"></select></label>
       <span class="count" id="count"></span>
     </div>
@@ -180,6 +181,7 @@ details .hint { margin-top: 8px; }
   <section class="notes" id="notes"></section>
 </div>
 <div class="tip" id="tip-norisk" role="tooltip" hidden></div>
+<div class="tip" id="tip-norepeat" role="tooltip" hidden></div>
 
 <script>
 const R = /*REPORT*/;
@@ -190,6 +192,7 @@ const TEXT = {
     allTab: "All", allHint: "Every listing at once; near matches are tagged with how they differ.",
     size: "Size:", cond: "Condition:", conds: "Condition", shop: "Shop", all: "all", noRisk: "hide", eu: "EU only", cheap: "hide at or above the new price", price: "Price", asc: "cheapest first", desc: "priciest first",
     shown: (n, m) => `showing ${n} of ${m}`, risk: "authenticity risk",
+    noRepeat: "hide repeats", repeatTip: "Listings with the same photo are most likely one item listed more than once: this shows only the cheapest, and its notes link the others.",
     samePhoto: n => `Same photo as ${n === 1 ? "another listing" : `${n} other listings`} (likely the same item)`,
     riskTip: "Hides listings flagged as an authenticity risk. The reason for each shows next to ⚠ in its notes.", noSize: "not stated", noPrice: "price unknown",
     cols: ["Shop", "Item", "Condition", "Size", "Price", "New", "Difference", "Ships from", "Notes"],
@@ -203,6 +206,7 @@ const TEXT = {
     allTab: "Все", allHint: "Все объявления сразу; у близких вариантов отмечено, чем они не подходят.",
     size: "Размер:", cond: "Состояние:", conds: "Состояние", shop: "Магазин", all: "все", noRisk: "без", eu: "только из ЕС", cheap: "скрыть по цене нового и дороже", price: "Цена", asc: "сначала дешёвые", desc: "сначала дорогие",
     shown: (n, m) => `показано ${n} из ${m}`, risk: "риск подделки",
+    noRepeat: "скрыть повторы", repeatTip: "Объявления с одинаковым фото, скорее всего, одна и та же вещь: остаётся самое дешёвое, а в его заметках ссылки на остальные.",
     samePhoto: n => `То же фото у ${n === 1 ? "ещё одного объявления" : `${n} ${plural(n, "другого объявления", "других объявлений", "других объявлений")}`} (вероятно, та же вещь)`,
     riskTip: "Скрывает объявления с риском подделки. Причина у каждого указана рядом с ⚠ в заметках.", noSize: "не указан", noPrice: "цена неизвестна",
     cols: ["Магазин", "Модель и цвет", "Состояние", "Размер", "Цена", "Новая у бренда", "Разница", "Откуда", "Заметки"],
@@ -240,6 +244,8 @@ for (const k of ["size", "cond", "shop"]) $("l-" + k).textContent = T[k];
 $("l-sort").textContent = T.sortBy;
 $("l-norisk").textContent = T.noRisk;
 $("tip-norisk").textContent = T.riskTip;
+$("l-norepeat").textContent = T.noRepeat;
+$("tip-norepeat").textContent = T.repeatTip;
 $("l-eu").textContent = T.eu;
 $("l-cheap").textContent = T.cheap;
 $("empty").textContent = T.empty;
@@ -256,6 +262,7 @@ $("eubox").hidden = !R.rows.some(r => r.nonEU);
 // Listings priced at or above the brand's own new price: rarely worth buying second-hand
 const notCheaper = r => r.newPrice !== null && r.price !== null && r.price >= r.newPrice;
 $("cheapbox").hidden = !R.rows.some(notCheaper);
+$("repeatbox").hidden = !R.rows.some(r => r.dup);
 $("sizes").hidden = R.sizeOrder.length < 2;
 $("conds").hidden = R.conditionOrder.length < 2;
 
@@ -312,7 +319,7 @@ if (!sortKeys.includes("price")) sortKeys.unshift("price");
 $("sort").innerHTML = sortKeys.flatMap(k => ["asc", "desc"].map((d, i) =>
   `<option value="${k}-${d}">${esc(cols[SORTS[k].col])}: ${esc(T.sortDirs[SORTS[k].kind][i])}</option>`)).join("");
 
-const state = { group: MATCH, variant: "", sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, cheap: true, sortKey: "price", sortDir: "asc" };
+const state = { group: MATCH, variant: "", sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, cheap: true, norepeat: true, sortKey: "price", sortDir: "asc" };
 try {
   const saved = JSON.parse(localStorage.getItem("fashion-hunt-filters") || "null");
   if (saved) {
@@ -323,6 +330,7 @@ try {
     if (shops.includes(saved.shop)) state.shop = saved.shop;
     state.norisk = !!saved.norisk; state.eu = !!saved.eu;
     if (typeof saved.cheap === "boolean") state.cheap = saved.cheap;
+    if (typeof saved.norepeat === "boolean") state.norepeat = saved.norepeat;
     if (sortKeys.includes(saved.sortKey)) state.sortKey = saved.sortKey;
     // Pages before column sorting saved only the price order, as sort
     if (saved.sortDir === "desc" || (!saved.sortKey && saved.sort === "desc")) state.sortDir = "desc";
@@ -342,6 +350,16 @@ function passes(r, anyGroup) {
   if (state.eu && r.nonEU) return false;
   if (state.cheap && !$("cheapbox").hidden && notCheaper(r)) return false;
   return true;
+}
+
+// Of the listings that pass the filters and share a photo, only the cheapest, while repeats are hidden
+function dedupe(rows) {
+  if (!state.norepeat || $("repeatbox").hidden) return rows;
+  const cheapest = new Map();
+  for (const r of rows) {
+    if (r.dup && (!cheapest.has(r.dup) || (r.price ?? Infinity) < (cheapest.get(r.dup).price ?? Infinity))) cheapest.set(r.dup, r);
+  }
+  return rows.filter(r => !r.dup || cheapest.get(r.dup) === r);
 }
 
 for (const z of R.sizeOrder) {
@@ -377,7 +395,7 @@ function compare(a, b) {
 function render() {
   renderHead();
   $("tabs").innerHTML = tabs.map(g => {
-    const n = R.rows.filter(r => (g.id === ALL || r.group === g.id) && passes(r, true)).length;
+    const n = dedupe(R.rows.filter(r => (g.id === ALL || r.group === g.id) && passes(r, true))).length;
     return `<button type="button" id="tab-${esc(g.id)}" data-g="${esc(g.id)}" aria-pressed="${state.group === g.id}">${esc(g.label)}<span class="n">${n}</span></button>`;
   }).join("");
   const group = tabs.find(g => g.id === state.group);
@@ -386,9 +404,9 @@ function render() {
   $("variants").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.variant === b.dataset.v));
   $("sizes").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.sizes.has(b.dataset.z)));
   $("conds").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.conds.has(b.dataset.c)));
-  $("shop").value = state.shop; $("norisk").checked = state.norisk; $("eu").checked = state.eu; $("cheap").checked = state.cheap; $("sort").value = `${state.sortKey}-${state.sortDir}`;
+  $("shop").value = state.shop; $("norisk").checked = state.norisk; $("eu").checked = state.eu; $("cheap").checked = state.cheap; $("norepeat").checked = state.norepeat; $("sort").value = `${state.sortKey}-${state.sortDir}`;
 
-  const list = R.rows.filter(r => passes(r, false)).sort(compare);
+  const list = dedupe(R.rows.filter(r => passes(r, false))).sort(compare);
   $("count").textContent = T.shown(list.length, R.rows.filter(r => state.group === ALL || r.group === state.group).length);
   $("empty").hidden = list.length > 0;
   $("rows").innerHTML = list.map(r => {
@@ -449,6 +467,7 @@ $("shop").addEventListener("change", e => { state.shop = e.target.value; render(
 $("norisk").addEventListener("change", e => { state.norisk = e.target.checked; render(); });
 $("eu").addEventListener("change", e => { state.eu = e.target.checked; render(); });
 $("cheap").addEventListener("change", e => { state.cheap = e.target.checked; render(); });
+$("norepeat").addEventListener("change", e => { state.norepeat = e.target.checked; render(); });
 $("sort").addEventListener("change", e => { [state.sortKey, state.sortDir] = e.target.value.split("-"); render(); });
 // A click on a column heading sorts by it, and a second click turns the order round
 $("head").addEventListener("click", e => {
@@ -489,31 +508,34 @@ $("rows").addEventListener("mouseout", e => {
 // Scrolling the page or the table moves the thumbnail away from the preview
 addEventListener("scroll", () => { preview.hidden = true; }, { capture: true, passive: true });
 
-// The risk filter's short label gets a tooltip saying what it hides: on hover, on keyboard focus and after a tap
-const tip = $("tip-norisk");
-let tipTimer, tapped = false;
-function placeTip() {
-  // Below the filter, or above it when there's no room, and within the filter bar's width
-  const a = $("riskbox").getBoundingClientRect(), bar = $("bar").getBoundingClientRect(), gap = 8;
-  tip.style.maxWidth = `${Math.min(300, bar.width)}px`;
-  tip.style.top = `${a.bottom + gap + tip.offsetHeight <= innerHeight ? a.bottom + gap : Math.max(gap, a.top - gap - tip.offsetHeight)}px`;
-  tip.style.left = `${Math.max(bar.left, Math.min(a.left, bar.right - tip.offsetWidth))}px`;
+// A filter with a short label gets a tooltip saying what it does: on hover, on keyboard focus and after a tap
+function tooltip(box, input, tip) {
+  let timer, tapped = false;
+  function place() {
+    // Below the filter, or above it when there's no room, and within the filter bar's width
+    const a = box.getBoundingClientRect(), bar = $("bar").getBoundingClientRect(), gap = 8;
+    tip.style.maxWidth = `${Math.min(300, bar.width)}px`;
+    tip.style.top = `${a.bottom + gap + tip.offsetHeight <= innerHeight ? a.bottom + gap : Math.max(gap, a.top - gap - tip.offsetHeight)}px`;
+    tip.style.left = `${Math.max(bar.left, Math.min(a.left, bar.right - tip.offsetWidth))}px`;
+  }
+  const show = () => { clearTimeout(timer); tip.hidden = false; place(); };
+  const hide = () => { clearTimeout(timer); tip.hidden = true; };
+  // A mouse shows it after a moment, and can move from the filter onto it without it closing
+  for (const el of [box, tip]) {
+    el.addEventListener("pointerenter", e => { if (e.pointerType !== "mouse") return; clearTimeout(timer); if (tip.hidden) timer = setTimeout(show, 300); });
+    el.addEventListener("pointerleave", e => { if (e.pointerType !== "mouse") return; clearTimeout(timer); timer = setTimeout(hide, 150); });
+  }
+  input.addEventListener("focus", e => { if (e.target.matches(":focus-visible")) show(); });
+  input.addEventListener("blur", hide);
+  box.addEventListener("pointerdown", e => { tapped = e.pointerType !== "mouse"; });
+  // This runs after render(), so the tooltip goes where the redrawn bar has put the filter
+  input.addEventListener("change", () => { if (tapped || !tip.hidden) show(); tapped = false; });
+  // A tap or click anywhere but the filter closes it, the tooltip itself included, since on phones it covers the filters below
+  addEventListener("pointerdown", e => { if (!tip.hidden && !box.contains(e.target)) hide(); });
+  addEventListener("keydown", e => { if (e.key === "Escape") hide(); });
+  for (const type of ["scroll", "resize"]) addEventListener(type, () => { if (!tip.hidden) place(); }, { capture: true, passive: true });
 }
-function showTip() { clearTimeout(tipTimer); tip.hidden = false; placeTip(); }
-function hideTip() { clearTimeout(tipTimer); tip.hidden = true; }
-// A mouse shows it after a moment, and can move from the filter onto it without it closing
-for (const el of [$("riskbox"), tip]) {
-  el.addEventListener("pointerenter", e => { if (e.pointerType !== "mouse") return; clearTimeout(tipTimer); if (tip.hidden) tipTimer = setTimeout(showTip, 300); });
-  el.addEventListener("pointerleave", e => { if (e.pointerType !== "mouse") return; clearTimeout(tipTimer); tipTimer = setTimeout(hideTip, 150); });
-}
-$("norisk").addEventListener("focus", e => { if (e.target.matches(":focus-visible")) showTip(); });
-$("norisk").addEventListener("blur", hideTip);
-$("riskbox").addEventListener("pointerdown", e => { tapped = e.pointerType !== "mouse"; });
-// This runs after render(), so the tooltip goes where the redrawn bar has put the filter
-$("norisk").addEventListener("change", () => { if (tapped || !tip.hidden) showTip(); tapped = false; });
-// A tap or click anywhere but the filter closes it, the tooltip itself included, since on phones it covers the filters below
-addEventListener("pointerdown", e => { if (!tip.hidden && !$("riskbox").contains(e.target)) hideTip(); });
-addEventListener("keydown", e => { if (e.key === "Escape") hideTip(); });
-for (const type of ["scroll", "resize"]) addEventListener(type, () => { if (!tip.hidden) placeTip(); }, { capture: true, passive: true });
+tooltip($("riskbox"), $("norisk"), $("tip-norisk"));
+tooltip($("repeatbox"), $("norepeat"), $("tip-norepeat"));
 render();
 </script>
