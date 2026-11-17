@@ -177,13 +177,13 @@ const CONDITIONS: Record<string, string> = {
   used: "used", "pre-owned": "used",
   // The page's own Russian names, for labels already translated
   "новое с биркой": "newTags", "новое": "new", "как новое": "likeNew", "очень хорошее": "veryGood", "хорошее": "good",
-  "удовлетворительное": "fair", "б/у": "used", "б/у, без оценки": "used",
+  "удовлетворительное": "fair", "нормик": "fair", "б/у": "used", "б/у, без оценки": "used",
 };
 /** The scale from best to worst, then used with no grade, labels it doesn't know and listings without one. */
 const CONDITION_ORDER = ["newTags", "new", "likeNew", "veryGood", "good", "fair", "used", "other", "none"];
 const CONDITION_NAMES: Record<"en" | "ru", Record<string, string>> = {
   en: { newTags: "New with tags", new: "New", likeNew: "Like new", veryGood: "Very good", good: "Good", fair: "Fair", used: "Used", other: "Other", none: "Not stated" },
-  ru: { newTags: "Новое с биркой", new: "Новое", likeNew: "Как новое", veryGood: "Очень хорошее", good: "Хорошее", fair: "Удовлетворительное", used: "Б/у", other: "Другое", none: "Не указано" },
+  ru: { newTags: "Новое с биркой", new: "Новое", likeNew: "Как новое", veryGood: "Очень хорошее", good: "Хорошее", fair: "Нормик", used: "Б/у", other: "Другое", none: "Не указано" },
 };
 
 /**
