@@ -24,7 +24,7 @@ listed twice, or a seller using someone else's photos. report.ts marks those on 
 const WIDTH = 320;
 /** A downloaded photo larger than this is shrunk with macOS's sips. */
 const MAX_BYTES = 60_000;
-const TYPES: Record<string, string> = { "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png", "image/avif": "avif" };
+export const TYPES: Record<string, string> = { "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png", "image/avif": "avif" };
 const HEADERS = { "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Safari/537.36" };
 const TAB = `${import.meta.dir}/tab.ts`;
 /** Stand-ins a shop shows until a photo loads, such as eBay's stock image on search cards. */
@@ -53,7 +53,7 @@ function ogImage(html: string, page: string): string | null {
 }
 
 /** The URL of a smaller copy, where the shop's image service makes one. */
-function smaller(photo: string): string {
+export function smaller(photo: string): string {
   const url = photo.replace(/^http:/, "https:");
   if (/images\.vestiairecollective\.com\/images\/resized\//.test(url)) return url.replace(/w=\d+,q=\d+/, `w=${WIDTH},q=70`);
   if (/\/cdn\/shop\/|cdn\.shopify\.com/.test(url)) return `${url}${url.includes("?") ? "&" : "?"}width=${WIDTH}`;
@@ -70,7 +70,7 @@ async function fetchPage(url: string): Promise<string | null> {
   }
 }
 
-async function fetchPhoto(url: string): Promise<Photo | null> {
+export async function fetchPhoto(url: string): Promise<Photo | null> {
   try {
     const res = await fetch(url, { headers: { ...HEADERS, accept: "image/webp,image/jpeg,image/*;q=0.8" } });
     const type = res.headers.get("content-type")?.split(";")[0] ?? "";
@@ -127,7 +127,7 @@ async function inPage({ kind, urls, workers = 8, pause = 0, tries = 3 }: { kind:
 /** How to read a touchy site's pages: one at a time, apart, and without retries, which count too. */
 const GENTLE = { workers: 1, pause: 2000, tries: 1 };
 
-async function viaBrowser(origin: string, kind: "page" | "photo", urls: string[], options: Partial<typeof GENTLE> = {}): Promise<PageResult | null> {
+export async function viaBrowser(origin: string, kind: "page" | "photo", urls: string[], options: Partial<typeof GENTLE> = {}): Promise<PageResult | null> {
   const tag = `photos-${Math.random().toString(36).slice(2, 8)}`;
   const opened = await Bun.$`bun ${TAB} open ${tag} ${origin}`.quiet().nothrow();
   if (opened.exitCode !== 0) {
@@ -269,4 +269,4 @@ async function main(args: string[]): Promise<number> {
   return 0;
 }
 
-process.exit(await main(Bun.argv.slice(2)));
+if (import.meta.main) process.exit(await main(Bun.argv.slice(2)));

@@ -14,8 +14,9 @@ titles and save in batches. For the
 cards a line can't settle, read their item pages with `--ids <id>,...`: the condition grade, item
 specifics (material, colour, measurements), where it ships from and returns. eBay answers 403
 after about 15 item pages, whether 1.5 or 4 seconds apart, and lifts the block within about ten
-minutes, so read item pages for a handful of cards and settle the rest from their photos: number
-24 card photos on one sheet with ImageMagick's `montage` and read the sheet. Without the scan,
+minutes, so the scan and `photos.ts` share a budget of 14 item pages in 12 minutes, counted across
+runs: past it, the scan lists the ids it left and the time they can be read. Read item pages for
+a handful of cards and settle the rest from their photos (`scripts/sheet.ts`). Without the scan,
 search the site as below.
 
 Search `/sch/i.html?_nkw=<query>&LH_BIN=1&_ipg=240`, which keeps Sofort-Kaufen (Buy It Now)

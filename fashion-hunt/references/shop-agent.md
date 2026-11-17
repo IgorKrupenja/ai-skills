@@ -116,8 +116,10 @@ a human check yourself. If one stays, or the shop wants a sign-in, report the sh
   than the shop's listings use.
 - Look at photos only to settle a candidate whose colour or model is unclear, never to sweep
   through hundreds of unlabelled listings in case one is the item: one agent spent a large share of
-  its tokens looking at 620 bags and found nothing more. If ImageMagick's `montage` is installed,
-  combine several screenshots into one sheet and read that.
+  its tokens looking at 620 bags and found nothing more. To settle several at once, put their
+  photos on numbered sheets of 24 and read those:
+  `bun <skill dir>/scripts/sheet.ts <scan file> --ids <id>,...` (or `--code` or `--traits` for a
+  group), which prints the sheets' paths and a legend of number, id, price and title.
 - Check the likely matches first and the near matches last, so that if time runs out, only near
   matches are left unchecked.
 - Aim to finish within about ten minutes. At fifteen, the agent that started you asks you to stop,
