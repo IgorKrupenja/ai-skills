@@ -1,0 +1,3 @@
+# Claude Code's Workflow tool runs these scripts as the body of a function, ending in a top-level
+# return, which isn't valid in a module
+fashion-hunt/workflow/

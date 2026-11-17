@@ -157,7 +157,8 @@ a human check yourself. If one stays, or the shop wants a sign-in, report the sh
   matches are left unchecked.
 - Aim to finish within about five minutes when you judge a scan, and ten when you search a shop
   in the browser. At fifteen, the agent that started you asks you to stop, and three minutes
-  later it stops you: whatever you saved is kept, the rest is lost.
+  later it stops you: whatever you saved is kept, the rest is lost. When a workflow started you,
+  no one asks, so your brief tells you to keep time yourself.
 
 ## Search a shop without a scan
 
