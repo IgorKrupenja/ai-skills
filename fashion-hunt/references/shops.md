@@ -9,7 +9,7 @@ give it to an agent with the small shops, and add it here afterwards.
 |---|---|---|---|
 | Vestiaire Collective | `scan.ts vestiaire` | vestiaire.md | pre-owned, every category, designer and premium brands; sellers worldwide |
 | JoliCloset | `scan.ts jolicloset` | jolicloset.md | pre-owned designer bags, clothes, shoes and accessories; pro sellers in Europe and Japan |
-| Vinted | browser | vinted.md | pre-owned, every category and brand, few designer items |
+| Vinted | `scan.ts vinted` | vinted.md | pre-owned, every category and brand, few designer items |
 | eBay.de | `scan.ts ebay` | ebay.md | everything, new and used; only Buy It Now counts |
 | Yaga | `scan.ts yaga` | yaga.md | pre-owned, mostly high-street brands, sellers in Estonia |
 | The 9 Shopify shops below | `scan.ts shopify` | shopify.md | designer bags and accessories, see below |

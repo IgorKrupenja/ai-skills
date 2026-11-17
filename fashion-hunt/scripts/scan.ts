@@ -20,6 +20,8 @@ const USAGE = `Scan a shop's catalogue for a fashion-hunt search and list the ca
     scan.ts jolicloset --tag <tab tag> (--category <path>... | --query <text>) [--match <regex>]
                        [--out <file>]
     scan.ts yaga       --brand <name> [--query <text>] [--match <regex>] [--out <file>]
+    scan.ts vinted     --tag <tab tag> [--query <text>]... [--filters <query string>] [--brand <name>]...
+                       [--match <regex>] [--pause <ms>] [--out <file>]
     scan.ts aretrotale --brand <name>... [--query <text>] [--match <regex>] [--out <file>]
     scan.ts resee      --brand <name>... [--query <text>] [--match <regex>] [--out <file>]
     scan.ts farfetch   --tag <tab tag> (--category <path>... | --query <text>...) [--brand <name>]...
@@ -52,6 +54,10 @@ jolicloset  the result pages of a designer category (such as
             men's sections, read from the list data each page embeds, 60 a page; then each
             candidate's product page: condition, fabric, colours, dimensions and seller.
 yaga        the search API for the brand (and text), then each product's details.
+vinted      vinted.ee's catalogue pages for each --query (search text), with --filters added to
+            their URL as is, such as 'brand_ids[]=417' (Louis Vuitton), one page a --pause apart
+            (default 1500 ms); --brand keeps cards whose brand label is that brand. Each card's
+            label gives title, brand, Vinted's model field, size, condition and price.
 aretrotale  A Retro Tale's search service (Searchspring) for the brand, 100 items a call, with
             price, condition, colour and description; prices include delivery to Estonia.
 resee       ReSee's search service (Algolia) for the brand's name (and text), with Estonia's
@@ -1031,6 +1037,88 @@ async function yaga(brands: string[], query: string | null, match: RegExp | null
   return { shop: "yaga", scanned_at: new Date().toISOString(), searched, candidates };
 }
 
+// --- Vinted (runs in the page) -----------------------------------------------------------------
+
+type VintedCard = { id: string; url: string; label: string; photo: string };
+
+/** The cards of Vinted's catalogue pages for each search, one page a second, until a page brings nothing new. */
+async function inVinted(A: { searches: string[]; pause: number }): Promise<{ searched: string[]; cards: VintedCard[] }> {
+  const searched: string[] = [];
+  const cards = new Map<string, VintedCard>();
+  // eslint-disable-next-line bun/prefer-builtin-sleep -- this runs in the shop's page, so no Bun globals
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  for (const search of A.searches) {
+    let read = 0;
+    let page = 1;
+    for (; page <= 30; page++) {
+      if (page > 1 || cards.size) await sleep(A.pause);
+      const res = await fetch(`${location.origin}/catalog?${search}&page=${page}`, { credentials: "include" });
+      if (!res.ok) {
+        searched.push(`${search}: page ${page} answered ${res.status}, so the rest wasn't read`);
+        break;
+      }
+      const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+      const links = [...doc.querySelectorAll('a[data-testid$="--overlay-link"]')];
+      let fresh = 0;
+      for (const a of links) {
+        const id = String(a.getAttribute("data-testid") ?? "").match(/product-item-id-(\d+)/)?.[1];
+        if (!id || cards.has(id)) continue;
+        const img = doc.querySelector(`[data-testid="product-item-id-${id}--image--img"]`);
+        cards.set(id, { id, url: new URL(String(a.getAttribute("href")).split("?")[0]!, location.origin).href, label: a.getAttribute("title") ?? "", photo: img?.getAttribute("src") ?? "" });
+        fresh++;
+      }
+      read += links.length;
+      if (!fresh) break;
+    }
+    searched.push(`${search}: ${read} cards on ${page} pages`);
+  }
+  return { searched, cards: [...cards.values()] };
+}
+
+/**
+ * Vinted's catalogue for each --query, with --filters added to the URL as they are (such as
+ * brand_ids[]=417 for Louis Vuitton), read from its cards: a card's label gives the title, brand,
+ * model, size, condition and price.
+ */
+async function vinted(tag: string, queries: string[], filters: string | null, brands: string[], match: RegExp | null, pause: number): Promise<ScanFile> {
+  const site = "https://www.vinted.ee";
+  const searches = (queries.length ? queries : [""]).map(q => [q ? `search_text=${encodeURIComponent(q)}` : "", filters ?? ""].filter(Boolean).join("&"));
+  const r = await inTab(tag, site, inVinted, { searches, pause });
+  // A label reads "<title>, Kaubamärk: Louis Vuitton, Mudel: Marelle, Seisukord: Väga hea, 1620.63 €, 1702.36 €"
+  const LABELS: Record<string, string> = { kaubamärk: "brand", brand: "brand", mudel: "model", model: "model", suurus: "size", size: "size", seisukord: "condition", condition: "condition" };
+  const candidates: Candidate[] = [];
+  for (const card of r.cards) {
+    const parts = card.label.split(", ");
+    const prices = parts.filter(p => /^[\d.]+\s*€$/.test(p)).map(p => Number(p.replace(/[^\d.]/g, "")));
+    const fields: Record<string, string> = {};
+    const title: string[] = [];
+    for (const part of parts) {
+      const m = part.match(/^([^:]{2,20}):\s*(.+)$/);
+      const field = m ? LABELS[m[1]!.toLowerCase()] : undefined;
+      if (field) fields[field] = m![2]!;
+      else if (!/^[\d.]+\s*€$/.test(part) && !Object.keys(fields).length) title.push(part);
+    }
+    if (brands.length && !brands.some(b => norm(fields.brand ?? "") === norm(b))) continue;
+    const text = `${title.join(", ")} ${fields.model ?? ""}`;
+    if (match && !match.test(text)) continue;
+    candidates.push({
+      id: card.id,
+      shop: "Vinted",
+      url: card.url,
+      title: `${title.join(", ")}${fields.model ? ` (model ${fields.model})` : ""}`,
+      ...(fields.brand ? { brand: fields.brand } : {}),
+      ...(prices[0] !== undefined ? { price_eur: prices[0] } : {}),
+      ...(fields.condition ? { condition: fields.condition } : {}),
+      ...(fields.size ? { size: fields.size } : {}),
+      ships_from: "not stated",
+      photo: card.photo,
+      ...(prices[1] !== undefined ? { note: `€${prices[1]} with buyer protection, shipping on top` } : {}),
+    });
+  }
+  const searched = [...r.searched, `${candidates.length} cards${brands.length ? ` by ${brands.join(" or ")}` : ""}${match ? ` matching ${match}` : ""}`];
+  return { shop: "vinted", scanned_at: new Date().toISOString(), searched, candidates };
+}
+
 // --- A Retro Tale (Searchspring) and ReSee (Algolia) -------------------------------------------
 
 /** A Retro Tale's site id on Searchspring, the search service its pages call. */
@@ -1250,8 +1338,8 @@ async function main(): Promise<number> {
     die(`--match isn't a valid regex: ${e}`);
   }
   const brands = values.brand;
-  // One --query, except for eBay and Farfetch, which take several
-  if (shop !== "ebay" && shop !== "farfetch" && values.query.length > 1) die(`${shop} takes one --query`);
+  // One --query, except for eBay, Farfetch and Vinted, which take several
+  if (!["ebay", "farfetch", "vinted"].includes(shop!) && values.query.length > 1) die(`${shop} takes one --query`);
   const pause = Number(values.pause ?? (shop === "ebay" ? 2000 : 1500));
   if (!Number.isFinite(pause) || pause < 0) die("--pause takes milliseconds");
   const query = values.query[0] ?? null;
@@ -1280,6 +1368,8 @@ async function main(): Promise<number> {
   } else if (shop === "yaga") {
     if (!brands.length) die("give the brand with --brand");
     result = await yaga(brands, query, match);
+  } else if (shop === "vinted") {
+    result = await vinted(needTag(), values.query, values.filters ?? null, brands, match, pause);
   } else if (shop === "aretrotale" || shop === "resee") {
     if (!brands.length) die("give the brand with --brand");
     result = await (shop === "aretrotale" ? aretrotale : resee)(brands, query, match);
@@ -1291,7 +1381,7 @@ async function main(): Promise<number> {
     if (!values.query.length && !ids.length) die("give a --query or --ids");
     result = await ebay(needTag(), values.query, ids, match, !!values.details, pause);
   } else {
-    die(`no scanner for ${shop}: the shops are shopify, vestiaire, jolicloset, yaga, aretrotale, resee, farfetch and ebay`);
+    die(`no scanner for ${shop}: the shops are shopify, vestiaire, jolicloset, yaga, vinted, aretrotale, resee, farfetch and ebay`);
   }
   await markCodes(result.candidates);
   markTraits(result.candidates);

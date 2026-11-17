@@ -100,8 +100,6 @@ so don't use it here.
      when it has more than about 200, each with half of the lines by price. A scan with no new
      candidates needs no agent, and you can judge a handful yourself and save them as an agent
      would (`references/shop-agent.md`);
-   - one agent for Vinted, which has no scan, or one per brand when the request names several
-     (tab tag `<run id>-<shop slug>-<brand slug>`);
    - one or two agents for the shops without a scan, three to five shops each, and for any URL the
      user pasted;
    - one agent per requested brand for the new price, on the default model.

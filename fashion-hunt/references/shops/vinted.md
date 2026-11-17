@@ -1,9 +1,22 @@
 # Vinted (vinted.ee)
 
-No scan: the catalog API (`/api/v2/catalog/items`) is gone since November 2026, and the catalog
-page now arrives rendered, so read its cards. `/api/v2/brands?keyword=<name>` still works from a
-vinted.ee tab and gives brand ids (Louis Vuitton 417), and a specific search usually has few
-results.
+Scan it first:
+
+```bash
+bun <skill dir>/scripts/scan.ts vinted --tag <tag> --query marelle --query marellini --filters 'brand_ids[]=417' --out <run dir>/scan/vinted.json
+```
+
+The catalog API (`/api/v2/catalog/items`) is gone since November 2026, so the scan reads the
+rendered catalogue pages from a tab, 96 cards a page and a page every 1.5 seconds. Each card's
+label gives the title, brand, Vinted's model field (Mudel), size, condition and price with and
+without buyer protection. A specific search has few results (two Marelle listings in November
+2026); a whole brand stops at about 960 cards, so search by model name and add filters rather than
+reading a brand whole. The brands API (`/api/v2/brands`) answers 403 now, so take a brand's id
+from the brand filter's URL (Louis Vuitton is 417) and give it with `--filters`, or give
+`--brand` to keep only cards with that brand label. Judge from the lines, and open the item page
+or photo only for a candidate they can't settle: don't sweep through photos of unlabelled bags.
+
+Without the scan, search the catalogue in your tab as below.
 
 Open a pasted filtered URL with its full query string. Repeated parameters such as several
 `brand_ids[]` or `color_ids[]` are separate filters, and rebuilding the search from text or a
