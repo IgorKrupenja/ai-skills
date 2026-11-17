@@ -27,7 +27,8 @@ add    saves listings (a JSON object or list, from file or stdin) in <run dir>/l
        leather, Quartz"} is enough. A listing may give a model code instead of an id, such as
        {"code": "M80689", "kind": "match", "item": "Marelle, Epi Noir"}: it stands for every
        candidate the scan marked with that code, except those given by id, and the next scan
-       shows the code as saved as that item. A country in ships_from sets non_eu, whatever it
+       shows the code as saved as that item; {"traits": "LEATHER/WHITE/25CM", ...} does the same
+       for a group of alike candidates without a code. A country in ships_from sets non_eu, whatever it
        said. Kind "out" records a candidate judged not to match, so a repeat run doesn't judge
        it again: it needs only an id or url. --rest out saves every candidate of the scan that
        isn't saved yet (and that the last run didn't judge) as out, once the agent has saved
@@ -93,16 +94,16 @@ async function add(runDir: string, shop: string, scanPath: string | undefined, s
   const given = (Array.isArray(data) ? data : [data]) as Record<string, unknown>[];
   const scan = scanPath ? ((await Bun.file(scanPath).json()) as ScanFile) : null;
   const byId = new Map<string, Candidate>((scan?.candidates ?? []).map(c => [String(c.id), c]));
-  // A model code stands for every candidate marked with it that isn't given by id
-  const byCode = new Map<string, Candidate[]>();
-  for (const c of scan?.candidates ?? []) if (c.code) byCode.set(c.code, [...(byCode.get(c.code) ?? []), c]);
+  // A model code, or the traits of alike candidates, stands for every candidate marked with it that
+  // isn't given by id
   const explicit = new Set(given.filter(e => e.id !== undefined).map(e => String(e.id)));
   const entries = given.flatMap((entry, i) => {
-    if (entry.code === undefined || entry.id !== undefined || entry.url !== undefined) return [entry];
-    const code = String(entry.code).toUpperCase();
-    const matching = (byCode.get(code) ?? []).filter(c => !explicit.has(String(c.id)));
-    if (!matching.length) die(`listing ${i + 1}: no candidate with code ${code} in ${scanPath ?? "a scan file (give it with --scan)"}`);
-    const { code: _code, ...rest } = entry;
+    const field = entry.code !== undefined ? "code" : entry.traits !== undefined ? "traits" : null;
+    if (!field || entry.id !== undefined || entry.url !== undefined) return [entry];
+    const value = String(entry[field]).toUpperCase();
+    const matching = (scan?.candidates ?? []).filter(c => c[field] === value && !explicit.has(String(c.id)));
+    if (!matching.length) die(`listing ${i + 1}: no candidate with ${field} ${value} in ${scanPath ?? "a scan file (give it with --scan)"}`);
+    const { code: _code, traits: _traits, ...rest } = entry;
     return matching.map(c => ({ ...rest, id: c.id }));
   });
   const listings = entries.map((entry, i) => {
@@ -110,7 +111,7 @@ async function add(runDir: string, shop: string, scanPath: string | undefined, s
     if (entry.id !== undefined && entry.url === undefined) {
       const c = byId.get(String(entry.id));
       if (!c) die(`listing ${i + 1}: no candidate with id ${entry.id} in ${scanPath ?? "a scan file (give it with --scan)"}`);
-      const { id: _id, title, description: _d, brand: _b, seller: _s, listed: _l, color: _c, material: _m, model: _model, ...fields } = c;
+      const { id: _id, title, description: _d, brand: _b, seller: _s, listed: _l, color: _c, material: _m, model: _model, traits: _t, known: _k, ...fields } = c;
       listing = { ...fields, item: title, ...entry };
       delete listing.id;
     }

@@ -118,6 +118,8 @@ export type Candidate = {
   model?: string;
   /** What the last run of the search (--known) decided about it, if it judged it */
   known?: "match" | "near" | "out";
+  /** For a candidate without a code that others resemble: its material, colour and width, such as LEATHER/WHITE/25CM */
+  traits?: string;
 };
 
 export type ScanFile = { shop: string; scanned_at: string; searched: string[]; candidates: Candidate[] };
@@ -1052,16 +1054,51 @@ export async function markCodes(candidates: Candidate[]): Promise<void> {
   });
 }
 
-/** One line per code: how many candidates have it, what it was saved as before and two of their titles. */
+/** The width in a size, in whole centimetres: "Width 25 cm, Height 15 cm" or the largest of "18x26x12 cm". */
+function widthCm(size: string | undefined): number | undefined {
+  const s = (size ?? "").replace(/(\d),(\d)/g, "$1.$2");
+  const labelled = s.match(/\b(?:width|breite|w)\s*:?\s*(\d+(?:\.\d+)?)/i);
+  if (labelled) return Math.round(Number(labelled[1]));
+  const dims = s.match(/(\d+(?:\.\d+)?)\s*(?:cm)?\s*[x×]\s*(\d+(?:\.\d+)?)\s*(?:cm)?(?:\s*[x×]\s*(\d+(?:\.\d+)?))?/i);
+  return dims ? Math.round(Math.max(...dims.slice(1).filter(Boolean).map(Number))) : undefined;
+}
+
+/**
+ * Group the candidates without a code by their material, colour and width, such as
+ * LEATHER/WHITE/25CM, where the scan gives them, so an agent can judge alike ones at once too.
+ */
+export function markTraits(candidates: Candidate[]): void {
+  const first = (s: string | undefined) => (s ?? "").split(/[,;]/)[0]!.trim().toUpperCase();
+  const byTraits = new Map<string, Candidate[]>();
+  for (const c of candidates) {
+    if (c.code) continue;
+    const width = widthCm(c.size);
+    const parts = [first(c.material), first(c.color), width ? `${width}CM` : ""];
+    if (parts.filter(Boolean).length < 2) continue;
+    const traits = parts.map(p => p || "?").join("/");
+    byTraits.set(traits, [...(byTraits.get(traits) ?? []), c]);
+  }
+  for (const [traits, cs] of byTraits) if (cs.length > 1) for (const c of cs) c.traits = traits;
+}
+
+/**
+ * One line per code: how many candidates have it, what it was saved as before and two of their
+ * titles; then the same for groups of alike candidates without a code.
+ */
 export function codeSummary(candidates: Candidate[]): string[] {
-  const byCode = new Map<string, Candidate[]>();
-  for (const c of candidates) if (c.code) byCode.set(c.code, [...(byCode.get(c.code) ?? []), c]);
-  if (!byCode.size) return [];
-  const lines = [...byCode].sort((a, b) => b[1].length - a[1].length).map(([code, cs]) => {
-    const titles = [...new Set(cs.map(c => c.title))].sort((a, b) => a.length - b.length).slice(0, 2).map(t => `"${clip(t, 80)}"`);
-    return `${code} ×${cs.length}: ${cs[0]!.model ? `saved before as "${cs[0]!.model}"; ` : ""}${titles.join(", ")}`;
-  });
-  return [...lines, `no code ×${candidates.filter(c => !c.code).length}`];
+  const lines: string[] = [];
+  for (const field of ["code", "traits"] as const) {
+    const groups = new Map<string, Candidate[]>();
+    for (const c of candidates) if (c[field]) groups.set(c[field]!, [...(groups.get(c[field]!) ?? []), c]);
+    if (!groups.size) continue;
+    if (field === "traits") lines.push("alike without a code (material/colour/width):");
+    for (const [name, cs] of [...groups].sort((a, b) => b[1].length - a[1].length)) {
+      const titles = [...new Set(cs.map(c => c.title))].sort((a, b) => a.length - b.length).slice(0, 2).map(t => `"${clip(t, 80)}"`);
+      lines.push(`${name} ×${cs.length}: ${cs[0]!.model ? `saved before as "${cs[0]!.model}"; ` : ""}${titles.join(", ")}`);
+    }
+  }
+  if (!lines.length) return [];
+  return [...lines, `neither ×${candidates.filter(c => !c.code && !c.traits).length}`];
 }
 
 // --- Output -------------------------------------------------------------------------------------
@@ -1150,6 +1187,7 @@ async function main(): Promise<number> {
     die(`no scanner for ${shop}: the shops are shopify, vestiaire, jolicloset, yaga, farfetch and ebay`);
   }
   await markCodes(result.candidates);
+  markTraits(result.candidates);
   // A repeat run lists only the candidates the last run didn't judge; merge carries over the rest
   let shown = result.candidates;
   if (values.known) {
@@ -1165,7 +1203,7 @@ async function main(): Promise<number> {
   await Bun.write(out, JSON.stringify(result, null, 1));
   for (const s of result.searched) console.log(`# ${s}`);
   const codes = codeSummary(shown);
-  if (codes.length) console.log(`# model codes:\n${codes.map(l => `#   ${l}`).join("\n")}`);
+  if (codes.length) console.log(`# groups to judge at once, by model code:\n${codes.map(l => `#   ${l}`).join("\n")}`);
   console.log(`# ${shown.length} candidates below, sorted by price; all ${result.candidates.length}, with every field, saved in ${out}`);
   const price = (c: Candidate) => c.price_eur ?? c.price ?? Infinity;
   for (const c of [...shown].sort((a, b) => price(a) - price(b))) console.log(line(c));

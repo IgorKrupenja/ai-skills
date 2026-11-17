@@ -53,13 +53,16 @@ bun <skill dir>/scripts/listings.ts add <run dir> <shop slug> --scan <run dir>/s
 
 Save a single candidate as not matching with `{"id": "...", "kind": "out"}`.
 
-When candidates share a model code (letters and digits in the title, such as Louis Vuitton's
-M80689 or a style number), the scan's output starts with one line per code: how many candidates
-have it, what an earlier search saved it as and two of their titles. Judge a whole code at once
-and save it in one entry, `{"code": "M80689", "kind": "match", "item": "Marelle, Epi Noir"}`,
-which stands for every candidate with that code except those you give by id, then go through the
-candidates without one. Where a code's titles disagree, look at a photo or two before you save
-it. Saving by code also tells the next scan what the code is.
+The scan's output starts with groups to judge at once. Candidates that share a model code
+(letters and digits in the title, such as Louis Vuitton's M80689 or a style number) get one line
+per code: how many have it, what an earlier search saved it as and two of their titles. Save a
+whole code in one entry, `{"code": "M80689", "kind": "match", "item": "Marelle, Epi Noir"}`,
+which stands for every candidate with that code except those you give by id; saving by code also
+tells the next scan what the code is. Candidates without a code are grouped by material, colour
+and width where the shop gives them, such as `LEATHER/WHITE/25CM`, and save the same way with
+`{"traits": "LEATHER/WHITE/25CM", ...}`. Those groups are rougher than codes: skim a group's lines
+before you save it whole, and save the odd ones out by id in the same call. Where a group's titles
+disagree, look at a photo or two. Then go through the candidates in neither.
 
 A scan candidate needs only its id, kind (`match` or `near`), the item (model, material and colour,
 specific enough to compare with the brand's range) and, for a near match, what it misses; add
