@@ -72,7 +72,27 @@ The search uses the skills repo's own playwright-cli browser, session `ai-skills
 `../node_modules/skills-kit/src/browser.ts` and `scripts/tab.ts`. A `playwright-cli` on your PATH runs another browser,
 so don't use it here.
 
-1. Run `bun ../node_modules/skills-kit/src/browser.ts list`. If the `ai-skills` browser isn't open, start it now,
+1. **The page first, open in the user's browser, before anything else.** The user watches the
+   search on its page from the start, so as soon as you know the shops and the slug, and before
+   the browser, the scans, reading shop notes or probing any site:
+   - pick a run id of four random lowercase letters, such as `qkzv`, and make a run folder for it
+     in the session's scratchpad folder or another temporary one, never in this skill's folder
+     (the repo is public), such as `<scratchpad>/<slug>/`. Scans and the agents' listings go
+     there. Each agent's tab tag is the run id plus its shop, group or brand, such as
+     `qkzv-vinted`, `qkzv-small` or `qkzv-lv`;
+   - write the run file, `<run dir>/run.json`, with `listings: []`, the page fields that don't
+     wait for results (the title, eyebrow, lede, css and fonts: see Report), and the plan as
+     `page.progress`: every shop you'll search, with the tab tag of the agent you plan for it as
+     `agent`, and each brand with its agent, such as
+     `{"shops": [{"name": "Vestiaire Collective", "agent": "qkzv-vestiaire"}, ...], "brands": [{"name": "Louis Vuitton", "agent": "qkzv-lv"}]}`.
+     Name each shop as its listings will;
+   - build the page, publish it (Report says how) and open it with `open`:
+
+   ```bash
+   bun scripts/update.ts <run dir>/run.json --out <run dir>/<slug>.html --known <slug>
+   open "<the page's URL>"
+   ```
+2. Run `bun ../node_modules/skills-kit/src/browser.ts list`. If the `ai-skills` browser isn't open, start it now,
    before any agent needs it (the script adds the persistent profile and the repo's config itself):
 
    ```bash
@@ -80,10 +100,6 @@ so don't use it here.
    ```
 
    If it's already open, other chats may be using it, so leave its tabs alone.
-2. Pick a run id of four random lowercase letters, such as `qkzv`, and make a run folder for it
-   in the session's scratchpad folder or another temporary one, never in this skill's folder (the
-   repo is public), such as `<scratchpad>/<slug>/`. Scans and the agents' listings go there. Each
-   agent's tab tag is the run id plus its shops or brand, such as `qkzv-vinted`.
 3. Run the scans yourself, all in one command that starts them together and waits for them (give
    it a 10-minute timeout; they take one to three minutes), then read only their summary lines:
 
@@ -113,18 +129,10 @@ so don't use it here.
 
    Every agent pays a fixed cost to start, so start only the ones there's work for.
 
-   Then write the run file, `<run dir>/run.json`, with `listings: []` and the page fields that
-   don't wait for results (the title, eyebrow, lede, hero, css and fonts: see Report), plus the
-   search's plan as `page.progress`: every shop, with the tab tag of the agent searching it as
-   `agent`, or with the state the scans settled (`{"name": "Vinted", "state": "nothing", "note":
-   "no listings"}`, or `"skipped"` with why), and each brand with its agent:
-   `{"shops": [{"name": "Vestiaire Collective", "agent": "qkzv-vestiaire"}, ...], "brands": [{"name": "Louis Vuitton", "agent": "qkzv-lv"}]}`.
-   Name each shop as its listings do. Build the first page and publish it (Report says how), so
-   the user has the link before any agent reports: it shows every shop being searched.
-
-   ```bash
-   bun scripts/update.ts <run dir>/run.json --out <run dir>/<slug>.html --known <slug>
-   ```
+   Then bring the plan in `page.progress` up to date: a shop the scans settled gets its state
+   instead of an agent (`{"name": "Vinted", "state": "nothing", "note": "no listings"}`), and a
+   shop whose agent changed gets the new tag. Rebuild the page with `update.ts` and publish it
+   again from the same file.
 5. Run the agents as one workflow: the Workflow tool with `scriptPath` set to
    `<skill dir>/workflow/search.js` and `args` like
    `{"status": {"runDir": "<run dir>", "skillDir": "<skill dir>"}, "agents": [{"id": "qkzv-vestiaire", "label": "Vestiaire", "kind": "shop", "model": "sonnet", "brief": "..."}, {"id": "qkzv-lv", "label": "Louis Vuitton", "kind": "brand", "brief": "..."}]}`,
@@ -133,10 +141,11 @@ so don't use it here.
    Workflow tool. It starts every agent at once, has each keep its own time (it reports by about
    13 minutes, with what's left as unverified), gives an agent that left links unchecked a second
    round, and returns every report once all are done, so you're woken once rather than for each
-   agent. Each agent also gets the user's message that started the workflow and follows it over
-   its brief where the two seem to disagree, so start it in the turn of the search request, not
-   after a message about something else. Where the Workflow tool isn't available, run the
-   agents as `references/without-workflow.md` says.
+   agent. Each agent also gets the user's latest message and follows it over its brief where the
+   two seem to disagree, so start the workflow only in the turn of the search request. When the
+   user has written something else since (a correction, a complaint), or the Workflow tool isn't
+   available, run the agents as `references/without-workflow.md` says, with the status step below
+   in each brief.
 
    Each agent records itself as done when it ends (`listings.ts status`), so the page can fill
    in as shops report. Start the watcher with the Monitor tool, with a 30-minute timeout:

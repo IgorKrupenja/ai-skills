@@ -3,9 +3,12 @@
 Where the Workflow tool isn't available, start the agents of SKILL.md's step 4 yourself:
 
 1. Start them all in a single message: in Claude Code, the Agent tool with the general-purpose
-   type, `model: "sonnet"` for shop agents and the default model for brand agents. Set a
-   15-minute background timer with them. The Agent tool runs at most 20 at once, and each agent
-   wakes you when it reports.
+   type, `model: "sonnet"` for shop agents and the default model for brand agents. End each brief
+   with the step the workflow would add: "Right before you report, record that you are done:
+   run `bun <skill dir>/scripts/listings.ts status <run dir> <your tab tag> "<your status>"
+   --unverified <links you leave unchecked>`." Set a 15-minute background timer with them. The
+   Agent tool runs at most 20 at once, and each agent wakes you when it reports: run `update.ts`
+   then and publish the page again, with no watcher needed.
 2. If an agent fails or its report is unusable, start a fresh one for its shops once; if that
    fails too, report them as not searched.
 3. When the timer fires, message each agent still running to stop, close its tab and report, and
