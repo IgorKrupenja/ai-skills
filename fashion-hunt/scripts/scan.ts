@@ -50,7 +50,8 @@ shopify     the products of the brand's collection (such as /collections/louis-v
             outside the browser, as all nine did after a day of scans, is read in a tab instead
             when --tag gives one. --profile prints what each shop
             carries instead: products in stock, vendors and product types.
-vestiaire   the search the catalog page loads, unsold items only, 200 a call: --brand picks the
+vestiaire   the search the catalog page loads, unsold items only, 200 a call, in slices by category,
+            condition and colour past the 1,200 listings one search pages through: --brand picks the
             designer and its collaborations ("Louis Vuitton x Yayoi Kusama"), --model the model
             filter (repeat it for several, such as Marelle and Marellini), plus a text search for
             each model name, which finds listings whose seller set no model; --query adds a text
@@ -462,8 +463,21 @@ async function inVestiaire(A: VestiaireArgs): Promise<VestiaireResult> {
   const searched: string[] = [];
   const norm = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
   const fields = ["name", "description", "brand", "model", "country", "price", "link", "sold", "pictures", "colors", "size", "condition", "seller", "createdAt"];
+  // Vestiaire's services sometimes refuse a request with a bare network error ("Failed to fetch")
+  // that a retry gets past
+  async function retried(url: string, init: RequestInit): Promise<Response> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await fetch(url, init);
+      } catch (e) {
+        if (attempt === 8) throw e;
+        // eslint-disable-next-line bun/prefer-builtin-sleep -- this runs in the shop's page, so no Bun globals
+        await new Promise(resolve => setTimeout(resolve, 400 * attempt));
+      }
+    }
+  }
   async function search(q: string | null, filters: Record<string, string[]>, offset: number, limit: number, facets: string[]): Promise<any> {
-    const res = await fetch("https://search.vestiairecollective.com/v1/product/search", {
+    const res = await retried("https://search.vestiairecollective.com/v1/product/search", {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },
       body: JSON.stringify({ pagination: { offset, limit }, fields, facets: { fields: facets, stats: [] }, q, sortBy: "relevance", filters, locale: { country: "EE", currency: "EUR", language: "en", sizeType: "EU" }, mySizes: null, options: {} }),
@@ -499,37 +513,56 @@ async function inVestiaire(A: VestiaireArgs): Promise<VestiaireResult> {
   if (!passes.length) passes.push({ label: "every listing of the designer", q: null, filters: base });
   const items: VestiaireItem[] = [];
   const seen = new Set<string>();
-  for (const pass of passes) {
-    let total = 0;
-    let added = 0;
-    for (let offset = 0; offset < 10000; offset += 200) {
-      const page = await search(pass.q, pass.filters, offset, 200, []);
-      total = page.paginationStats?.totalHits ?? 0;
-      for (const it of page.items ?? []) {
-        if (seen.has(String(it.id))) continue;
-        seen.add(String(it.id));
-        added++;
-        items.push({
-          id: String(it.id),
-          url: `https://www.vestiairecollective.com${it.link}`,
-          title: it.name,
-          brand: it.brand?.name ?? "",
-          model: it.model?.name ?? "",
-          price: (it.price?.cents ?? 0) / 100,
-          currency: it.price?.currency ?? "EUR",
-          condition: it.condition?.label ?? "",
-          country: it.country ?? "",
-          colors: (it.colors?.all ?? []).map((c: any) => c.name).join(", "),
-          photo: it.pictures?.[0] ? `https://images.vestiairecollective.com/images/resized/w=768,q=75,f=auto,${it.pictures[0]}` : "",
-          description: it.description ?? "",
-          seller: it.seller?.firstname ?? "",
-          official: !!it.seller?.isOfficialStore,
-          listed: it.createdAt ? new Date(it.createdAt * 1000).toISOString().slice(0, 10) : "",
-        });
-      }
-      if (offset + 200 >= Math.min(total, 10000)) break;
+  // The search pages up to an offset of 1,000 (since November 2026), so 1,200 listings a search:
+  // a bigger one is read in slices, by category, then condition, then colour
+  const MAX_OFFSET = 1000;
+  const SLICES = ["categoryLvl1", "categoryLvl2", "condition", "color"];
+  let added = 0;
+  const take = (page: any) => {
+    for (const it of page.items ?? []) {
+      if (seen.has(String(it.id))) continue;
+      seen.add(String(it.id));
+      added++;
+      items.push({
+        id: String(it.id),
+        url: `https://www.vestiairecollective.com${it.link}`,
+        title: it.name,
+        brand: it.brand?.name ?? "",
+        model: it.model?.name ?? "",
+        price: (it.price?.cents ?? 0) / 100,
+        currency: it.price?.currency ?? "EUR",
+        condition: it.condition?.label ?? "",
+        country: it.country ?? "",
+        colors: (it.colors?.all ?? []).map((c: any) => c.name).join(", "),
+        photo: it.pictures?.[0] ? `https://images.vestiairecollective.com/images/resized/w=768,q=75,f=auto,${it.pictures[0]}` : "",
+        description: it.description ?? "",
+        seller: it.seller?.firstname ?? "",
+        official: !!it.seller?.isOfficialStore,
+        listed: it.createdAt ? new Date(it.createdAt * 1000).toISOString().slice(0, 10) : "",
+      });
     }
-    searched.push(`${pass.label}: ${total} unsold listings, ${added} not found by an earlier pass${total >= 10000 ? " (only the first 10,000 can be read: narrow the search)" : ""}`);
+    return (page.items ?? []).length;
+  };
+  async function readAll(q: string | null, filters: Record<string, string[]>, depth: number): Promise<{ total: number; read: number }> {
+    const first = await search(q, filters, 0, 200, []);
+    const total = first.paginationStats?.totalHits ?? 0;
+    if (total > MAX_OFFSET + 200 && depth < SLICES.length) {
+      const facet = SLICES[depth]!;
+      const values = ((await search(q, filters, 0, 1, [facet])).facets?.fields?.[facet] ?? []) as any[];
+      if (values.length < 2) return readAll(q, filters, depth + 1);
+      let read = 0;
+      for (const value of values) read += (await readAll(q, { ...filters, [`${facet}.id`]: [String(value.id)] }, depth + 1)).read;
+      return { total, read };
+    }
+    let read = take(first);
+    for (let offset = 200; offset < Math.min(total, MAX_OFFSET + 200); offset += 200) read += take(await search(q, filters, offset, 200, []));
+    return { total, read };
+  }
+  for (const pass of passes) {
+    const before = added;
+    const { total, read } = await readAll(pass.q, pass.filters, 0);
+    const missed = total - read;
+    searched.push(`${pass.label}: ${total} unsold listings, ${added - before} not found by an earlier pass${missed > 0 ? ` (${missed} out of reach even in slices: narrow the search)` : ""}`);
   }
   const re = A.match ? new RegExp(A.match, "i") : null;
   const kept = re ? items.filter(i => re.test(`${i.title} ${i.model} ${i.description}`)) : items;
@@ -542,7 +575,7 @@ async function inVestiaire(A: VestiaireArgs): Promise<VestiaireResult> {
   for (let i = 0; i < checked.length; i += 20) {
     await Promise.all(checked.slice(i, i + 20).map(async item => {
       try {
-        const res = await fetch(`https://apiv2.vestiairecollective.com/products/${item.id}?isoCountry=EE&x-siteid=13&x-language=en&x-currency=EUR`, { headers: { accept: "application/json" } });
+        const res = await retried(`https://apiv2.vestiairecollective.com/products/${item.id}?isoCountry=EE&x-siteid=13&x-language=en&x-currency=EUR`, { headers: { accept: "application/json" } });
         const d = ((await res.json()) as any).data;
         item.material = d.material?.name;
         item.color = d.color?.name;
@@ -930,7 +963,7 @@ async function inEbaySearch(A: { queries: string[]; pause: number }): Promise<{ 
       if (!first) await new Promise(resolve => setTimeout(resolve, A.pause));
       first = false;
       const url = `https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q).replace(/%20/g, "+")}&LH_BIN=1&_ipg=240&_pgn=${page}`;
-      const res = await fetch(url, { credentials: "omit" });
+      const res = await fetch(url, { credentials: "omit", headers: { "Accept-Language": "de-DE,de;q=0.9" } });
       if (res.status !== 200) return { searched, cards: [...cards.values()], blocked: `search page ${page} for "${q}" answered ${res.status}` };
       const doc = new DOMParser().parseFromString(await res.text(), "text/html");
       if (page === 1) {
@@ -946,8 +979,9 @@ async function inEbaySearch(A: { queries: string[]; pause: number }): Promise<{ 
         const id = li.getAttribute("data-listingid") ?? "";
         // Skip the "Shop on eBay" ad cards
         if (!id || id === "123456") continue;
-        const lines = [...li.querySelectorAll("span")].filter(s => !s.children.length).map(s => text(s)).filter(s => s && s !== "Wird in neuem Fenster oder Tab geöffnet" && s !== "egieznA");
-        const title = (text(li.querySelector(".s-card__title")) || lines[0] || "").replace(/Wird in neuem Fenster oder Tab geöffnet/g, "").replace(/^Neues Angebot\s*/, "").trim();
+        const opens = /Wird in neuem Fenster oder Tab geöffnet|Opens in a new window or tab/g;
+        const lines = [...li.querySelectorAll("span")].filter(s => !s.children.length).map(s => text(s).replace(opens, "").trim()).filter(s => s && s !== "egieznA" && s !== "dercosnopS");
+        const title = (text(li.querySelector(".s-card__title")) || lines[0] || "").replace(opens, "").replace(/^(Neues Angebot|New listing)\s*/i, "").trim();
         const img = li.querySelector("img.s-card__image") ?? li.querySelector("img");
         cards.set(id, { id, title, lines, photo: img?.getAttribute("data-defer-load") || img?.getAttribute("src") || "" });
       }
@@ -965,7 +999,7 @@ async function inEbayItems(A: { ids: string[]; pause: number }): Promise<{ items
     if (n) await new Promise(resolve => setTimeout(resolve, A.pause));
     let res: Response;
     try {
-      res = await fetch(`https://www.ebay.de/itm/${id}`, { credentials: "omit" });
+      res = await fetch(`https://www.ebay.de/itm/${id}`, { credentials: "omit", headers: { "Accept-Language": "de-DE,de;q=0.9" } });
     } catch {
       items.push({ id, status: 0 });
       continue;
@@ -1014,8 +1048,30 @@ async function inEbayItems(A: { ids: string[]; pause: number }): Promise<{ items
 
 /** An amount such as "EUR 1.590,00" or "ca. EUR 1.590,00", in euros. */
 function euros(s: string | undefined): number | undefined {
-  const m = (s ?? "").match(/EUR\s*([\d.]+,\d{2}|[\d.]+)/);
-  return m ? Number(m[1]!.replace(/\./g, "").replace(",", ".")) : undefined;
+  const m = (s ?? "").match(/(?:EUR|€)\s*(\d[\d.,]*)|(\d[\d.,]*)\s*(?:EUR|€)/);
+  const amount = m?.[1] ?? m?.[2];
+  if (!amount) return undefined;
+  // The separator before the last two digits marks the cents; any other groups thousands
+  const cents = amount.match(/[.,](\d{2})$/);
+  const whole = (cents ? amount.slice(0, -3) : amount).replace(/[.,]/g, "");
+  const n = Number(cents ? `${whole}.${cents[1]}` : whole);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** A search card's lines in eBay.de's English layout, which it serves now and then, read as the German ones */
+const EBAY_ENGLISH: [RegExp, string][] = [
+  [/^Brand New\b.*/, "Neu"], [/^New \(Other\)/i, "Neu (Sonstige)"], [/^New with tags/i, "Neu mit Etikett"], [/^New without tags/i, "Neu ohne Etikett"],
+  [/^Pre-?Owned\b.*/i, "Gebraucht"], [/^Used\b.*/i, "Gebraucht"], [/^Open box/i, "Neu (Sonstige)"], [/^(Refurbished|Certified - Refurbished)/i, "Generalüberholt"], [/^For parts/i, "Defekt"],
+  [/^or Best Offer$/i, "oder Preisvorschlag"], [/^Authenticity Guarantee$/i, "Mit Echtheitsprüfung"],
+  [/^(Private|Private seller)$/i, "Privat"], [/^(Business|Business seller)$/i, "Gewerblich"],
+];
+function germanLine(line: string): string {
+  for (const [re, german] of EBAY_ENGLISH) if (re.test(line)) return german;
+  const from = line.match(/^(?:from|Located in) (.+)$/i);
+  if (from) return `aus ${from[1]}`;
+  const bids = line.match(/^(\d+) bids?\b/i);
+  if (bids) return `${bids[1]} Gebote`;
+  return line;
 }
 
 async function ebay(tag: string, queries: string[], ids: string[], match: RegExp | null, details: boolean, pause: number): Promise<ScanFile> {
@@ -1027,6 +1083,7 @@ async function ebay(tag: string, queries: string[], ids: string[], match: RegExp
     searched.push(...r.searched);
     if (r.blocked) searched.push(`stopped early: ${r.blocked}; eBay lifts a block within about ten minutes`);
     // Auctions don't count, even with a Buy It Now price
+    for (const card of r.cards) card.lines = card.lines.map(germanLine);
     const auctions = r.cards.filter(c => c.lines.some(l => /^\d+ Gebote?\b/.test(l))).length;
     cards = r.cards.filter(c => !c.lines.some(l => /^\d+ Gebote?\b/.test(l)) && (!match || match.test(c.title)));
     searched.push(`${r.cards.length} cards${auctions ? `, ${auctions} auctions left out` : ""}${match ? `, ${cards.length} with titles matching ${match}` : ""}`);
@@ -1062,16 +1119,20 @@ async function ebay(tag: string, queries: string[], ids: string[], match: RegExp
     }
     const lines = card?.lines ?? [];
     const s = item?.specifics ?? {};
-    const from = item?.location || lines.find(l => /^aus /.test(l))?.slice(4) || (card ? "Germany" : "");
+    const german = lines.some(l => /Lieferung|Versand|^Privat$|^Gewerblich$|^Gebraucht|^Neu\b/.test(l));
+    const from = item?.location || lines.find(l => /^aus /.test(l))?.slice(4) || (card && german ? "Germany" : "");
     const code = from ? countryCode(from) : null;
-    const price = euros(item?.approxText) ?? euros(item?.priceText) ?? euros(lines.find(l => /^EUR /.test(l)));
+    const priceLine = lines.find(l => /^(EUR|€)\s?\d|^\d[\d.,]*\s?(EUR|€)$/.test(l));
+    const price = euros(item?.approxText) ?? euros(item?.priceText) ?? euros(priceLine);
+    // A price in another currency stays in the note, for the agent to convert
+    const foreign = price === undefined ? lines.find(l => /^(US \$|C \$|AU \$|\$|£|GBP|USD|CAD)\s?\d/.test(l)) : undefined;
     const dims = [["Taschenbreite", "W"], ["Taschenhöhe", "H"], ["Taschentiefe", "D"]].filter(([k]) => s[k!]).map(([k, l]) => `${l} ${s[k!]}`);
     const sellerType = lines.find(l => /^(Privat|Gewerblich)$/.test(l)) ?? item?.seller?.match(/Gewerblich|Privat/)?.[0];
     // Such as "luxuryfindsitalia(37)PrivatAngemeldet als ...": the name, ratings and kind of seller
     const sellerName = item?.seller?.match(/^(.*?)\((\d[\d.]*)\)/);
     const seller = sellerName ? `${sellerName[1]!.trim()} (${sellerName[2]} ratings)${sellerType ? `, ${sellerType}` : ""}` : sellerType;
     const original = item?.priceText?.replace(/oder Preisvorschlag.*$/, "").trim();
-    const shipping = lines.find(l => /Lieferung|Versand/.test(l));
+    const shipping = lines.find(l => /Lieferung|Versand|delivery|shipping|postage/i.test(l));
     const photo = [card?.photo, item?.photo].find(p => p && !/stockimage|\.gif$/.test(p));
     // Only the search card says whether eBay checks this listing: every item page mentions the check
     const auth = lines.includes("Mit Echtheitsprüfung");
@@ -1094,6 +1155,7 @@ async function ebay(tag: string, queries: string[], ids: string[], match: RegExp
       ...(seller ? { seller } : {}),
       note: [
         card && !item ? "from the search card" : "",
+        foreign ? `price shown as ${foreign}, not converted` : "",
         item?.approxText && original && !/EUR/.test(original) ? `priced ${original}, converted by eBay` : "",
         lines.includes("oder Preisvorschlag") || item?.offer ? "best offer" : "",
         auth ? "eBay checks authenticity" : "",

@@ -16,7 +16,9 @@ specifics (material, colour, measurements), where it ships from and returns. eBa
 after about 15 item pages, whether 1.5 or 4 seconds apart, and lifts the block within about ten
 minutes, so the scan and `photos.ts` share a budget of 14 item pages in 12 minutes, counted across
 runs: past it, the scan lists the ids it left and the time they can be read. Read item pages for
-a handful of cards and settle the rest from their photos (`scripts/sheet.ts`). Without the scan,
+a handful of cards and settle the rest from their photos (`scripts/sheet.ts`). Signed out, eBay.de
+now and then answers in English: the scan asks for German, and reads English cards too (prices such
+as "EUR 1,590.00", "from Canada"), so only a German card without a country line counts as Germany. Without the scan,
 search the site as below.
 
 Search `/sch/i.html?_nkw=<query>&LH_BIN=1&_ipg=240`, which keeps Sofort-Kaufen (Buy It Now)

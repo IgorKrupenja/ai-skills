@@ -27,7 +27,10 @@ bun <skill dir>/scripts/scan.ts vestiaire --tag <tag> --brand "Louis Vuitton" --
   for women, Bags 141 and Accessories 14 for men), `condition.id` (1 never worn with tag, 2 never
   worn, 3 very good, 4 good, 5 fair), `materialLvl0.id` (Leather 3, Cloth 16, Patent leather 14)
   and `country` (an ISO code, such as `GB`).
-- A search reads at most 10,000 listings: narrow it with a model or filters when it says so.
+- The search pages only up to an offset of 1,000 (since November 2026), so a search with more than
+  1,200 listings is read in slices, by category, then condition, then colour: the scan does it itself
+  and says how many it couldn't reach. It also retries the bare network errors ("Failed to fetch")
+  that Vestiaire's services give now and then.
 - A title starts with the model the seller set ("Porte Documents Voyage leather bag"), so a
   `where` rule on the title and size settles most of a model at once. Sellers often swap width
   and height (30 x 40 cm for a 40 cm bag), and some set another model or none, which the
