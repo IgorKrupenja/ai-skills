@@ -87,12 +87,15 @@ farfetch    the result pages of each text search in the women's and men's sectio
             read, as the block lasts an hour and more. Prices are Farfetch Estonia's euros, import
             duties included.
 ebay        eBay.de's search cards for each --query, Buy It Now only and up to the count in the
-            results heading, auctions left out; --details also reads every candidate's item page
-            (condition grade, item specifics such as material, colour and measurements, where it
-            ships from, returns), and --ids reads the item pages of those listings alone. Pages are
-            read signed out, --pause ms apart (default 2000). eBay answers 403 after about 15 item
-            pages, whether 1.5 or 4 seconds apart, and lifts the block within about ten minutes,
-            so read item pages for a few cards only.
+            results heading, auctions left out. A card says only Gebraucht, so each used card's
+            grade (Hervorragend, Gut or Akzeptabel) comes from the same search again under eBay's
+            grade filters, about two more page loads a query. --details also reads every
+            candidate's item page (item specifics such as material, colour and measurements,
+            where it ships from, returns), and --ids reads the item pages of those listings
+            alone. Pages are read signed out, --pause ms apart (default 2000). eBay answers 403
+            after about 15 item pages, whether 1.5 or 4 seconds apart, or about 20 searches in
+            five minutes, and lifts the block within about ten minutes, so read item pages for a
+            few cards only.
 
 Prints one line per candidate: id | price | condition | ships from | title | details | model
 code, then the same for what --match left out. A model code is a token of letters and digits in the title or description, such as Louis
@@ -980,13 +983,21 @@ type EbayItem = {
  * The cards of eBay's search results for each query, Buy It Now only, 240 a page, up to the count
  * in the heading: later cards match only some of the words. Signed out (credentials omitted), since
  * eBay blocks the signed-in browser first; a pause between pages keeps it from seeing a burst.
+ * Then, as a card says only Neu or Gebraucht, the same search under each condition grade's filter
+ * in A.grades: a card found there has that grade. A query whose cards an earlier query's grade
+ * searches covered needs none of its own.
  */
-async function inEbaySearch(A: { queries: string[]; pause: number }): Promise<{ searched: string[]; cards: EbayCard[]; blocked?: string }> {
+async function inEbaySearch(A: { queries: string[]; pause: number; grades: [string, string][] }): Promise<{ searched: string[]; cards: EbayCard[]; blocked?: string; graded: Record<string, string>; gradesBlocked?: string }> {
   const searched: string[] = [];
   const cards = new Map<string, EbayCard>();
   const text = (e: any) => String(e?.textContent ?? "").replace(/\s+/g, " ").trim();
+  const count = (doc: any) => Number(text(doc.querySelector(".srp-controls__count-heading")).match(/^([\d.]+)/)?.[1]?.replace(/\./g, "") ?? 0);
   let first = true;
+  // Each query's cards, for the grade searches
+  const found: string[][] = [];
   for (const q of A.queries) {
+    const ids: string[] = [];
+    found.push(ids);
     let wanted = Infinity;
     let seen = 0;
     for (let page = 1; seen < wanted && page <= 20; page++) {
@@ -995,11 +1006,11 @@ async function inEbaySearch(A: { queries: string[]; pause: number }): Promise<{ 
       first = false;
       const url = `https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q).replace(/%20/g, "+")}&LH_BIN=1&_ipg=240&_pgn=${page}`;
       const res = await fetch(url, { credentials: "omit", headers: { "Accept-Language": "de-DE,de;q=0.9" } });
-      if (res.status !== 200) return { searched, cards: [...cards.values()], blocked: `search page ${page} for "${q}" answered ${res.status}` };
+      if (res.status !== 200) return { searched, cards: [...cards.values()], blocked: `search page ${page} for "${q}" answered ${res.status}`, graded: {} };
       const doc = new DOMParser().parseFromString(await res.text(), "text/html");
       if (page === 1) {
         const heading = text(doc.querySelector(".srp-controls__count-heading"));
-        wanted = Number(heading.match(/^([\d.]+)/)?.[1]?.replace(/\./g, "") ?? 0);
+        wanted = count(doc);
         searched.push(`"${q}": ${heading || "no results heading"}`);
       }
       const lis = [...doc.querySelectorAll("ul.srp-results > li.s-card")];
@@ -1015,10 +1026,39 @@ async function inEbaySearch(A: { queries: string[]; pause: number }): Promise<{ 
         const title = (text(li.querySelector(".s-card__title")) || lines[0] || "").replace(opens, "").replace(/^(Neues Angebot|New listing)\s*/i, "").trim();
         const img = li.querySelector("img.s-card__image") ?? li.querySelector("img");
         cards.set(id, { id, title, lines, photo: img?.getAttribute("data-defer-load") || img?.getAttribute("src") || "" });
+        ids.push(id);
       }
     }
   }
-  return { searched, cards: [...cards.values()] };
+
+  const graded: Record<string, string> = {};
+  const covered = new Set<string>();
+  for (const [i, q] of A.queries.entries()) {
+    if (found[i]!.every(id => covered.has(id))) continue;
+    for (const [code, label] of A.grades) {
+      let wanted = Infinity;
+      let seen = 0;
+      for (let page = 1; seen < wanted && page <= 5; page++) {
+        // eslint-disable-next-line bun/prefer-builtin-sleep -- this runs in the shop's page, so no Bun globals
+        await new Promise(resolve => setTimeout(resolve, A.pause));
+        const url = `https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q).replace(/%20/g, "+")}&LH_BIN=1&_ipg=240&LH_ItemCondition=${code}&_pgn=${page}`;
+        const res = await fetch(url, { credentials: "omit", headers: { "Accept-Language": "de-DE,de;q=0.9" } });
+        if (res.status !== 200) return { searched, cards: [...cards.values()], graded, gradesBlocked: `the ${label} search for "${q}" answered ${res.status}` };
+        const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+        if (page === 1) wanted = count(doc);
+        const lis = [...doc.querySelectorAll("ul.srp-results > li.s-card")];
+        if (!lis.length) break;
+        for (const li of lis) {
+          if (seen >= wanted) break;
+          seen++;
+          const id = li.getAttribute("data-listingid") ?? "";
+          if (cards.has(id)) graded[id] = label;
+        }
+      }
+    }
+    for (const id of found[i]!) covered.add(id);
+  }
+  return { searched, cards: [...cards.values()], graded };
 }
 
 /** Item pages one at a time, signed out and with a pause between them; stops at the first 403. */
@@ -1089,6 +1129,22 @@ function euros(s: string | undefined): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+/**
+ * eBay.de's condition grades for used fashion, by the code its search filters them with
+ * (LH_ItemCondition), named as its item pages name them. A search card says only "Gebraucht", so
+ * the scan searches again under each grade's filter; a used card under neither has the middle
+ * grade, EBAY_REST, which the filter for it (3000) can't single out, as it lists every used item.
+ */
+const EBAY_GRADES: [string, string][] = [["2990", "Gebraucht - Hervorragend"], ["3010", "Gebraucht - Akzeptabel"]];
+const EBAY_REST = "Gebraucht - Gut";
+
+/** A search card's condition: its label, with a used card's grade from eBay's filters, or the middle grade once they were all read. */
+function cardCondition(lines: string[], grade: string | undefined, gradesRead: boolean): string | undefined {
+  const label = lines.find(l => /^(Neu|Brandneu|Neuwertig|Gebraucht|Generalüberholt|Defekt)/.test(l))?.replace(/\s*\|$/, "");
+  if (label !== "Gebraucht") return label;
+  return grade ?? (gradesRead ? EBAY_REST : label);
+}
+
 /** A search card's lines in eBay.de's English layout, which it serves now and then, read as the German ones */
 const EBAY_ENGLISH: [RegExp, string][] = [
   [/^Brand New\b.*/, "Neu"], [/^New \(Other\)/i, "Neu (Sonstige)"], [/^New with tags/i, "Neu mit Etikett"], [/^New without tags/i, "Neu ohne Etikett"],
@@ -1109,10 +1165,18 @@ async function ebay(tag: string, queries: string[], ids: string[], match: RegExp
   const site = "https://www.ebay.de";
   const searched: string[] = [];
   let cards: EbayCard[] = [];
+  // Each used card's condition grade, from eBay's search filters
+  let graded: Record<string, string> = {};
+  let gradesRead = false;
   if (queries.length) {
-    const r = await inTab(tag, site, inEbaySearch, { queries, pause });
+    const r = await inTab(tag, site, inEbaySearch, { queries, pause, grades: EBAY_GRADES });
     searched.push(...r.searched);
     if (r.blocked) searched.push(`stopped early: ${r.blocked}; eBay lifts a block within about ten minutes`);
+    graded = r.graded;
+    gradesRead = !r.blocked && !r.gradesBlocked;
+    const tally = EBAY_GRADES.map(([, label]) => `${Object.values(graded).filter(g => g === label).length} ${label}`).join(", ");
+    if (r.gradesBlocked) searched.push(`condition grades only partly read, as ${r.gradesBlocked}: ${tally}; the other used cards keep a bare Gebraucht`);
+    else if (!r.blocked) searched.push(`condition grades from eBay's filters: ${tally}, the other used cards ${EBAY_REST}`);
     // Auctions don't count, even with a Buy It Now price
     for (const card of r.cards) card.lines = card.lines.map(germanLine);
     const auctions = r.cards.filter(c => c.lines.some(l => /^\d+ Gebote?\b/.test(l))).length;
@@ -1175,7 +1239,7 @@ async function ebay(tag: string, queries: string[], ids: string[], match: RegExp
       title: (card?.title || item?.title || "").replace(/\s*-$/, ""),
       brand: s["Marke"] ?? lines.find(l => /vuitton/i.test(l) && l.length < 40),
       ...(price !== undefined ? { price_eur: price } : {}),
-      condition: item?.condition || lines.find(l => /^(Neu|Brandneu|Neuwertig|Gebraucht|Generalüberholt|Defekt)/.test(l))?.replace(/\s*\|$/, ""),
+      condition: item?.condition || cardCondition(lines, graded[id], gradesRead),
       ...(dims.length ? { size: dims.join(" × ") } : {}),
       ...(s["Außenfarbe"] || s["Farbe"] ? { color: s["Außenfarbe"] ?? s["Farbe"] } : {}),
       ...(s["Außenmaterial"] || s["Material"] ? { material: s["Außenmaterial"] ?? s["Material"] } : {}),

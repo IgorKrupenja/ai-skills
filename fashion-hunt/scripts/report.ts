@@ -164,11 +164,15 @@ const CONDITIONS: Record<string, string> = {
   rahuldav: "fair", satisfactory: "fair", fair: "fair", "fair condition": "fair",
   // Pre-owned shops such as Care of Carl and Collector's Cage
   excellent: "likeNew", "excellent condition": "likeNew", pristine: "likeNew", "very nice": "veryGood",
-  // eBay.de's grades, and the bare "Gebraucht" its search cards show, which has no grade
+  // eBay.de's grades in German and English, whose top used grade is no better than very good, and
+  // the bare "Gebraucht" of a card whose grade the scan couldn't read
   "neu mit etikett": "newTags", "neu ohne etikett": "new", neu: "new", neuwertig: "likeNew",
-  "gebraucht - hervorragend": "likeNew", "gebraucht - sehr gut": "veryGood", "gebraucht - gut": "good",
+  "neu mit mängeln": "likeNew", "neu mit fehlern": "likeNew", "new with defects": "likeNew",
+  "gebraucht - hervorragend": "veryGood", "gebraucht - sehr gut": "veryGood", "gebraucht - gut": "good",
   "gebraucht - akzeptabel": "fair", gebraucht: "used",
-  hervorragend: "likeNew", "sehr gut": "veryGood", gut: "good", akzeptabel: "fair",
+  hervorragend: "veryGood", "sehr gut": "veryGood", gut: "good", akzeptabel: "fair",
+  "used - excellent": "veryGood", "pre-owned - excellent": "veryGood", "used - good": "good", "pre-owned - good": "good",
+  "used - fair": "fair", "pre-owned - fair": "fair",
   // French labels, and JoliCloset's English ones ("Correct condition" is état correct)
   "neuf avec étiquette": "newTags", "neuf avec étiquettes": "newTags", neuf: "new", "jamais porté": "new",
   "excellent état": "likeNew", "très bon état": "veryGood", "bon état": "good", "état correct": "fair",
@@ -224,7 +228,8 @@ const CONDITION_NAMES: Record<"en" | "ru", Record<string, string>> = {
  * colon ("Gebraucht - Gut: Dieser Artikel ...") don't count. A label the scale doesn't know is other.
  */
 function condition(label: string, lang: "en" | "ru"): { key: string; text: string } {
-  const head = label.split(/[(:]/)[0]!.trim().toLowerCase().replace(/\s*[-\u2013\u2014]\s*/g, " - ").replace(/\s+/g, " ");
+  // A dash with a space beside it, or any en or em dash, parts label and grade; a hyphen inside a word, as in pre-owned, stays
+  const head = label.split(/[(:]/)[0]!.trim().toLowerCase().replace(/\s*[\u2013\u2014]\s*|\s+-\s*|\s*-\s+/g, " - ").replace(/\s+/g, " ");
   const key = CONDITIONS[head] ?? (label.trim() ? "other" : "none");
   return { key, text: key === "none" ? "" : (CONDITION_NAMES[lang][key] ?? label) };
 }
