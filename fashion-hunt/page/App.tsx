@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { FilterBar } from "./FilterBar.tsx";
 import { ALL, cleared, comparer, dedupe, defaults, loadFilters, passes, saveFilters, storageKey, type Facet, type Filters, type SortKey } from "./filters.ts";
 import { Listings } from "./Listings.tsx";
+import { ProgressPanel, Waiting } from "./Progress.tsx";
 import { setup } from "./setup.ts";
 import type { Report } from "./types.ts";
 import { Variants } from "./Variants.tsx";
@@ -86,6 +87,8 @@ export function App({ report: R }: { report: Report }) {
         {R.hero ? <div className="hero" dangerouslySetInnerHTML={{ __html: R.hero }} /> : null}
       </header>
 
+      {R.progress ? <ProgressPanel P={R.progress} T={T} /> : null}
+
       <Variants S={S} rows={variantRows} picked={f.variants} onToggle={toggleVariant} />
 
       {R.facts.length ? (
@@ -99,9 +102,14 @@ export function App({ report: R }: { report: Report }) {
         </section>
       ) : null}
 
-      <FilterBar R={R} S={S} f={f} set={set} clear={clear} counts={counts} rowsFor={rowsFor} barRef={bar} />
-
-      <Listings list={list} S={S} f={f} onSort={sortBy} boxRef={box} />
+      {R.progress && !R.rows.length ? (
+        <Waiting T={T} />
+      ) : (
+        <>
+          <FilterBar R={R} S={S} f={f} set={set} clear={clear} counts={counts} rowsFor={rowsFor} barRef={bar} />
+          <Listings list={list} S={S} f={f} onSort={sortBy} boxRef={box} />
+        </>
+      )}
 
       {R.unverified?.items.length ? (
         <details>

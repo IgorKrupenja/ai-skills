@@ -1,7 +1,7 @@
 /** The report page's own words, in its two languages. */
 
 import type { Below } from "./filters.ts";
-import type { Lang } from "./types.ts";
+import type { Lang, ShopState } from "./types.ts";
 
 /** Russian plurals: one, few or many, by the number */
 export const plural = (n: number, one: string, few: string, many: string) =>
@@ -37,6 +37,22 @@ const en = {
   riskTip: "Listings flagged as a risk, with the reason next to ⚠ in their notes.",
   hideRepeats: "Hide repeats",
   repeatTip: "Listings with the same photo are most likely one item listed more than once: this shows only the cheapest, and its notes link the others.",
+  // While the search is going
+  progress: "Search progress",
+  shopsDone: (done: number, total: number) => `${done} of ${total} shops searched`,
+  progressHint: "Listings show up below as each shop is checked: reload for the latest. New prices and notes come once every shop is in.",
+  updated: (time: string) => `Updated ${time}`,
+  shopState: (state: ShopState, n: number, note: string) =>
+    state === "searching" ? "searching…"
+    : state === "checking" ? `${n} found, checking more…`
+    : state === "done" ? (n ? `${n} found` : "nothing found")
+    : state === "blocked" ? (note ? `blocked: ${note}` : "blocked")
+    : state === "skipped" ? note || "skipped"
+    : note || "nothing new",
+  brandState: (done: boolean): string => (done ? "new prices in" : "looking up new prices…"),
+  nothingAt: (shops: string) => `Nothing new at ${shops}.`,
+  skippedShops: (shops: string) => `Skipped: ${shops}.`,
+  waiting: "The first listings appear here as soon as a shop is checked.",
 };
 
 export type Text = typeof en;
@@ -70,6 +86,21 @@ const ru: Text = {
   riskTip: "Объявления с риском подделки, причина указана рядом с ⚠ в заметках.",
   hideRepeats: "Скрыть повторы",
   repeatTip: "Объявления с одинаковым фото, скорее всего, одна и та же вещь: остаётся самое дешёвое, а в его заметках ссылки на остальные.",
+  progress: "Ход поиска",
+  shopsDone: (done, total) => `Проверено ${done} из ${total} ${plural(total, "магазина", "магазинов", "магазинов")}`,
+  progressHint: "Объявления появляются ниже по мере проверки магазинов: обновите страницу, чтобы увидеть новые. Цены нового и примечания появятся, когда проверят все магазины.",
+  updated: time => `Обновлено в ${time}`,
+  shopState: (state, n, note) =>
+    state === "searching" ? "ищем…"
+    : state === "checking" ? `${n} найдено, проверяем ещё…`
+    : state === "done" ? (n ? `${n} ${plural(n, "объявление", "объявления", "объявлений")}` : "ничего не найдено")
+    : state === "blocked" ? (note ? `заблокировал: ${note}` : "заблокировал поиск")
+    : state === "skipped" ? note || "пропущен"
+    : note || "ничего нового",
+  brandState: done => (done ? "цены нового получены" : "узнаём цены нового…"),
+  nothingAt: shops => `Ничего нового: ${shops}.`,
+  skippedShops: shops => `Пропущены: ${shops}.`,
+  waiting: "Первые объявления появятся здесь, как только проверят первый магазин.",
 };
 
 export const TEXT: Record<Lang, Text> = { en, ru };

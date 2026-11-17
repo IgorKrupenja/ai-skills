@@ -183,3 +183,46 @@ details .hint { margin-top: 8px; }
 .opt.head .lbl { font-weight: 600; }
 .opt.nested { padding-left: 34px; }
 .group + .group, .group + .opt { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 4px; }
+
+/* While the search is going: a count with a spinner, a bar, each shop's state, and shimmering rows
+   where the listings will be */
+.progress { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: grid; gap: 14px; }
+.phead { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 12px; }
+.spinner { flex: none; width: 22px; height: 22px; margin-top: 2px; border-radius: 50%; border: 2.5px solid var(--accent-soft); border-top-color: var(--accent); animation: spin .9s linear infinite; }
+.ptitle { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.ptitle strong { font-family: var(--display); font-size: 18px; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.psub { color: var(--muted); font-size: 13px; max-width: 70ch; }
+.pwhen { color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) { .pwhen { flex-basis: 100%; padding-left: 34px; } }
+.prest { margin: -4px 0 0; color: var(--muted); font-size: 13px; }
+.pbar { position: relative; height: 6px; border-radius: 999px; background: var(--chip); overflow: hidden; }
+.pbar span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width .6s ease; }
+.pbar::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 25%, transparent), transparent); transform: translateX(-100%); animation: sweep 1.8s ease-in-out infinite; }
+.pshops { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 2px 18px; }
+.pshop { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 5px 0; font-size: 14px; border-bottom: 1px solid var(--line); }
+.pname { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pstate { margin-left: auto; padding-left: 8px; color: var(--muted); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.picon { flex: none; box-sizing: border-box; width: 16px; height: 16px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; font-weight: 700; line-height: 1; }
+.picon svg { width: 10px; height: 10px; }
+.pshop.done .picon { background: var(--accent); color: var(--surface); }
+.pshop.done .pstate { color: var(--fg); }
+.pshop.searching .picon, .pshop.checking .picon { border: 2px solid var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+.pshop.nothing .picon { border: 2px solid var(--line); }
+.pshop.blocked .picon { background: var(--warn-soft); color: var(--warn); }
+.pshop.blocked .pstate { color: var(--warn); }
+.pshop.skipped { opacity: .55; }
+.pshop.skipped .picon { border: 2px dashed var(--muted); }
+.pshop.brand .pname { font-style: italic; }
+.waiting { display: grid; gap: 10px; }
+.ghost { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.ghost span, .ghost .glines span { background: linear-gradient(90deg, var(--chip) 25%, color-mix(in srgb, var(--chip) 40%, var(--surface)) 50%, var(--chip) 75%); background-size: 200% 100%; animation: shimmer 1.6s linear infinite; border-radius: 6px; }
+.ghost .gthumb { flex: none; width: 56px; height: 56px; border-radius: 8px; }
+.ghost .glines { flex: 1; display: grid; gap: 8px; background: none; animation: none; }
+.ghost .glines span { height: 12px; }
+.ghost .glines span:last-child { width: 60%; }
+.ghost .gprice { flex: none; width: 64px; height: 16px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { transform: scale(.7); opacity: .45; } 50% { transform: scale(1); opacity: 1; } }
+@keyframes sweep { to { transform: translateX(100%); } }
+@keyframes shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .spinner, .pshop .picon, .pbar::after, .ghost span { animation: none !important; } }

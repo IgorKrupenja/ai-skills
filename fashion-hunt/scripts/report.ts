@@ -10,7 +10,7 @@
  */
 
 import { parseArgs } from "node:util";
-import type { Dims, Report } from "../page/types.ts";
+import type { Dims, Progress, Report, ShopState } from "../page/types.ts";
 import { countryCode, countryName, isCountry, outsideEU, photoGroups } from "./common.ts";
 
 const USAGE = `Build the fashion-hunt report page from a run file.
@@ -129,8 +129,20 @@ type Page = {
   groups?: Group[];
   notes?: { title?: string; html: string }[];
   unverified?: { title?: string; hint?: string; items: { url: string; label?: string }[] };
+  progress?: ProgressPlan;
 };
 type Run = { date?: unknown; request?: unknown; listings?: unknown; page?: Page };
+/**
+ * The search's plan while it runs: each shop with the agent searching it (its tab tag), or with a
+ * state the scans already settled, and each brand with the agent looking up its new prices. An
+ * agent saves status/<agent>.json next to the run file when it's done, and <agent>-2 for its
+ * second round.
+ */
+type ProgressPlan = {
+  shops: { name: string; agent?: string; state?: ShopState; note?: string }[];
+  brands?: { name: string; agent?: string }[];
+};
+type AgentStatus = { status?: string; unverified?: number };
 
 const LETTERS = ["XXS", "XS", "S", "M", "L", "XL+"];
 /** The largest number in each sizing system that still counts as XXS, XS, S, M and L; above them is XL+. */
@@ -491,7 +503,38 @@ async function main(argv: string[]): Promise<number> {
     }
   }
 
+  // How far the search has got, from the plan and the agents' status files; none once all are in
+  let progress: Progress | null = null;
+  const plan = page.progress;
+  if (plan && Array.isArray(plan.shops) && plan.shops.length) {
+    const statuses = new Map<string, AgentStatus>();
+    for (const agent of new Set([...plan.shops, ...(plan.brands ?? [])].map(entry => entry.agent).filter(id => typeof id === "string" && id))) {
+      for (const id of [agent!, `${agent}-2`]) {
+        const file = Bun.file(`${folder}/status/${id}.json`);
+        if (await file.exists()) statuses.set(id, await file.json());
+      }
+    }
+    const shops = plan.shops.map(({ name, agent, state, note }) => {
+      const count = rows.filter(row => row.shop === name).length;
+      if (!agent) return { name, state: state ?? "nothing", count, note: text(note) };
+      const first = statuses.get(agent), second = statuses.get(`${agent}-2`);
+      if (!first) return { name, state: "searching" as ShopState, count, note: "" };
+      if ((first.unverified ?? 0) > 0 && !second) return { name, state: "checking" as ShopState, count, note: "" };
+      const last = text((second ?? first).status);
+      const stopped = /^(blocked|not searched)/i.test(last) && !count;
+      return { name, state: (stopped ? "blocked" : "done") as ShopState, count, note: stopped ? last.replace(/^(blocked|not searched):?\s*/i, "") : "" };
+    });
+    const brands = (plan.brands ?? []).map(({ name, agent }) => ({ name, done: !!agent && statuses.has(agent) }));
+    const counted = shops.filter(shop => shop.state !== "skipped");
+    const done = counted.filter(shop => shop.state !== "searching" && shop.state !== "checking").length;
+    if (done < counted.length || brands.some(brand => !brand.done)) {
+      const updated = new Date().toLocaleTimeString(ru ? "ru-RU" : "en-GB", { hour: "2-digit", minute: "2-digit" });
+      progress = { shops, brands, done, total: counted.length, updated };
+    }
+  }
+
   const data: Report = {
+    progress,
     lang,
     title,
     eyebrow: text(page.eyebrow),
@@ -538,6 +581,7 @@ async function main(argv: string[]): Promise<number> {
   const size = Buffer.byteLength(html);
   if (size > 16_000_000) console.warn(`the page is ${(size / 1e6).toFixed(1)} MB, more than an Artifact takes (16 MB)`);
 
+  if (progress) console.log(`progress: ${progress.done} of ${progress.total} shops searched${progress.brands.some(brand => !brand.done) ? ", new prices still coming" : ""}`);
   if (shared.length) console.log(`same photo: ${shared.flat().length} listings in ${shared.length} groups, marked on the page`);
   if (unplaced.size) {
     console.warn(`ships_from names no country, so the EU filter keeps these unless non_eu is set: ${[...unplaced].map(([from, n]) => `"${from}" (${n})`).join(", ")}`);

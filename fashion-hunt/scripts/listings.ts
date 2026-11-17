@@ -13,6 +13,7 @@ const USAGE = `Save a shop agent's listings as it verifies them, and merge them 
     listings.ts add <run dir> <shop slug> [--scan <scan file> [--rest out]] [file]
     listings.ts show <run dir>
     listings.ts merge <run file> [--known <search>] [--rate <CUR>=<EUR per unit>]...
+    listings.ts status <run dir> <agent id> <status> [--unverified <n>]
 
 add    saves listings (a JSON object or list, from file or stdin) in <run dir>/listings/<shop
        slug>.json, replacing any saved before with the same link, so whatever an agent saved
@@ -40,6 +41,9 @@ add    saves listings (a JSON object or list, from file or stdin) in <run dir>/l
        isn't saved yet (and that the last run didn't judge) as out, once the agent has saved
        the ones that count.
 show   prints how many listings each shop has saved.
+status records that an agent is done, in <run dir>/status/<agent id>.json, for the report page's
+       progress: its status line and how many links it left unchecked. The agent id is its tab
+       tag, with -2 for a second round.
 merge  adds every saved listing to the run file's listings: one already there by link gets the
        agent's fields (price, condition and so on) and keeps the rest (group, variant, new price).
        Those saved as out go to the run file's rejected list. --known <search> also carries over
@@ -300,6 +304,7 @@ async function main(): Promise<number> {
       rest: { type: "string" },
       known: { type: "string" },
       rate: { type: "string", multiple: true, default: [] },
+      unverified: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
     allowPositionals: true,
@@ -312,6 +317,13 @@ async function main(): Promise<number> {
   if (values.rest !== undefined && values.rest !== "out") die("--rest takes only out");
   if (command === "add" && (rest.length === 2 || rest.length === 3)) {
     await add(rest[0]!, rest[1]!, values.scan, rest[2] ?? "-", values.rest === "out");
+  } else if (command === "status" && rest.length === 3) {
+    const [dir, agent, line] = rest as [string, string, string];
+    if (!/^[A-Za-z0-9._-]{1,80}$/.test(agent)) die(`the agent id is its tab tag, letters, digits, dots, dashes and underscores: ${agent}`);
+    const unverified = Number(values.unverified ?? 0);
+    if (!Number.isInteger(unverified) || unverified < 0) die(`--unverified takes a count: ${values.unverified}`);
+    await Bun.write(`${dir.replace(/\/$/, "")}/status/${agent}.json`, JSON.stringify({ status: line, unverified, at: new Date().toISOString() }));
+    console.log(`recorded ${agent} as done: ${line}${unverified ? `, ${unverified} links left` : ""}`);
   } else if (command === "show" && rest.length === 1) {
     await show(rest[0]!);
   } else if (command === "merge" && rest.length === 1) {

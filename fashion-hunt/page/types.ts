@@ -49,6 +49,21 @@ export type Row = {
 
 export type Group = { id: string; label: string; hint?: string };
 
+/** Where a shop's search stands while the run is still going */
+export type ShopState = "searching" | "checking" | "done" | "nothing" | "blocked" | "skipped";
+
+/** The search's progress, while its agents are still at work: the page shows it above the listings */
+export type Progress = {
+  shops: { name: string; state: ShopState; count: number; note: string }[];
+  /** The brands whose new prices are being looked up, and whether they're in */
+  brands: { name: string; done: boolean }[];
+  /** The shops whose search has ended, and all the shops searched (skipped ones left out) */
+  done: number;
+  total: number;
+  /** When the page was built, such as "20:41" */
+  updated: string;
+};
+
 export type Report = {
   lang: Lang;
   title: string;
@@ -76,4 +91,6 @@ export type Report = {
   sizeLabels: Record<string, string>;
   conditionOrder: string[];
   conditionNames: Record<string, string>;
+  /** Set while the search is still going, so the page shows how far it's got */
+  progress: Progress | null;
 };

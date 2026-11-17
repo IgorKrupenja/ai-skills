@@ -8,7 +8,9 @@ export const meta = {
   ],
 }
 
-// args: {agents: [{label, kind: "shop" | "brand", brief, model?}]}, the briefs SKILL.md describes.
+// args: {agents: [{id, label, kind: "shop" | "brand", brief, model?}], status?: {runDir, skillDir}}, the
+// briefs SKILL.md describes, each with its tab tag as id. With status, each agent records itself
+// as done when it ends (listings.ts status), so the main chat can update the report page meanwhile.
 // Shop agents report as REPORT; a brand agent replies in the text its file gives. Returns each
 // agent's report, and its second round's where it had one.
 
@@ -45,6 +47,12 @@ const TIME =
 const REPORT_NOTE =
   "\n\nReport with the structured output instead of the text block your file describes: one entry per shop, with the same content, and every link you shortlisted but didn't check under unverified."
 
+// Each agent records itself as done, as id, or id-2 in a second round, for the page's progress
+const done = id =>
+  args && args.status && id
+    ? `\n\nRight before you report, record that you are done, so the report page shows it: run \`bun ${args.status.skillDir}/scripts/listings.ts status ${args.status.runDir} ${id} "<your status: searched, partly searched: ..., blocked: ... or not searched: ...>" --unverified <how many links you leave unchecked>\`.`
+    : ''
+
 const agents = (args && args.agents) || []
 if (!agents.length) throw new Error('args.agents is empty: pass the briefs the fashion-hunt skill writes')
 const opts = (a, extra) => ({ phase: 'Search', ...(a.model ? { model: a.model } : {}), ...extra })
@@ -60,6 +68,7 @@ const second = (a, report) => {
     ':\n' +
     links.join('\n') +
     TIME +
+    done(a.id && `${a.id}-2`) +
     REPORT_NOTE
   )
 }
@@ -68,7 +77,10 @@ phase('Search')
 log(`${agents.length} agents: ${agents.map(a => a.label).join(', ')}`)
 const results = await pipeline(
   agents,
-  a => (a.kind === 'brand' ? agent(a.brief + TIME, opts(a, { label: a.label })) : agent(a.brief + TIME + REPORT_NOTE, opts(a, { label: a.label, schema: REPORT }))),
+  a =>
+    a.kind === 'brand'
+      ? agent(a.brief + TIME + done(a.id), opts(a, { label: a.label }))
+      : agent(a.brief + TIME + done(a.id) + REPORT_NOTE, opts(a, { label: a.label, schema: REPORT })),
   async (report, a) => {
     const done = { label: a.label, kind: a.kind, report }
     if (a.kind === 'brand' || !report || !report.shops.some(s => s.unverified.length)) return done

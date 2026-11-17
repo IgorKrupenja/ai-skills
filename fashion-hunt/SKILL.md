@@ -112,23 +112,44 @@ so don't use it here.
    - one per requested brand, for the new price.
 
    Every agent pays a fixed cost to start, so start only the ones there's work for.
-5. Run them all as one workflow: the Workflow tool with `scriptPath` set to
+
+   Then write the run file, `<run dir>/run.json`, with `listings: []` and the page fields that
+   don't wait for results (the title, eyebrow, lede, hero, css and fonts: see Report), plus the
+   search's plan as `page.progress`: every shop, with the tab tag of the agent searching it as
+   `agent`, or with the state the scans settled (`{"name": "Vinted", "state": "nothing", "note":
+   "no listings"}`, or `"skipped"` with why), and each brand with its agent:
+   `{"shops": [{"name": "Vestiaire Collective", "agent": "qkzv-vestiaire"}, ...], "brands": [{"name": "Louis Vuitton", "agent": "qkzv-lv"}]}`.
+   Name each shop as its listings do. Build the first page and publish it (Report says how), so
+   the user has the link before any agent reports: it shows every shop being searched.
+
+   ```bash
+   bun scripts/update.ts <run dir>/run.json --out <run dir>/<slug>.html --known <slug>
+   ```
+5. Run the agents as one workflow: the Workflow tool with `scriptPath` set to
    `<skill dir>/workflow/search.js` and `args` like
-   `{"agents": [{"label": "Vestiaire", "kind": "shop", "model": "sonnet", "brief": "..."}, {"label": "Louis Vuitton", "kind": "brand", "brief": "..."}]}`:
-   shop agents on Sonnet, brand agents on the default model. The user asked on 17 November 2026
+   `{"status": {"runDir": "<run dir>", "skillDir": "<skill dir>"}, "agents": [{"id": "qkzv-vestiaire", "label": "Vestiaire", "kind": "shop", "model": "sonnet", "brief": "..."}, {"id": "qkzv-lv", "label": "Louis Vuitton", "kind": "brand", "brief": "..."}]}`,
+   each agent's `id` its tab tag: shop agents on Sonnet, brand agents on the default model. The user asked on 17 November 2026
    for this skill's searches to run this way, so running the skill is their go-ahead for the
    Workflow tool. It starts every agent at once, has each keep its own time (it reports by about
    13 minutes, with what's left as unverified), gives an agent that left links unchecked a second
    round, and returns every report once all are done, so you're woken once rather than for each
    agent. Each agent also gets the user's message that started the workflow and follows it over
    its brief where the two seem to disagree, so start it in the turn of the search request, not
-   after a message about something else. Tell the user in one line how many agents are
-   searching, then wait for it without browsing yourself. Where the Workflow tool isn't
-   available, run the agents as `references/without-workflow.md` says.
+   after a message about something else. Where the Workflow tool isn't available, run the
+   agents as `references/without-workflow.md` says.
+
+   Each agent records itself as done when it ends (`listings.ts status`), so the page can fill
+   in as shops report. Start the watcher with the Monitor tool, with a 30-minute timeout:
+   `bun <skill dir>/scripts/watch.ts <run dir>`. It prints a line as each agent finishes: run
+   `update.ts` again, with the same options, and publish the page again from the same file, so
+   the user sees each shop's listings as soon as they're in. Tell the user in one line how many
+   agents are searching, with the page's link, then wait without browsing yourself. If the
+   watcher times out before the workflow ends, start it again.
 6. In what the workflow returns, a report of null means that agent failed or was stopped: list
    its shops as partly searched when it saved listings (they're kept), or as not searched. Links
-   still unverified after a second round go into the page's unverified list. Then run
-   `bun scripts/tab.ts cleanup <run id>` to close any tab an agent left open.
+   still unverified after a second round go into the page's unverified list. Stop the watcher if
+   it's still running (TaskStop), then run `bun scripts/tab.ts cleanup <run id>` to close any tab
+   an agent left open.
 7. Merge the agents' listings into the run file, `<run dir>/run.json`, converting other currencies
    at a current verified rate:
 
@@ -288,6 +309,12 @@ a one-sentence description. If `bun scripts/history.ts list` shows a page for th
 search, update that one instead, so its link stays the same: read it with the Artifact tool, then
 publish the new file with its URL. Without an Artifact tool, open the file with `open`. Put the
 page's link in the run file as `page_url` before recording the run.
+
+While the search runs, `update.ts` builds the page with `--inline`, so each version publishes as
+the one file, from the same path each time. The page shows `page.progress` above the listings:
+how many shops are searched, a bar, each shop's state, and shimmering rows until the first
+listings are in. It drops it once every agent is done and the brand's prices are in, so the
+final build has none.
 
 ### Its look
 
