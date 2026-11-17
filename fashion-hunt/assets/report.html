@@ -319,12 +319,13 @@ if (!sortKeys.includes("price")) sortKeys.unshift("price");
 $("sort").innerHTML = sortKeys.flatMap(k => ["asc", "desc"].map((d, i) =>
   `<option value="${k}-${d}">${esc(cols[SORTS[k].col])}: ${esc(T.sortDirs[SORTS[k].kind][i])}</option>`)).join("");
 
-const state = { group: MATCH, variant: "", sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, cheap: true, norepeat: true, sortKey: "price", sortDir: "asc" };
+const state = { group: MATCH, variants: new Set(), sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, cheap: true, norepeat: true, sortKey: "price", sortDir: "asc" };
 try {
   const saved = JSON.parse(localStorage.getItem("fashion-hunt-filters") || "null");
   if (saved) {
     if (tabs.some(g => g.id === saved.group)) state.group = saved.group;
-    if (variants.includes(saved.variant)) state.variant = saved.variant;
+    // Pages from before several variants could be picked saved one, as variant
+    state.variants = new Set([...(saved.variants || []), saved.variant].filter(v => variants.includes(v)));
     state.sizes = new Set((saved.sizes || []).filter(z => R.sizeOrder.includes(z)));
     state.conds = new Set((saved.conds || []).filter(c => R.conditionOrder.includes(c)));
     if (shops.includes(saved.shop)) state.shop = saved.shop;
@@ -337,12 +338,12 @@ try {
   }
 } catch {}
 function save() {
-  try { localStorage.setItem("fashion-hunt-filters", JSON.stringify({ ...state, sizes: [...state.sizes], conds: [...state.conds] })); } catch {}
+  try { localStorage.setItem("fashion-hunt-filters", JSON.stringify({ ...state, variants: [...state.variants], sizes: [...state.sizes], conds: [...state.conds] })); } catch {}
 }
 
 function passes(r, anyGroup) {
   if (!anyGroup && state.group !== ALL && r.group !== state.group) return false;
-  if (state.variant && r.variant !== state.variant) return false;
+  if (state.variants.size && !state.variants.has(r.variant)) return false;
   if (state.sizes.size && !r.sizes.some(z => state.sizes.has(z))) return false;
   if (state.conds.size && !state.conds.has(r.cond)) return false;
   if (state.shop && r.shop !== state.shop) return false;
@@ -401,7 +402,7 @@ function render() {
   const group = tabs.find(g => g.id === state.group);
   $("hint").textContent = group.hint || "";
   $("hint").hidden = !group.hint;
-  $("variants").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.variant === b.dataset.v));
+  $("variants").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.variants.has(b.dataset.v)));
   $("sizes").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.sizes.has(b.dataset.z)));
   $("conds").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", state.conds.has(b.dataset.c)));
   $("shop").value = state.shop; $("norisk").checked = state.norisk; $("eu").checked = state.eu; $("cheap").checked = state.cheap; $("norepeat").checked = state.norepeat; $("sort").value = `${state.sortKey}-${state.sortDir}`;
@@ -448,9 +449,10 @@ new ResizeObserver(fitTable).observe($("bar"));
 addEventListener("resize", fitTable);
 
 $("tabs").addEventListener("click", e => { const b = e.target.closest("button[data-g]"); if (b) { state.group = b.dataset.g; render(); } });
+// A click on a card adds its variant to the ones shown, and a second click takes it off again
 $("variants").addEventListener("click", e => {
   const b = e.target.closest("button[data-v]"); if (!b) return;
-  state.variant = state.variant === b.dataset.v ? "" : b.dataset.v;
+  state.variants.has(b.dataset.v) ? state.variants.delete(b.dataset.v) : state.variants.add(b.dataset.v);
   render();
 });
 $("sizes").addEventListener("click", e => {

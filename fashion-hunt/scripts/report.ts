@@ -47,7 +47,8 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
     change          from the history, such as "new since 2026-11-15" or "price cut from €420"
     note            anything else worth knowing about the listing
     variant         such as "Damier Ebene": the page draws a card per variant with its count,
-                    lowest and median price, and a click on a card filters the table to it
+                    lowest and median price, and clicking cards filters the table to those
+                    variants, one or several at once
     image           a photo of the listing, as a path published next to the page such as
                     "img/123.jpg": the page shows it as a thumbnail that opens the listing.
                     Listings whose photos are the same file get a note linking each other (often
