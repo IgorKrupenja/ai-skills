@@ -28,6 +28,8 @@ when a run is saved, except \`page_url\`, the run's published report page: list 
 latest one of each search.
 `;
 
+import { key } from "./common.ts";
+
 const HOME = Bun.env.FASHION_HUNT_HOME || `${Bun.env.HOME}/.local/share/fashion-hunt`;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,80}$/;
 
@@ -37,16 +39,6 @@ type Run = { date?: unknown; request?: unknown; page_url?: unknown; listings?: L
 function die(message: string): never {
   console.error(message);
   process.exit(1);
-}
-
-/** Normalise a listing URL so the same listing matches across runs. */
-function key(url: string): string {
-  const bare = url.split(/[#?]/)[0]!.replace(/\/+$/, "").replace(/^https?:\/\/(www\.)?/, "");
-  // A Vinted item is its domain and id, whatever title follows in the URL, and so is a Vestiaire
-  // one, whose path also changes with the listing's category and colour.
-  const vestiaire = bare.match(/^(vestiairecollective\.[a-z.]+)\/.*-(\d+)\.shtml$/);
-  if (vestiaire) return `${vestiaire[1]}/${vestiaire[2]}`;
-  return bare.match(/^vinted\.[a-z.]+\/items\/\d+/)?.[0] ?? bare;
 }
 
 function isListing(item: unknown): item is Listing {
