@@ -5,9 +5,9 @@
  * Fetches each Endover Volta building's public apartment table from the ESTONIAN site (the English
  * version has had listing errors), parses it straight from the server-rendered HTML (no browser or
  * Playwright needed), classifies sold vs unsold, and prints the report (overall, per building and
- * per type, WITH and WITHOUT Volta Skai). Diffs against the previous run (aggregates and every flat
- * that changed status) and appends a record to history.ndjson, including a per-flat snapshot
- * (`units`).
+ * per type, WITH and WITHOUT Volta Skai). Diffs against the previous run (aggregates, every flat
+ * that changed status, and every flat number that now names a different unit) and appends a record
+ * to history.ndjson, including a per-flat snapshot (`units`).
  *
  * Bun only, no dependencies. Run:
  *     bun volta.ts            # crawl, report, and append to history.ndjson
@@ -311,12 +311,15 @@ function statusLabel(u: Unit): string {
   return u.status === "request" ? "price on request" : u.status;
 }
 
-function flatLabel(bldg: string, nr: string, u: Unit): string {
+/** "3-room, 84.5 m², floor 3": the flat's type, then its size and floor where known. */
+function unitDesc(u: Unit): string {
   const bits = [u.rooms !== undefined ? `${u.rooms}-room` : "commercial/other"];
   if (u.m2 !== undefined) bits.push(`${u.m2} m²`);
   if (u.floor !== undefined) bits.push(`floor ${u.floor}`);
-  return `${bldg} #${nr} (${bits.join(", ")})`;
+  return bits.join(", ");
 }
+
+const flatLabel = (bldg: string, nr: string, u: Unit) => `${bldg} #${nr} (${unitDesc(u)})`;
 
 // ---- Diffing ----
 
@@ -329,7 +332,20 @@ function delta(now: number, was: number): string {
 
 const countDelta = (now: Count, was: Count) => `sold ${delta(now.sold, was.sold)}, unsold ${delta(now.unsold, was.unsold)}`;
 
-/** Markdown bullets for every flat whose status changed, appeared or vanished. */
+/**
+ * Whether a flat number now names a different unit: its type or floor changed, or its size by over
+ * 10%. Skai reuses numbers when it re-plans: on 2026-11-17 its commercial B4, B6, B7 and B8 became
+ * new flats on floors 2 and 3, and sold #132 grew from 142.4 to 341.8 m² as sold #133 and #134 went.
+ * Smaller size edits are corrections (Skai's B4 went from 430 to 436.9 m² on 2026-10-21), and so
+ * are balcony sizes, which change often.
+ */
+function isReplaced(was: Unit, now: Unit): boolean {
+  if (was.rooms !== now.rooms) return true;
+  if (was.floor !== undefined && now.floor !== undefined && was.floor !== now.floor) return true;
+  return was.m2 !== undefined && now.m2 !== undefined && Math.abs(now.m2 - was.m2) > 0.1 * was.m2;
+}
+
+/** Markdown bullets for every flat whose status changed, that now names a different unit, or that appeared or vanished. */
 function unitChanges(wasUnits: Snapshot, nowUnits: Snapshot): string[] {
   const out: string[] = [];
   for (const [name, now] of nowUnits) {
@@ -340,7 +356,10 @@ function unitChanges(wasUnits: Snapshot, nowUnits: Snapshot): string[] {
     }
     for (const nr of [...new Set([...was.keys(), ...now.keys()])].sort(natCompare)) {
       const w = was.get(nr), n = now.get(nr);
-      if (w && n && w.status !== n.status) out.push(`- ${flatLabel(name, nr, n)}: ${statusLabel(w)} → ${statusLabel(n)}`);
+      if (w && n && isReplaced(w, n)) {
+        out.push(`- ${name} #${nr}: replaced by a different unit: `
+          + `${unitDesc(w)}, ${statusLabel(w)} → ${unitDesc(n)}, ${statusLabel(n)}`);
+      } else if (w && n && w.status !== n.status) out.push(`- ${flatLabel(name, nr, n)}: ${statusLabel(w)} → ${statusLabel(n)}`);
       else if (n && !w) out.push(`- ${flatLabel(name, nr, n)}: new in the table (${statusLabel(n)})`);
       else if (w && !n) out.push(`- ${flatLabel(name, nr, w)}: no longer listed (was ${statusLabel(w)})`);
     }
@@ -441,7 +460,7 @@ async function main(): Promise<void> {
         Object.entries(prev.units).map(([name, flats]) => [name, new Map(Object.entries(flats))]),
       );
       const changes = unitChanges(wasUnits, units);
-      console.log(changes.length ? "\nFlats that changed status:" : "\nNo flat changed status.");
+      console.log(changes.length ? "\nFlats that changed status or unit:" : "\nNo flat changed status or unit.");
       for (const line of changes) console.log(line);
     }
     console.log();

@@ -63,7 +63,11 @@ Overall (WITH + WITHOUT Skai), per building (UV ascending, then Skai / Hub / Vil
 (WITH + WITHOUT Skai), a reconciliation check (per-building total == per-type total == overall),
 and a "changes since last run" diff. The diff shows the aggregate deltas, then **every flat that
 changed status**, e.g. `UV 10/3 #16 (3-room, 84.5 m², floor 3): available 429 900 € → sold`,
-including available → booked and flats that appear in or drop out of the tables. History is
+including available → booked and flats that appear in or drop out of the tables. It also flags
+**a flat number that now names a different unit** (its type or floor changed, or its size by
+over 10%), whatever its status, e.g. `Krulli 10 (Skai) #B4: replaced by a different unit:
+commercial/other, 436.9 m², floor 1, price on request → 3-room, 54.7 m², floor 2, available
+324 900 €`. Balcony edits and smaller size edits are corrections, not shown. History is
 `history.ndjson` (append-only, one JSON record per line, next to `volta.ts`).
 
 ## Per-flat history (for "which flat…?" questions)
@@ -74,6 +78,11 @@ missing for commercial/other units. `price` and `old_price` (the struck-out pre-
 appear only while a flat is `available`. Answer questions about specific flats from these
 snapshots, not from the aggregates. Examples: which flat sold, when #16 sold, what it was last
 listed at, whether prices dropped. Older records only have aggregates.
+
+A flat number doesn't always name the same unit, so check floor, rooms and m² before reading one
+number's timeline as one flat. On 2026-11-17 Skai renumbered its commercial units (K79, K133,
+T2, …), reused B4, B6, B7 and B8 for new flats on floors 2 and 3, and dropped sold #133 and #134
+as sold #132 grew from 142.4 to 341.8 m².
 
 Records up to `2026-09-26T10:08:04Z` were crawled from the English pages, and later ones from
 the Estonian pages. The switch didn't change any saved flat: all 347 matched on every field.
