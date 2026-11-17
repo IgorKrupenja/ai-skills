@@ -40,6 +40,29 @@ add to a cart, wishlist or newsletter. On a cookie banner, pick the most privacy
   other stores (a belt that is White in the US store is Natural in Estonia). Report sold-out
   variants as such. In the cookie dialog, Save services with only Necessary on declines the rest.
 
+## Save the items
+
+Save every item you list with one command, as a JSON list (run it again to add or correct
+items: one with the same link replaces the earlier one):
+
+```bash
+bun <skill dir>/scripts/compare.ts brand <run dir> <brand slug> <<'JSON'
+[{"item": "Magnetic Card Holder", "variant": "Monogram Eclipse", "color": "Black",
+  "material": "coated canvas, cowhide-leather lining", "code": "M12602", "price_eur": 340,
+  "url": "https://en.louisvuitton.com/eng-nl/products/...", "orderable": true}]
+JSON
+```
+
+- `variant` is the brand's name for what sets the item apart from the others of its model, as
+  resale listings would name it too: the canvas, leather or colour line, such as Monogram Eclipse,
+  Damier Graphite or Epi. Items that differ only in colour share a variant.
+- `color` is the item's colour as the product page names it ("Safran Yellow"), without the
+  material.
+- Give `price_eur` only for a price in euros, and `orderable: false` for an item sold out or
+  only on a waiting list.
+- Add `"near": true` to a nearest equivalent that isn't the requested model or size, such as a
+  PM when the search is for the GM, so listings are compared with it only by its code.
+
 ## Report back
 
 Reply with this and nothing else:
@@ -47,8 +70,7 @@ Reply with this and nothing else:
 ```
 BRAND: <name>
 STORE: <store used, currency> <link>
-ITEMS: none, or
-| Link | Item / variant | Color and material | Code | Price | Can be ordered |
+SAVED: <n> items, <m> of them near equivalents
 NOT LISTED: <requested variants the brand doesn't sell now>
 NOTES: anything left unverified
 ```

@@ -125,8 +125,8 @@ so don't use it here.
 
    `--known` carries over the last run's verdicts: every listing a scan found again keeps its
    item, tab, variant and new price, with today's price and condition, and the ones it judged
-   not to match stay out. Then give each new listing its tab (`group`), variant and new price
-   (below), with a short script rather than by retyping listings, and compare with the last run:
+   not to match stay out. Then give every listing its variant and new price with
+   `scripts/compare.ts` (below), and each near match its tab (`group`), and compare with the last run:
    `bun scripts/history.ts diff <slug> <run file>` prints what is new, gone or repriced since the
    last run of the same search.
    Open the page of each gone match in a tab of your own (`bun scripts/tab.ts`, used as
@@ -161,18 +161,36 @@ Brand brief:
 
 ```
 Find the new price at <brand> for <the request in one line>.
-Today is <date>. Your tab tag is <run id>-<brand slug>. Skill folder: <skill dir>.
+Today is <date>. Run folder: <run dir>. Brand slug: <brand slug>. Your tab tag is
+<run id>-<brand slug>. Skill folder: <skill dir>.
 First read <skill dir>/references/brand-agent.md and follow it.
 ```
 
 ## Compare with the new price
 
-Match each listing with the brand agent's closest item: same model, material and edition, and note
-when size, material, edition or variant differs. If the brand doesn't list the item, write "not
-currently listed by manufacturer" rather than estimating. When a listing and the retail price are in
-the same currency for a comparable variant, calculate the difference and flag listings priced above
-new. Across currencies, calculate only with a current verified exchange rate. The brand's price is a
-reference only: if the shops have no matches, say so rather than offering the brand's own products
+The brand agent saves the brand's items in `<run dir>/brand/`, each with its variant (the canvas,
+leather or colour line that sets it apart), colour, model code and price. `scripts/compare.ts`
+gives every listing its variant and new price from them: the item whose code the listing names,
+or else the variant whose words its item has, priced by that variant's item in the listing's
+colour or its cheapest one, with a `new_note` saying how it differs. Write what the brand's items
+can't settle in a spec, `<run dir>/compare.json` (the script's usage has its format):
+
+- variants the brand doesn't sell now, such as a past collaboration or edition, with a
+  `new_note` like "not currently listed by Louis Vuitton", rather than an estimated price;
+- words that pick a variant, such as "safran" for Monogram Macassar, and `not` words that rule
+  one out;
+- `price_of` to price a variant by another item, and `rest`, a variant for the listings nothing
+  else fits ("Canvas not stated");
+- each variant's `swatch` and `hint` for the page.
+
+```bash
+bun scripts/compare.ts <run file> --spec <run dir>/compare.json
+```
+
+It redoes every listing each time and prints two lists to settle: listings no variant fits, with
+the words they share, and listings it picked by words though their item names another variant.
+Fix the spec and run it again until both are empty or right. The brand's price is a reference
+only: if the shops have no matches, say so rather than offering the brand's own products
 instead.
 
 ## Report
@@ -241,9 +259,9 @@ Each listing's fields:
   "white on one side only" for a reversible item. Put "new since <date>" or "price cut from €X"
   from the history in `change`.
 - **Risk:** an agent's authenticity flag, with its reason.
-- **New price:** the brand agent's closest item with its link, and in `new_note` what differs
-  (size, material, edition, variant); or only a `new_note` saying "not currently listed by
-  manufacturer".
+- **New price:** set by `compare.ts` (above): the brand's closest item with its link, and in
+  `new_note` what differs (colour, variant, edition); or only a `new_note` saying the brand
+  doesn't sell it now.
 - **Ships from:** the country, in any language: `report.ts` names it in the page's language and
   works out from it whether it's outside the EU, where import VAT and duties come on top. Set
   `non_eu` yourself only on a ships-from that names no country, which `report.ts` lists. "not
@@ -271,9 +289,9 @@ for this search, so each report looks like what was searched for:
   `@media (prefers-color-scheme: dark)`, and `:root[data-theme="dark"]`), and restyle anything
   else you like. Keep text at least 4.5:1 against its background. Fonts come only from Google
   Fonts, through the css2 URL in `page.fonts`.
-- **Variant cards** (`variant` on each listing, `page.variants`): when the listings fall into
-  variants worth comparing (canvases, colors, models), name each listing's variant and give every
-  variant a `swatch`, a small inline SVG that draws its pattern or color (a Damier check, a
+- **Variant cards** (`variant` on each listing, `page.variants`): `compare.ts` names each
+  listing's variant and lists the variants in `page.variants` with a hint. Give every variant a
+  `swatch` in the spec, a small inline SVG that draws its pattern or color (a Damier check, a
   flower print, a color chip), with ids of its own if it defines patterns. The page draws a card
   per variant with the count, lowest and median price of its listings in the open tab under the
   other filters, and clicking cards filters the table to those variants, one or several at once.
