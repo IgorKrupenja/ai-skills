@@ -52,7 +52,8 @@ vestiaire   the search the catalog page loads, unsold items only, 200 a call: --
             each model name, which finds listings whose seller set no model; --query adds a text
             search of its own, --filters adds raw filters such as '{"color.id":["1"]}'. Each
             candidate is then checked with the product API: material, colour, condition,
-            measurements, buyer fee and whether it's for sale now.
+            measurements, buyer fee, whether it's for sale now, whether authentication is
+            included, any crossed-out earlier price, packaging, and the seller's kind and sales.
 jolicloset  the result pages of a designer category (such as
             designers-women/louis-vuitton/womens-bags) or of a text search in both the women's and
             men's sections, read from the list data each page embeds, 60 a page; then each
@@ -445,6 +446,10 @@ type VestiaireItem = {
   id: string; url: string; title: string; brand: string; model: string; price: number; currency: string; condition: string;
   country: string; colors: string; photo: string; description: string; seller: string; listed: string;
   material?: string; color?: string; measurements?: string; available?: boolean; reserved?: boolean; fee?: number; duties?: number; vacation?: boolean;
+  /** Whether Vestiaire's authentication is in the price (else it's optional at checkout), and the crossed-out earlier price */
+  auth?: boolean; was?: number; packaging?: string[];
+  /** The seller: an official store, a professional (else an individual), sales so far and badge, such as "expert seller" */
+  official?: boolean; pro?: boolean; sales?: number; badge?: string;
 };
 type VestiaireResult = { error?: string; searched: string[]; items: VestiaireItem[] };
 
@@ -512,7 +517,8 @@ async function inVestiaire(A: VestiaireArgs): Promise<VestiaireResult> {
           colors: (it.colors?.all ?? []).map((c: any) => c.name).join(", "),
           photo: it.pictures?.[0] ? `https://images.vestiairecollective.com/images/resized/w=768,q=75,f=auto,${it.pictures[0]}` : "",
           description: it.description ?? "",
-          seller: `${it.seller?.firstname ?? ""}${it.seller?.isOfficialStore ? " (official store)" : ""}`,
+          seller: it.seller?.firstname ?? "",
+          official: !!it.seller?.isOfficialStore,
           listed: it.createdAt ? new Date(it.createdAt * 1000).toISOString().slice(0, 10) : "",
         });
       }
@@ -539,6 +545,15 @@ async function inVestiaire(A: VestiaireArgs): Promise<VestiaireResult> {
         item.fee = (d.buyerFees ?? []).reduce((sum: number, f: any) => sum + (f.cost?.cents ?? 0), 0) / 100;
         item.duties = (d.dutyAndTax?.cents ?? 0) / 100;
         item.description = d.localizedDescription ?? item.description;
+        // What a judge would otherwise open the listing for: authentication, an earlier price,
+        // what comes with it, and who sells it
+        item.auth = d.pricingBreakdown?.buyerFees?.includesAuthenticationFees;
+        const was = (d.regularPrice?.cents ?? 0) / 100;
+        if (was > item.price) item.was = was;
+        item.packaging = (d.packagings ?? []).map((p: any) => p.localizedName ?? p.name).filter(Boolean);
+        if (d.seller?.segment) item.pro = d.seller.segment === "B2C";
+        item.sales = d.seller?.statistics?.productsSold;
+        item.badge = (d.seller?.badges ?? []).find((b: string) => b.endsWith("-seller"))?.replace("-", " ");
       } catch { /* keep what the search gave */ }
     }));
   }
@@ -557,7 +572,19 @@ async function vestiaire(tag: string, args: VestiaireArgs): Promise<ScanFile> {
       gone++;
       continue;
     }
-    const notes = [i.reserved ? "reserved" : "", i.fee ? `buyer fee €${i.fee}` : "", i.duties ? `duties and taxes €${i.duties}` : ""].filter(Boolean);
+    const notes = [
+      i.reserved ? "reserved" : "",
+      i.was ? `was €${i.was}` : "",
+      i.auth === true ? "authentication included" : i.auth === false ? "authentication optional at checkout" : "",
+      i.fee ? `buyer fee €${i.fee}` : "",
+      i.duties ? `duties and taxes €${i.duties}` : "",
+      i.packaging?.length ? `comes with: ${i.packaging.join(", ").toLowerCase()}` : "",
+    ].filter(Boolean);
+    const seller = [
+      i.official ? "official store" : i.pro ? "professional" : i.pro === false ? "individual" : "",
+      i.sales === 0 ? "no sales yet" : i.sales ? `${i.sales} sales` : "",
+      i.badge ?? "",
+    ].filter(Boolean);
     candidates.push({
       id: i.id,
       shop: "Vestiaire Collective",
@@ -572,7 +599,7 @@ async function vestiaire(tag: string, args: VestiaireArgs): Promise<ScanFile> {
       ...place(i.country),
       photo: i.photo,
       description: snippet(i.description, re),
-      seller: i.seller,
+      seller: seller.length ? `${i.seller} (${seller.join(", ")})` : i.seller,
       listed: i.listed,
       ...(notes.length ? { note: notes.join("; ") } : {}),
     });
@@ -1437,7 +1464,7 @@ export function codeSummary(candidates: Candidate[]): string[] {
 function line(c: Candidate): string {
   const price = c.price_eur !== undefined ? `€${c.price_eur}` : c.price !== undefined ? `${c.price} ${c.currency}` : "price?";
   const ships = c.ships_from === "not stated" ? "?" : (c.ships_from ?? "?").replace(/ \(.*\)$/, "");
-  const details = [c.material, c.color, c.size, c.note].filter(Boolean).join("; ");
+  const details = [c.material, c.color, c.size, c.note, c.seller && `seller ${c.seller}`].filter(Boolean).join("; ");
   const code = c.code ? ` | ${c.code}${c.model ? `: ${c.model}` : ""}` : "";
   return `${c.id} | ${price} | ${c.condition ?? "?"} | ${ships}${c.non_eu ? " (non-EU)" : ""} | ${c.title}${details ? ` | ${details}` : ""}${code}`;
 }

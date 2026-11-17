@@ -201,7 +201,8 @@ it ships from and the main photo:
   checkout, or not offered). Flag `risk` with the reason when the price is far below similar
   listings or under about a third of the brand's new price, when the seller left the brand unset
   or says they can't vouch for it, when the shop has hidden or flagged the listing, or when
-  several sellers use the same photos.
+  several sellers use the same photos. Don't compare photos to find those: when the page is
+  built, `scripts/photos.ts` finds every listing that shares a photo, across all shops.
 - **Photo:** the full URL of the listing's main photo, as the shop's own data gives it (scans give
   it). Don't download it or guess one; leave it out if you don't have it.
 

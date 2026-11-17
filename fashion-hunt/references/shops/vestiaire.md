@@ -32,7 +32,12 @@ bun <skill dir>/scripts/scan.ts vestiaire --tag <tag> --brand "Louis Vuitton" --
 
 The scan keeps only listings for sale now (not sold, not held at checkout, seller not on
 vacation), and gives the price in EUR, condition, material, colour, measurements, the country it
-ships from (`non_eu` set outside the EU), the photo, the buyer fee and any duties. Material and
+ships from (`non_eu` set outside the EU), the photo, the buyer fee and any duties. Its note also
+says whether Vestiaire's authentication is included or optional at checkout, the crossed-out
+earlier price ("was €342"), and what comes with the item where the seller listed it (box, dust
+bag, card), and its `seller` gives the seller's kind (individual or professional), sales ("no
+sales yet") and badge ("expert seller"). A listing page adds only more photos and the rest of
+the description, so open one only when those would settle it. Material and
 colour are the seller's choice from a list: "Leather" on a Marelle is usually Epi, "Cloth" usually
 Monogram canvas, but read the title and description (and look at the photo when it's unclear).
 Some sellers stuff a description with every model name the brand has, so `--match` and the text
