@@ -83,6 +83,9 @@ td.item { min-width: 200px; }
 /* A larger copy of the photo on hover, fixed to the window so the table's scroll box can't cut it off */
 .preview { position: fixed; z-index: 20; width: 205px; height: 205px; border-radius: 10px; overflow: hidden; pointer-events: none; background: var(--chip); box-shadow: 0 10px 28px rgba(0, 0, 0, .3); }
 .preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* What a filter with a short label does, shown on hover, keyboard focus or a tap; fixed to the window like the preview */
+.tip { position: fixed; z-index: 21; box-sizing: border-box; width: max-content; padding: 8px 11px; border-radius: 8px; background: var(--fg); color: var(--bg); font-size: 13px; line-height: 1.4; box-shadow: 0 6px 18px rgba(0, 0, 0, .25); }
+#l-norisk { text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
 .above { color: var(--warn); font-weight: 600; }
 .nonEU { font-weight: 700; }
 .sub { display: block; color: var(--muted); font-size: 12px; }
@@ -148,7 +151,7 @@ details .hint { margin-top: 8px; }
       <div class="chips" id="sizes" role="group"><span class="count" id="l-size"></span></div>
       <div class="chips" id="conds" role="group"><span class="count" id="l-cond"></span></div>
       <label for="shop" id="shopbox"><span id="l-shop"></span> <select id="shop"></select></label>
-      <label for="norisk" id="riskbox"><input type="checkbox" id="norisk"> <span id="l-norisk"></span> <span class="risk">⚠</span></label>
+      <label for="norisk" id="riskbox"><input type="checkbox" id="norisk" aria-describedby="tip-norisk"> <span id="l-norisk"></span> <span class="risk">⚠</span></label>
       <label for="eu" id="eubox"><input type="checkbox" id="eu"> <span id="l-eu"></span></label>
       <label for="cheap" id="cheapbox"><input type="checkbox" id="cheap"> <span id="l-cheap"></span></label>
       <label for="sort"><span id="l-sort"></span> <select id="sort"></select></label>
@@ -172,6 +175,7 @@ details .hint { margin-top: 8px; }
 
   <section class="notes" id="notes"></section>
 </div>
+<div class="tip" id="tip-norisk" role="tooltip" hidden></div>
 
 <script>
 const R = /*REPORT*/;
@@ -181,7 +185,8 @@ const TEXT = {
     listed: n => `${n} listed`, from: "from", median: "median", euSellers: "EU sellers", variants: "Variants",
     allTab: "All", allHint: "Every listing at once; near matches are tagged with how they differ.",
     size: "Size:", cond: "Condition:", conds: "Condition", shop: "Shop", all: "all", noRisk: "hide", eu: "EU only", cheap: "hide at or above the new price", price: "Price", asc: "cheapest first", desc: "priciest first",
-    shown: (n, m) => `showing ${n} of ${m}`, risk: "authenticity risk", noSize: "not stated", noPrice: "price unknown",
+    shown: (n, m) => `showing ${n} of ${m}`, risk: "authenticity risk",
+    riskTip: "Hides listings flagged as an authenticity risk. The reason for each shows next to ⚠ in its notes.", noSize: "not stated", noPrice: "price unknown",
     cols: ["Shop", "Item", "Condition", "Size", "Price", "New", "Difference", "Ships from", "Notes"],
     empty: "Nothing matches these filters. Clear the size or switch tabs.", unverified: "Not checked yet",
     filters: "Filters", tabs: "Group", sizes: "Size", summary: "Summary", notes: "Notes", locale: "en-IE",
@@ -192,7 +197,8 @@ const TEXT = {
     listed: n => `${n} ${plural(n, "объявление", "объявления", "объявлений")}`, from: "от", median: "медиана", euSellers: "из ЕС", variants: "Варианты",
     allTab: "Все", allHint: "Все объявления сразу; у близких вариантов отмечено, чем они не подходят.",
     size: "Размер:", cond: "Состояние:", conds: "Состояние", shop: "Магазин", all: "все", noRisk: "без", eu: "только из ЕС", cheap: "скрыть по цене нового и дороже", price: "Цена", asc: "сначала дешёвые", desc: "сначала дорогие",
-    shown: (n, m) => `показано ${n} из ${m}`, risk: "риск подделки", noSize: "не указан", noPrice: "цена неизвестна",
+    shown: (n, m) => `показано ${n} из ${m}`, risk: "риск подделки",
+    riskTip: "Скрывает объявления с риском подделки. Причина у каждого указана рядом с ⚠ в заметках.", noSize: "не указан", noPrice: "цена неизвестна",
     cols: ["Магазин", "Модель и цвет", "Состояние", "Размер", "Цена", "Новая у бренда", "Разница", "Откуда", "Заметки"],
     empty: "Под эти фильтры ничего нет. Снимите размер или переключите вкладку.", unverified: "Ещё не проверены",
     filters: "Фильтры", tabs: "Группа", sizes: "Размер", summary: "Главное", notes: "Примечания", locale: "ru-RU",
@@ -227,6 +233,7 @@ $("conds").setAttribute("aria-label", T.conds);
 for (const k of ["size", "cond", "shop"]) $("l-" + k).textContent = T[k];
 $("l-sort").textContent = T.sortBy;
 $("l-norisk").textContent = T.noRisk;
+$("tip-norisk").textContent = T.riskTip;
 $("l-eu").textContent = T.eu;
 $("l-cheap").textContent = T.cheap;
 $("empty").textContent = T.empty;
@@ -471,5 +478,32 @@ $("rows").addEventListener("mouseout", e => {
 });
 // Scrolling the page or the table moves the thumbnail away from the preview
 addEventListener("scroll", () => { preview.hidden = true; }, { capture: true, passive: true });
+
+// The risk filter's short label gets a tooltip saying what it hides: on hover, on keyboard focus and after a tap
+const tip = $("tip-norisk");
+let tipTimer, tapped = false;
+function placeTip() {
+  // Below the filter, or above it when there's no room, and within the filter bar's width
+  const a = $("riskbox").getBoundingClientRect(), bar = $("bar").getBoundingClientRect(), gap = 8;
+  tip.style.maxWidth = `${Math.min(300, bar.width)}px`;
+  tip.style.top = `${a.bottom + gap + tip.offsetHeight <= innerHeight ? a.bottom + gap : Math.max(gap, a.top - gap - tip.offsetHeight)}px`;
+  tip.style.left = `${Math.max(bar.left, Math.min(a.left, bar.right - tip.offsetWidth))}px`;
+}
+function showTip() { clearTimeout(tipTimer); tip.hidden = false; placeTip(); }
+function hideTip() { clearTimeout(tipTimer); tip.hidden = true; }
+// A mouse shows it after a moment, and can move from the filter onto it without it closing
+for (const el of [$("riskbox"), tip]) {
+  el.addEventListener("pointerenter", e => { if (e.pointerType !== "mouse") return; clearTimeout(tipTimer); if (tip.hidden) tipTimer = setTimeout(showTip, 300); });
+  el.addEventListener("pointerleave", e => { if (e.pointerType !== "mouse") return; clearTimeout(tipTimer); tipTimer = setTimeout(hideTip, 150); });
+}
+$("norisk").addEventListener("focus", e => { if (e.target.matches(":focus-visible")) showTip(); });
+$("norisk").addEventListener("blur", hideTip);
+$("riskbox").addEventListener("pointerdown", e => { tapped = e.pointerType !== "mouse"; });
+// This runs after render(), so the tooltip goes where the redrawn bar has put the filter
+$("norisk").addEventListener("change", () => { if (tapped || !tip.hidden) showTip(); tapped = false; });
+// A tap or click anywhere but the filter closes it, the tooltip itself included, since on phones it covers the filters below
+addEventListener("pointerdown", e => { if (!tip.hidden && !$("riskbox").contains(e.target)) hideTip(); });
+addEventListener("keydown", e => { if (e.key === "Escape") hideTip(); });
+for (const type of ["scroll", "resize"]) addEventListener(type, () => { if (!tip.hidden) placeTip(); }, { capture: true, passive: true });
 render();
 </script>
