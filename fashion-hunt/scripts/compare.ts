@@ -164,30 +164,41 @@ function pick(text: string, variants: Variant[], seen: (phrase: string) => numbe
   return { v: best?.v, by: best?.w, over: named.filter(v => v !== best?.v).map(v => v.name) };
 }
 
+/** Plain colour words, which tell an item's colour rather than its model or pattern */
+const COLOURS = new Set(
+  "black white red blue navy green yellow brown grey gray pink purple violet orange gold golden silver beige ivory cream ecru burgundy bordeaux fuchsia fucsia lilac olive turquoise coral teal khaki camel tan nude taupe mocha caramel cognac mustard bronze copper multicolor multicolour light dark".split(" "),
+);
+
 /** The item of a variant whose name shares the most telling words with the text, then whose
- * colour words it has most of, else its cheapest; the same colour only when the text has all of
- * the item's colour words, and oneColor when the item's colour is just the variant's name. seen
- * counts the listings that have a word. */
+ * colour it names, else its cheapest; the same colour only when the text has all of the item's
+ * colour words, and oneColor when the item's colour is just the variant's name. seen counts the
+ * listings that have a word. */
 function closest(text: string, v: Variant, seen: (phrase: string) => number): { item: BrandItem; sameColor: boolean; oneColor: boolean } {
   const nameWords = new Set(norm(v.name).trim().split(" "));
   const colorWords = (it: BrandItem) => norm(it.color).trim().split(" ").filter(w => w.length > 2 && !nameWords.has(w));
   const score = (it: BrandItem) => colorWords(it).filter(w => text.includes(` ${w} `)).length;
-  // The item's name words the text has, each counting more the fewer of the variant's items and of
-  // the listings have it, so a model or handle ("Marellini", "horse") outweighs what many share
-  // ("double cloth", or the "head" of every listed animal-head handle). Its colour is left to the
-  // colour field, and joining words don't count.
-  const joining = new Set(["with", "and", "the", "for", "from", "into", "con", "per"]);
-  const nameWordsOf = (it: BrandItem) => {
-    const own = new Set(colorWords(it));
-    return new Set(norm(it.item).trim().split(" ").filter(w => w.length > 2 && !nameWords.has(w) && !own.has(w) && !joining.has(w)));
-  };
+  // The words of the item's name the text has, each telling more the fewer of the variant's items
+  // have it: a model, pattern or handle ("Marellini", "dahlia", "horse") over what many share
+  // ("print", "double cloth"). Plain colours wait for the colour, and numbers (codes, matched whole
+  // above), joining words and the "head" and "handle" every figural handle is described with
+  // ("horse-head handle") don't count.
+  const joining = new Set(["with", "and", "the", "for", "from", "into", "con", "per", "head", "handle"]);
+  const nameWordsOf = (it: BrandItem) => new Set(norm(it.item).trim().split(" ").filter(w => w.length > 2 && !/^\d+$/.test(w) && !nameWords.has(w) && !joining.has(w) && !COLOURS.has(w)));
   const df = new Map<string, number>();
   for (const it of v.items) for (const w of nameWordsOf(it)) df.set(w, (df.get(w) ?? 0) + 1);
-  const named = (it: BrandItem) => [...nameWordsOf(it)].filter(w => text.includes(` ${w} `)).reduce((sum, w) => sum + 1 / (df.get(w)! * Math.max(1, seen(w))), 0);
+  // Between words as rare among the items, the one fewer listings have tells a little more, so a
+  // "chihuahua" handle on "dots" finds the chihuahua umbrella rather than the polka-dot one
+  const weight = (w: string) => (1 / df.get(w)!) * (1 + 1 / (10 * Math.max(1, seen(w))));
+  const hits = new Map(v.items.map(it => [it, [...nameWordsOf(it)].filter(w => text.includes(` ${w} `)).map(weight)]));
+  const best = (it: BrandItem) => Math.max(0, ...hits.get(it)!);
+  const total = (it: BrandItem) => hits.get(it)!.reduce((sum, x) => sum + x, 0);
+  // The colour words of the item, from its colour and its name, that the text has
+  const tint = (it: BrandItem) => new Set([...colorWords(it), ...norm(it.item).trim().split(" ").filter(w => COLOURS.has(w))].filter(w => text.includes(` ${w} `))).size;
   const cheap = (a: BrandItem, b: BrandItem) => (a.price_eur ?? Infinity) - (b.price_eur ?? Infinity);
-  // The name first, so a "chihuahua head" handle on white dots finds Pasotti's chihuahua umbrella
-  // rather than its polka-dot one, then the colour
-  const ranked = [...v.items].sort((a, b) => named(b) - named(a) || score(b) - score(a) || Number(b.orderable !== false) - Number(a.orderable !== false) || cheap(a, b));
+  // The most telling word first, so a "chihuahua head" handle on white dots finds Pasotti's
+  // chihuahua umbrella rather than its polka-dot one, then the most of them ("double cloth" among
+  // the Dahlias), then the colour
+  const ranked = [...v.items].sort((a, b) => best(b) - best(a) || total(b) - total(a) || tint(b) - tint(a) || Number(b.orderable !== false) - Number(a.orderable !== false) || cheap(a, b));
   const item = ranked[0]!;
   const words = colorWords(item).length;
   return { item, sameColor: words > 0 && score(item) === words, oneColor: words === 0 };
