@@ -104,3 +104,29 @@ export function outsideEU(shipsFrom: unknown, nonEU: unknown): boolean {
   const code = typeof shipsFrom === "string" ? countryCode(shipsFrom) : null;
   return code ? !EU.has(code) : nonEU === true;
 }
+
+/** Where fashion-hunt keeps what it learns between runs (history, model codes), outside the skill's public repo. */
+export const DATA_HOME = Bun.env.FASHION_HUNT_HOME || `${Bun.env.HOME}/.local/share/fashion-hunt`;
+
+/** What an agent saved listings with a model code as, such as {"M80689": {"item": "Marelle, Epi Noir"}}. */
+export type LearnedCode = { item: string; seen: string };
+const CODES_FILE = `${DATA_HOME}/codes.json`;
+
+export async function learnedCodes(): Promise<Record<string, LearnedCode>> {
+  const file = Bun.file(CODES_FILE);
+  return (await file.exists()) ? ((await file.json()) as Record<string, LearnedCode>) : {};
+}
+
+export async function learnCodes(codes: Record<string, LearnedCode>): Promise<void> {
+  if (Object.keys(codes).length) await Bun.write(CODES_FILE, JSON.stringify({ ...(await learnedCodes()), ...codes }, null, 1));
+}
+
+/**
+ * The tokens in a text that may be a brand's model code: 5 to 12 letters and digits with at least
+ * one digit, such as Louis Vuitton's M80689 or a style number like 400249, but not a measurement
+ * such as W25cm, 25x15x8cm or 100ml, or a decade such as 2010s.
+ */
+export function codeTokens(text: string): string[] {
+  const tokens = text.toUpperCase().match(/\b(?=[A-Z0-9]*\d)[A-Z0-9]{5,12}\b/g) ?? [];
+  return [...new Set(tokens.filter(t => !/^[A-Z]?\d{1,3}(CM|MM|IN|ML|OZ|G|KG|X\d+)?$|^\d+(X\d+)+(CM|MM|IN)?$|^(19|20)\d\dS$/.test(t)))];
+}

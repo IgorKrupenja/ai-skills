@@ -5,7 +5,7 @@
  */
 
 import { parseArgs } from "node:util";
-import { key, outsideEU } from "./common.ts";
+import { type LearnedCode, key, learnCodes, learnedCodes, outsideEU } from "./common.ts";
 import type { Candidate, ScanFile } from "./scan.ts";
 
 const USAGE = `Save a shop agent's listings as it verifies them, and merge them into the run file.
@@ -26,8 +26,9 @@ add    saves listings (a JSON object or list, from file or stdin) in <run dir>/l
        it gives itself win, so {"id": "73224341", "kind": "match", "item": "Marelle BB, Epi
        leather, Quartz"} is enough. A listing may give a model code instead of an id, such as
        {"code": "M80689", "kind": "match", "item": "Marelle, Epi Noir"}: it stands for every
-       candidate the scan marked with that code, except those given by id. A country in
-       ships_from sets non_eu, whatever it said.
+       candidate the scan marked with that code, except those given by id, and the next scan
+       shows the code as saved as that item. A country in ships_from sets non_eu, whatever it
+       said.
 show   prints how many listings each shop has saved.
 merge  adds every saved listing to the run file's listings: one already there by link gets the
        agent's fields (price, condition and so on) and keeps the rest (group, variant, new price).
@@ -103,6 +104,19 @@ async function add(runDir: string, shop: string, scanPath: string | undefined, s
     }
     return check(listing, `listing ${i + 1}`);
   });
+  // What each code was saved as, for the next scan to show: a code entry's item, or else the item
+  // of the first listing saved with a code no search has saved before
+  const known = await learnedCodes();
+  const seen = new Date().toISOString().slice(0, 10);
+  const learned: Record<string, LearnedCode> = {};
+  for (const entry of given) {
+    if (entry.code !== undefined && entry.id === undefined && entry.url === undefined && typeof entry.item === "string") {
+      learned[String(entry.code).toUpperCase()] = { item: entry.item, seen };
+    }
+  }
+  for (const l of listings) if (typeof l.code === "string" && !known[l.code] && !learned[l.code]) learned[l.code] = { item: l.item, seen };
+  await learnCodes(learned);
+
   const path = fileOf(runDir, shop);
   const saved = new Map((await readSaved(path)).map(l => [key(l.url), l]));
   for (const l of listings) saved.set(key(l.url), l);

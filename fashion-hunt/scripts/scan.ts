@@ -9,7 +9,7 @@
  */
 
 import { parseArgs } from "node:util";
-import { EU, countryCode } from "./common.ts";
+import { EU, codeTokens, countryCode, learnedCodes } from "./common.ts";
 
 const USAGE = `Scan a shop's catalogue for a fashion-hunt search and list the candidates.
 
@@ -65,10 +65,12 @@ ebay        eBay.de's search cards for each --query, Buy It Now only and up to t
             so read item pages for a few cards only.
 
 Prints one line per candidate: id | price | condition | ships from | title | details | model
-code. A code is the brand's model code in the title or description, such as Louis Vuitton's
-M80689, with what references/codes/<brand>.json says it is, and the lines start with a count per
-code. Agents save their picks by id, or a whole code at once, with scripts/listings.ts add --scan
-<out file>, so they don't retype fields.
+code. A model code is a token of letters and digits in the title or description, such as Louis
+Vuitton's M80689 or a style number, that several candidates share or an earlier search saved; the
+lines start with one per code: how many candidates have it, what an earlier search saved it as
+and two of their titles. Agents save their picks by id, or a whole code at once, with
+scripts/listings.ts add --scan <out file>, which also remembers what each code was saved as (in
+~/.local/share/fashion-hunt/codes.json), so they don't retype fields.
 `;
 
 const TAB = `${import.meta.dir}/tab.ts`;
@@ -1021,53 +1023,42 @@ async function yaga(brands: string[], query: string | null, match: RegExp | null
 
 // --- Model codes --------------------------------------------------------------------------------
 
-type CodeEntry = { model: string; collab?: string; material?: string; colour?: string; current?: string; note?: string };
-type CodeTable = { brand: string; pattern: string; codes: Record<string, CodeEntry> };
-
-/** The brands' model code tables in references/codes/, such as louis-vuitton.json. */
-async function codeTables(): Promise<{ re: RegExp; codes: Record<string, CodeEntry> }[]> {
-  const folder = `${import.meta.dir}/../references/codes`;
-  const names = await Array.fromAsync(new Bun.Glob("*.json").scan({ cwd: folder })).catch(() => [] as string[]);
-  return Promise.all(names.map(async name => {
-    const table: CodeTable = await Bun.file(`${folder}/${name}`).json();
-    return { re: new RegExp(table.pattern, "gi"), codes: table.codes };
-  }));
-}
-
-/** What a code table says a code is, such as "Marelle, Epi, Noir (black)". */
-const describeCode = (e: CodeEntry) => [e.model, e.collab, e.material, e.colour].filter(Boolean).join(", ") + (e.current ? `; in the brand's range ${e.current}` : "");
-
 /**
- * Mark each candidate with the first model code in its title or description that a table knows,
- * or else the first that looks like one, so an agent can judge a whole code at once.
+ * Mark each candidate with its model code: a code-like token in its title or description (letters
+ * and digits, such as Louis Vuitton's M80689 or a style number) that other candidates share or an
+ * earlier search saved, so an agent can judge a whole code at once. What an earlier search saved
+ * the code as goes in model.
  */
-async function markCodes(candidates: Candidate[]): Promise<void> {
-  const tables = await codeTables();
-  for (const c of candidates) {
-    const text = `${c.title} ${c.description ?? ""}`;
-    let unknown: string | undefined;
-    for (const { re, codes } of tables) {
-      for (const m of text.matchAll(re)) {
-        const code = m[0].toUpperCase();
-        if (codes[code]) {
-          c.code = code;
-          c.model = describeCode(codes[code]);
-          break;
-        }
-        unknown ??= code;
-      }
-      if (c.code) break;
-    }
-    if (!c.code && unknown) c.code = unknown;
-  }
+export async function markCodes(candidates: Candidate[]): Promise<void> {
+  const learned = await learnedCodes();
+  const titles = candidates.map(c => codeTokens(c.title));
+  const tokens = candidates.map((c, i) => [...new Set([...titles[i]!, ...codeTokens(c.description ?? "")])]);
+  const inTitles = new Set(titles.flat());
+  const count = new Map<string, number>();
+  for (const list of tokens) for (const t of list) count.set(t, (count.get(t) ?? 0) + 1);
+  // Descriptions hold serial numbers and measurements too, so a code is one an earlier search
+  // saved, or one that is in a title and that several candidates share
+  const isCode = (t: string) => !!learned[t] || (inTitles.has(t) && count.get(t)! > 1);
+  candidates.forEach((c, i) => {
+    // A code an earlier search saved first, then the one most candidates share
+    const code = tokens[i]!
+      .filter(isCode)
+      .sort((a, b) => Number(!!learned[b]) - Number(!!learned[a]) || count.get(b)! - count.get(a)!)[0];
+    if (!code) return;
+    c.code = code;
+    if (learned[code]) c.model = learned[code].item;
+  });
 }
 
-/** One line per code: how many candidates have it and what it is, then those without one. */
-function codeSummary(candidates: Candidate[]): string[] {
+/** One line per code: how many candidates have it, what it was saved as before and two of their titles. */
+export function codeSummary(candidates: Candidate[]): string[] {
   const byCode = new Map<string, Candidate[]>();
   for (const c of candidates) if (c.code) byCode.set(c.code, [...(byCode.get(c.code) ?? []), c]);
   if (!byCode.size) return [];
-  const lines = [...byCode].sort((a, b) => b[1].length - a[1].length).map(([code, cs]) => `${code} ×${cs.length}: ${cs[0]!.model ?? "not in the code table"}`);
+  const lines = [...byCode].sort((a, b) => b[1].length - a[1].length).map(([code, cs]) => {
+    const titles = [...new Set(cs.map(c => c.title))].sort((a, b) => a.length - b.length).slice(0, 2).map(t => `"${clip(t, 80)}"`);
+    return `${code} ×${cs.length}: ${cs[0]!.model ? `saved before as "${cs[0]!.model}"; ` : ""}${titles.join(", ")}`;
+  });
   return [...lines, `no code ×${candidates.filter(c => !c.code).length}`];
 }
 
@@ -1077,7 +1068,7 @@ function line(c: Candidate): string {
   const price = c.price_eur !== undefined ? `€${c.price_eur}` : c.price !== undefined ? `${c.price} ${c.currency}` : "price?";
   const ships = c.ships_from === "not stated" ? "?" : (c.ships_from ?? "?").replace(/ \(.*\)$/, "");
   const details = [c.material, c.color, c.size, c.note].filter(Boolean).join("; ");
-  const code = c.code ? ` | ${c.code}: ${c.model ?? "not in the code table"}` : "";
+  const code = c.code ? ` | ${c.code}${c.model ? `: ${c.model}` : ""}` : "";
   return `${c.id} | ${price} | ${c.condition ?? "?"} | ${ships}${c.non_eu ? " (non-EU)" : ""} | ${c.title}${details ? ` | ${details}` : ""}${code}`;
 }
 

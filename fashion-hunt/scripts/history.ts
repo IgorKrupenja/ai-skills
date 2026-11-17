@@ -28,9 +28,7 @@ when a run is saved, except \`page_url\`, the run's published report page: list 
 latest one of each search.
 `;
 
-import { key } from "./common.ts";
-
-const HOME = Bun.env.FASHION_HUNT_HOME || `${Bun.env.HOME}/.local/share/fashion-hunt`;
+import { DATA_HOME as HOME, key } from "./common.ts";
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,80}$/;
 
 type Listing = { url: string; kind: "match" | "near"; shop?: unknown; item?: unknown; price_eur?: unknown };
