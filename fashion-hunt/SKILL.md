@@ -127,8 +127,9 @@ so don't use it here.
    `--known` carries over the last run's verdicts: every listing a scan found again keeps its
    item, tab, variant and new price, with today's price and condition, and the ones it judged
    not to match stay out. Then give each new listing its tab (`group`), variant and new price
-   (below), with a short script rather than by retyping listings, and compare with the last run: `bun scripts/history.ts diff
-   <slug> <run file>` prints what is new, gone or repriced since the last run of the same search.
+   (below), with a short script rather than by retyping listings, and compare with the last run:
+   `bun scripts/history.ts diff <slug> <run file>` prints what is new, gone or repriced since the
+   last run of the same search.
    Open the page of each gone match in a tab of your own (`bun scripts/tab.ts`, used as
    `references/shop-agent.md` shows): if it's still for sale, this run missed it, so add it back to
    the file and say so; otherwise note it as sold or removed. Then write the report (below), and
