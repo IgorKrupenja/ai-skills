@@ -16,14 +16,6 @@
   `/index.php?lang=1&cl=search&searchparam=<query>`; item names are often German (Tasche,
   Aktentasche, Geldbörse, Gürtel). Delivery to Estonia costs €15.90, and it checks authenticity
   itself. It shows a Cloudflare check to scripts outside the browser.
-- **Farfetch (farfetch.com):** new items from boutiques, plus pre-owned ones from resellers: Louis
-  Vuitton only as the designer "Louis Vuitton Pre-Owned" (about 2,000 items in November 2026), and
-  most of it in the women's section, though the bookmark opens the men's. Read the search results
-  from the item list in the page's data, 96 a page, which is complete where the scrolled page isn't
-  and stays the same between loads. Product pages give measurements; the seller's address is only
-  in the "Seller details" dialog (a Dubai reseller in November 2026), and there's no ships-from
-  field. Prices include import duties, and returns are free for 30 days. It refuses scripts
-  outside the browser.
 - **Relove (relove.fi):** the online store is about 50 products, mostly bags, at
   `/category/2/online-store`; search with `/search?q=<query>`.
 - **ReSee (resee.com):** filter a designer page with

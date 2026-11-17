@@ -92,6 +92,8 @@ a human check yourself. If one stays, or the shop wants a sign-in, report the sh
   through hundreds of unlabelled listings in case one is the item: one agent spent a large share of
   its tokens looking at 620 bags and found nothing more. If ImageMagick's `montage` is installed,
   combine several screenshots into one sheet and read that.
+- Check the likely matches first and the near matches last, so that if time runs out, only near
+  matches are left unchecked.
 - Aim to finish within about ten minutes. At fifteen, the agent that started you asks you to stop,
   and three minutes later it stops you: whatever you saved is kept, the rest is lost.
 

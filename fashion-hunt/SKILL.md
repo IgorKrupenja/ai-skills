@@ -87,11 +87,10 @@ so don't use it here.
    type and `model: "sonnet"` for shop agents, since the scans do the heavy reading. Every agent
    pays a fixed cost to start and wakes you when it reports, and the Agent tool runs at most 20 at
    once, so group the shops:
-   - one agent each for Vestiaire Collective, JoliCloset, Vinted and eBay.de. Vinted and eBay.de
-     have no scan, so when the request names several brands, give them one agent per brand (tab tag
+   - one agent each for Vestiaire Collective, JoliCloset, Vinted and eBay.de. Vinted has no scan,
+     so when the request names several brands, give it one agent per brand (tab tag
      `<run id>-<shop slug>-<brand slug>`). eBay.de blocks the browser after a burst of traffic,
-     and three agents on it at once got it blocked, so give it at most two, split by price with
-     `_udlo` and `_udhi`;
+     and three agents on it at once got it blocked, so give it one;
    - one agent for all the Shopify shops (`references/shops/shopify.md`);
    - one or two agents for Yaga and the smaller shops, three to five shops each, and for any URL the
      user pasted;
@@ -106,8 +105,10 @@ so don't use it here.
    that hasn't reported 3 minutes later. Agents save each listing as they verify it, so what a
    stopped agent saved is kept: list its shops as partly searched (timed out), or as not searched
    when it saved nothing.
-5. When all have reported, run `bun scripts/tab.ts cleanup <run id>` to close any tab an agent left
-   open.
+5. An agent that lists unverified links that may be matches, because it ran out of time, gets a
+   second round: start one more agent for its shop with just those links, on its own 15-minute
+   timer. Only what that one can't check either goes into the page's unverified list. When all
+   have reported, run `bun scripts/tab.ts cleanup <run id>` to close any tab an agent left open.
 6. Merge the agents' listings into the run file, `<run dir>/run.json`, converting other currencies
    at a current verified rate:
 

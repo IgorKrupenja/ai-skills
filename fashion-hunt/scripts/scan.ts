@@ -3,13 +3,13 @@
  * Scan a shop's catalogue for a fashion-hunt search and list the candidates, so a shop agent reads
  * one short list instead of paging through the shop. USAGE below lists the shops and options.
  *
- * Shopify shops and Yaga answer plain requests. Vestiaire Collective and JoliCloset refuse
- * scripts, so their scans run inside a tab of the ai-skills browser (scripts/tab.ts), through the
- * same JSON and pages the shop's own site loads.
+ * Shopify shops and Yaga answer plain requests. Vestiaire Collective, JoliCloset, Farfetch and
+ * eBay.de refuse scripts, so their scans run inside a tab of the ai-skills browser (scripts/tab.ts),
+ * through the same JSON and pages the shop's own site loads.
  */
 
 import { parseArgs } from "node:util";
-import { EU } from "./common.ts";
+import { EU, countryCode } from "./common.ts";
 
 const USAGE = `Scan a shop's catalogue for a fashion-hunt search and list the candidates.
 
@@ -20,6 +20,10 @@ const USAGE = `Scan a shop's catalogue for a fashion-hunt search and list the ca
     scan.ts jolicloset --tag <tab tag> (--category <path>... | --query <text>) [--match <regex>]
                        [--out <file>]
     scan.ts yaga       --brand <name> [--query <text>] [--match <regex>] [--out <file>]
+    scan.ts farfetch   --tag <tab tag> (--category <path>... | --query <text>...) [--brand <name>]...
+                       [--match <regex>] [--pause <ms>] [--out <file>]
+    scan.ts ebay       --tag <tab tag> [--query <text>]... [--match <regex>] [--details]
+                       [--ids <id>,...] [--pause <ms>] [--out <file>]
 
 --brand        a brand as the shop names it; repeat it for aliases (--brand "Louis Vuitton" --brand LV)
 --match        keep only items whose title (and description, where the list has one) matches this
@@ -46,6 +50,19 @@ jolicloset  the result pages of a designer category (such as
             men's sections, read from the list data each page embeds, 60 a page; then each
             candidate's product page: condition, fabric, colours, dimensions and seller.
 yaga        the search API for the brand (and text), then each product's details.
+farfetch    the result pages of each text search in the women's and men's sections, or of a
+            designer listing (such as women/louis-vuitton-pre-owned, 20 pages and more for a big
+            brand), from the item list each page embeds, 96 a page; --brand keeps that designer's
+            items; then each candidate's product page: colour, composition, measurements and
+            condition. One page at a time, --pause ms apart (default 1500), since Farfetch answers
+            a burst with 429. Prices are Farfetch Estonia's euros, import duties included.
+ebay        eBay.de's search cards for each --query, Buy It Now only and up to the count in the
+            results heading, auctions left out; --details also reads every candidate's item page
+            (condition grade, item specifics such as material, colour and measurements, where it
+            ships from, returns), and --ids reads the item pages of those listings alone. Pages are
+            read signed out, --pause ms apart (default 2000). eBay answers 403 after about 15 item
+            pages, whether 1.5 or 4 seconds apart, and lifts the block within about ten minutes,
+            so read item pages for a few cards only.
 
 Prints one line per candidate: id | price | condition | ships from | title | details. Agents
 save their picks by id with scripts/listings.ts add --scan <out file>, so they don't retype
@@ -564,6 +581,380 @@ async function jolicloset(tag: string, categories: string[], query: string | nul
   return { shop: "jolicloset", scanned_at: new Date().toISOString(), searched: r.searched, candidates };
 }
 
+// --- Farfetch (runs in the page) ---------------------------------------------------------------
+
+// The page globals that the scanners below use in a shop's page, which the scripts' types (no DOM) lack
+declare const DOMParser: new () => { parseFromString(html: string, type: string): any };
+declare const location: { origin: string };
+
+/** The country whose Farfetch site the scan reads, which sets the prices: euros with import duties. */
+const FARFETCH_COUNTRY = "ee";
+
+type FarfetchItem = {
+  id: string; url: string; title: string; brand: string; price: number; currency: string; inStock: boolean; photo: string;
+  description?: string; color?: string; material?: string; size?: string; condition?: string;
+  /** Its product page was fetched (tried), and had the product's data (read) */
+  tried?: boolean; read?: boolean;
+};
+/** Read the lists (pages of results), or else the product pages of items, one request at a time. */
+type FarfetchArgs = { lists: string[]; brands: string[]; match: string | null; items: FarfetchItem[]; pause: number };
+type FarfetchResult = { searched: string[]; items: FarfetchItem[]; blocked?: string };
+
+async function inFarfetch(A: FarfetchArgs): Promise<FarfetchResult> {
+  const searched: string[] = [];
+  // eslint-disable-next-line bun/prefer-builtin-sleep -- this runs in the shop's page, so no Bun globals
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  let last = 0;
+  let blocked = "";
+  // One request at a time, A.pause ms apart: Farfetch answers a burst with 429 for a while
+  async function read(url: string): Promise<string | null> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const wait = last + A.pause - Date.now();
+      if (wait > 0) await sleep(wait);
+      last = Date.now();
+      try {
+        const res = await fetch(url, { credentials: "include" });
+        if (res.ok) return await res.text();
+        if (res.status === 404) return null;
+        if (res.status === 429) {
+          await sleep(15000 * (attempt + 1));
+          continue;
+        }
+      } catch { /* try again */ }
+      await sleep(2000);
+    }
+    blocked = `${url.replace(location.origin, "")} still failed after three tries (Farfetch answers too many requests with 429)`;
+    return null;
+  }
+  // The JSON-LD nodes of a page, with those of an @graph
+  const nodes = (doc: any): any[] => [...doc.querySelectorAll('script[type="application/ld+json"]')].flatMap(s => {
+    try {
+      const data = JSON.parse(s.textContent ?? "");
+      return data?.["@graph"] ?? [data];
+    } catch {
+      return [];
+    }
+  });
+
+  if (A.items.length) {
+    // Each item's product page: description, colour, composition, measurements and condition
+    const ORDER = ["Width", "Height", "Depth", "Length", "Diameter", "Handle drop"];
+    for (const item of A.items) {
+      const html = await read(item.url);
+      // A page refused for too many requests is tried again later, not counted as failed
+      if (blocked) break;
+      item.tried = true;
+      if (!html) continue;
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const product = nodes(doc).find(n => n?.["@type"] === "ProductGroup" || n?.["@type"] === "Product");
+      if (!product) continue;
+      item.read = true;
+      const description = String(product.description ?? "");
+      item.description = description;
+      // The description starts with the colour, such as "white, calf leather, textured finish"
+      item.color = description.split(",")[0]!.trim().slice(0, 40) || product.color || "";
+      item.material = (product.additionalProperty ?? []).filter((p: any) => /composition/i.test(`${p.name} ${p.propertyID}`)).map((p: any) => p.value).join("; ");
+      const offer = (product.hasVariant ?? [product]).map((v: any) => v.offers).find(Boolean);
+      if (offer) {
+        item.inStock = /InStock/.test(offer.availability ?? "");
+        item.price = Number(offer.priceSpecification?.[0]?.price ?? offer.price ?? item.price);
+      }
+      const sizes = [...doc.querySelectorAll("p")].map(p => String(p.textContent ?? "").trim()).filter(t => new RegExp(`^(${ORDER.join("|")}):`).test(t));
+      item.size = sizes.sort((a, b) => ORDER.findIndex(o => a.startsWith(o)) - ORDER.findIndex(o => b.startsWith(o))).map(t => t.replace(/\s*\([^)]*\)\s*$/, "")).join(", ");
+      item.condition = description.match(/Condition:\s*([A-Z][A-Z ]*[A-Z])/)?.[1] ?? "";
+    }
+    return { searched, items: A.items, ...(blocked ? { blocked } : {}) };
+  }
+
+  const all = new Map<string, FarfetchItem>();
+  const listOf = (html: string): FarfetchItem[] => {
+    const list = nodes(new DOMParser().parseFromString(html, "text/html")).find(n => n?.["@type"] === "ItemList");
+    return (list?.itemListElement ?? []).flatMap((it: any) => {
+      const url = new URL(it.offers?.url ?? it.url ?? "", location.origin).href.split("?")[0]!;
+      const id = url.match(/item-(\d+)\.aspx/)?.[1];
+      if (!id) return [];
+      return [{
+        id, url, title: it.name ?? "", brand: it.brand?.name ?? "", price: Number(it.offers?.price ?? 0),
+        currency: it.offers?.priceCurrency ?? "EUR", inStock: /InStock/.test(it.offers?.availability ?? ""),
+        photo: (Array.isArray(it.image) ? it.image[0] : it.image) ?? "",
+      }];
+    });
+  };
+  for (const base of A.lists) {
+    if (blocked) break;
+    const sep = base.includes("?") ? "&" : "?";
+    let items = 0;
+    let page = 1;
+    // 96 a page, until a page comes back short or with nothing new
+    for (; page <= 60; page++) {
+      const html = await read(page === 1 ? base : `${base}${sep}page=${page}`);
+      if (html === null) break;
+      const list = listOf(html);
+      let fresh = 0;
+      for (const it of list) {
+        items++;
+        if (!all.has(it.id)) {
+          all.set(it.id, it);
+          fresh++;
+        }
+      }
+      if (list.length < 96 || !fresh) break;
+    }
+    searched.push(`${base.replace(location.origin, "")}: ${items} items on ${page} pages`);
+  }
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const brandRe = A.brands.length ? new RegExp(A.brands.map(escape).join("|"), "i") : null;
+  const re = A.match ? new RegExp(A.match, "i") : null;
+  const kept = [...all.values()].filter(i => i.inStock && (!brandRe || brandRe.test(i.brand)) && (!re || re.test(i.title)));
+  searched.push(`${kept.length} in stock${brandRe ? ` by ${A.brands.join(" or ")}` : ""}${re ? `, titles matching /${A.match}/` : ""}`);
+  return { searched, items: kept, ...(blocked ? { blocked } : {}) };
+}
+
+async function farfetch(tag: string, categories: string[], queries: string[], brands: string[], match: string | null, pause: number): Promise<ScanFile> {
+  const site = "https://www.farfetch.com";
+  const root = `${site}/${FARFETCH_COUNTRY}/shopping`;
+  const lists = categories.length
+    ? categories.map(c => `${root}/${c.replace(/^\/+|\/+$/g, "").replace(/\/items\.aspx$/, "")}/items.aspx`)
+    : queries.flatMap(q => ["women", "men"].map(section => `${root}/${section}/search/items.aspx?q=${encodeURIComponent(q)}`));
+  const listed = await inTab(tag, site, inFarfetch, { lists, brands, match, items: [], pause });
+  const searched = listed.searched;
+  if (listed.blocked) searched.push(`lists stopped early: ${listed.blocked}`);
+  // Product pages in runs of 30, each well within a tab.ts call's time limit; after a block, one
+  // more try a minute later
+  const items: FarfetchItem[] = [];
+  const failed: FarfetchItem[] = [];
+  let todo = listed.items;
+  for (let waits = 0; todo.length; ) {
+    const r = await inTab(tag, site, inFarfetch, { lists: [], brands, match, items: todo.slice(0, 30), pause });
+    items.push(...r.items.filter(i => i.read));
+    failed.push(...r.items.filter(i => i.tried && !i.read));
+    todo = [...r.items.filter(i => !i.tried), ...todo.slice(30)];
+    if (r.blocked) {
+      if (++waits > 1) break;
+      await Bun.sleep(60_000);
+    }
+  }
+  const unread = [...failed, ...todo];
+  if (unread.length) searched.push(`${unread.length} product pages didn't load, so their lines have only the list's title and price`);
+  const titleCase = (s: string) => s.toLowerCase().replace(/(^|\s)\p{L}/gu, c => c.toUpperCase());
+  const candidates: Candidate[] = [...items, ...unread].filter(i => i.inStock).map(i => ({
+    id: i.id,
+    shop: "Farfetch",
+    url: i.url,
+    title: i.title,
+    brand: i.brand,
+    ...(i.currency === "EUR" ? { price_eur: i.price } : { price: i.price, currency: i.currency }),
+    ...(i.condition ? { condition: titleCase(i.condition) } : {}),
+    ...(i.size ? { size: i.size } : {}),
+    ...(i.color ? { color: i.color } : {}),
+    ...(i.material ? { material: i.material } : {}),
+    ships_from: "not stated",
+    photo: i.photo,
+    description: snippet(i.description, match ? new RegExp(match, "i") : null),
+    ...(i.read ? {} : { note: "product page not read" }),
+  }));
+  searched.push("prices include import duties to Estonia; returns are free within 30 days; Farfetch gives no ships-from");
+  return { shop: "farfetch", scanned_at: new Date().toISOString(), searched, candidates };
+}
+
+// --- eBay.de (runs in the page) -----------------------------------------------------------------
+
+type EbayCard = { id: string; title: string; lines: string[]; photo: string };
+type EbayItem = {
+  id: string; status: number; title?: string; priceText?: string; approxText?: string; condition?: string;
+  specifics?: Record<string, string>; sellerNote?: string; seller?: string; location?: string; returns?: string;
+  buyNow?: boolean; bids?: boolean; offer?: boolean; ended?: boolean; auth?: boolean; photo?: string;
+};
+
+/**
+ * The cards of eBay's search results for each query, Buy It Now only, 240 a page, up to the count
+ * in the heading: later cards match only some of the words. Signed out (credentials omitted), since
+ * eBay blocks the signed-in browser first; a pause between pages keeps it from seeing a burst.
+ */
+async function inEbaySearch(A: { queries: string[]; pause: number }): Promise<{ searched: string[]; cards: EbayCard[]; blocked?: string }> {
+  const searched: string[] = [];
+  const cards = new Map<string, EbayCard>();
+  const text = (e: any) => String(e?.textContent ?? "").replace(/\s+/g, " ").trim();
+  let first = true;
+  for (const q of A.queries) {
+    let wanted = Infinity;
+    let seen = 0;
+    for (let page = 1; seen < wanted && page <= 20; page++) {
+      // eslint-disable-next-line bun/prefer-builtin-sleep -- this runs in the shop's page, so no Bun globals
+      if (!first) await new Promise(resolve => setTimeout(resolve, A.pause));
+      first = false;
+      const url = `https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q).replace(/%20/g, "+")}&LH_BIN=1&_ipg=240&_pgn=${page}`;
+      const res = await fetch(url, { credentials: "omit" });
+      if (res.status !== 200) return { searched, cards: [...cards.values()], blocked: `search page ${page} for "${q}" answered ${res.status}` };
+      const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+      if (page === 1) {
+        const heading = text(doc.querySelector(".srp-controls__count-heading"));
+        wanted = Number(heading.match(/^([\d.]+)/)?.[1]?.replace(/\./g, "") ?? 0);
+        searched.push(`"${q}": ${heading || "no results heading"}`);
+      }
+      const lis = [...doc.querySelectorAll("ul.srp-results > li.s-card")];
+      if (!lis.length) break;
+      for (const li of lis) {
+        if (seen >= wanted) break;
+        seen++;
+        const id = li.getAttribute("data-listingid") ?? "";
+        // Skip the "Shop on eBay" ad cards
+        if (!id || id === "123456") continue;
+        const lines = [...li.querySelectorAll("span")].filter(s => !s.children.length).map(s => text(s)).filter(s => s && s !== "Wird in neuem Fenster oder Tab geöffnet" && s !== "egieznA");
+        const title = (text(li.querySelector(".s-card__title")) || lines[0] || "").replace(/Wird in neuem Fenster oder Tab geöffnet/g, "").replace(/^Neues Angebot\s*/, "").trim();
+        const img = li.querySelector("img.s-card__image") ?? li.querySelector("img");
+        cards.set(id, { id, title, lines, photo: img?.getAttribute("data-defer-load") || img?.getAttribute("src") || "" });
+      }
+    }
+  }
+  return { searched, cards: [...cards.values()] };
+}
+
+/** Item pages one at a time, signed out and with a pause between them; stops at the first 403. */
+async function inEbayItems(A: { ids: string[]; pause: number }): Promise<{ items: EbayItem[]; blocked?: string }> {
+  const items: EbayItem[] = [];
+  const text = (e: any) => String(e?.textContent ?? "").replace(/\s+/g, " ").trim();
+  for (const [n, id] of A.ids.entries()) {
+    // eslint-disable-next-line bun/prefer-builtin-sleep -- this runs in the shop's page, so no Bun globals
+    if (n) await new Promise(resolve => setTimeout(resolve, A.pause));
+    let res: Response;
+    try {
+      res = await fetch(`https://www.ebay.de/itm/${id}`, { credentials: "omit" });
+    } catch {
+      items.push({ id, status: 0 });
+      continue;
+    }
+    if (res.status === 403) return { items, blocked: `item page ${id} answered 403 after ${n} pages` };
+    const html = await res.text();
+    if (res.status !== 200) {
+      items.push({ id, status: res.status });
+      continue;
+    }
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const specifics: Record<string, string> = {};
+    doc.querySelectorAll(".ux-layout-section--features .ux-layout-section-evo__col").forEach((col: any) => {
+      const k = text(col.querySelector("dt"));
+      const v = text(col.querySelector("dd"));
+      if (k && v && !(k in specifics)) specifics[k] = v.slice(0, 300);
+    });
+    const grade = specifics["Artikelzustand"] ?? "";
+    const condition = grade.match(/^(Neu mit Etikett|Neu ohne Etikett|Neu mit Fehlern|Neu \(Sonstige\)|Neuwertig|Neu|Gebraucht - (Hervorragend|Sehr gut|Gut|Akzeptabel)|Gebraucht|Generalüberholt|Defekt|Vorführmodell)/)?.[0] ?? grade.slice(0, 40);
+    const sellerNote = specifics["Hinweise des Verkäufers"];
+    delete specifics["Artikelzustand"];
+    delete specifics["Hinweise des Verkäufers"];
+    const shipping = text(doc.querySelector(".ux-layout-section--shipping"));
+    const body = text(doc.body).slice(0, 300000);
+    items.push({
+      id,
+      status: 200,
+      title: (text(doc.querySelector("h1.x-item-title__mainTitle")) || text(doc.querySelector("h1"))).replace(/\s*-$/, ""),
+      priceText: text(doc.querySelector(".x-price-primary")),
+      approxText: text(doc.querySelector(".x-price-approx")),
+      condition,
+      specifics,
+      ...(sellerNote ? { sellerNote: sellerNote.replace(/Mehr zum Thema.*$/, "").slice(0, 300) } : {}),
+      seller: text(doc.querySelector(".x-sellercard-atf__info")).replace(/Mehr Artikel des Verkäufers.*$/, "").slice(0, 140),
+      location: shipping.match(/Standort:\s*(.+?)(?=Lieferung|Bei Kombiversand|Rücknahme|Zahlung|Einfuhr|$)/)?.[1]?.trim() ?? "",
+      returns: text(doc.querySelector(".ux-labels-values--returns")).replace(/^Rücknahme:\s*/, "").split(". ")[0]?.slice(0, 120) ?? "",
+      buyNow: !!doc.querySelector(".x-bin-action"),
+      bids: !!doc.querySelector(".x-bid-action"),
+      offer: /Preisvorschlag/.test(body),
+      ended: /Dieses Angebot wurde beendet|Angebot beendet|nicht mehr verfügbar|wurde vom Verkäufer beendet/.test(body) && !doc.querySelector(".x-bin-action"),
+      auth: /Echtheitsprüfung|Echtheitsgarantie/.test(body),
+      photo: doc.querySelector('meta[property="og:image"]')?.getAttribute("content") ?? "",
+    });
+  }
+  return { items };
+}
+
+/** An amount such as "EUR 1.590,00" or "ca. EUR 1.590,00", in euros. */
+function euros(s: string | undefined): number | undefined {
+  const m = (s ?? "").match(/EUR\s*([\d.]+,\d{2}|[\d.]+)/);
+  return m ? Number(m[1]!.replace(/\./g, "").replace(",", ".")) : undefined;
+}
+
+async function ebay(tag: string, queries: string[], ids: string[], match: RegExp | null, details: boolean, pause: number): Promise<ScanFile> {
+  const site = "https://www.ebay.de";
+  const searched: string[] = [];
+  let cards: EbayCard[] = [];
+  if (queries.length) {
+    const r = await inTab(tag, site, inEbaySearch, { queries, pause });
+    searched.push(...r.searched);
+    if (r.blocked) searched.push(`stopped early: ${r.blocked}; eBay lifts a block within about ten minutes`);
+    // Auctions don't count, even with a Buy It Now price
+    const auctions = r.cards.filter(c => c.lines.some(l => /^\d+ Gebote?\b/.test(l))).length;
+    cards = r.cards.filter(c => !c.lines.some(l => /^\d+ Gebote?\b/.test(l)) && (!match || match.test(c.title)));
+    searched.push(`${r.cards.length} cards${auctions ? `, ${auctions} auctions left out` : ""}${match ? `, ${cards.length} with titles matching ${match}` : ""}`);
+  }
+  const wanted = [...new Set([...ids, ...(details ? cards.map(c => c.id) : [])])];
+  const items = new Map<string, EbayItem>();
+  // Item pages in runs of 60, each well within a tab.ts call's time limit
+  for (let i = 0; i < wanted.length; i += 60) {
+    const r = await inTab(tag, site, inEbayItems, { ids: wanted.slice(i, i + 60), pause });
+    for (const item of r.items) items.set(item.id, item);
+    if (r.blocked) {
+      searched.push(`item pages stopped: ${r.blocked}; ${wanted.length - items.size} not read`);
+      break;
+    }
+  }
+  if (wanted.length) searched.push(`${items.size} item pages read`);
+
+  const byId = new Map(cards.map(c => [c.id, c]));
+  const candidates: Candidate[] = [];
+  let gone = 0;
+  for (const id of new Set([...cards.map(c => c.id), ...ids])) {
+    const card = byId.get(id);
+    const item = items.get(id);
+    if (!card && !item) continue;
+    if (item && (item.ended || [404, 410].includes(item.status) || (item.status === 200 && !item.buyNow) || item.bids)) {
+      gone++;
+      continue;
+    }
+    const lines = card?.lines ?? [];
+    const s = item?.specifics ?? {};
+    const from = item?.location || lines.find(l => /^aus /.test(l))?.slice(4) || (card ? "Germany" : "");
+    const code = from ? countryCode(from) : null;
+    const price = euros(item?.approxText) ?? euros(item?.priceText) ?? euros(lines.find(l => /^EUR /.test(l)));
+    const dims = [["Taschenbreite", "W"], ["Taschenhöhe", "H"], ["Taschentiefe", "D"]].filter(([k]) => s[k!]).map(([k, l]) => `${l} ${s[k!]}`);
+    const sellerType = lines.find(l => /^(Privat|Gewerblich)$/.test(l)) ?? item?.seller?.match(/Gewerblich|Privat/)?.[0];
+    // Such as "luxuryfindsitalia(37)PrivatAngemeldet als ...": the name, ratings and kind of seller
+    const sellerName = item?.seller?.match(/^(.*?)\((\d[\d.]*)\)/);
+    const seller = sellerName ? `${sellerName[1]!.trim()} (${sellerName[2]} ratings)${sellerType ? `, ${sellerType}` : ""}` : sellerType;
+    const original = item?.priceText?.replace(/oder Preisvorschlag.*$/, "").trim();
+    const shipping = lines.find(l => /Lieferung|Versand/.test(l));
+    const photo = [card?.photo, item?.photo].find(p => p && !/stockimage|\.gif$/.test(p));
+    const auth = lines.includes("Mit Echtheitsprüfung") || item?.auth;
+    const model = [s["Produktlinie"], s["Modell"], s["Muster"]].filter(Boolean).join(", ");
+    candidates.push({
+      id,
+      shop: "eBay.de",
+      url: `${site}/itm/${id}`,
+      title: (card?.title || item?.title || "").replace(/\s*-$/, ""),
+      brand: s["Marke"] ?? lines.find(l => /vuitton/i.test(l) && l.length < 40),
+      ...(price !== undefined ? { price_eur: price } : {}),
+      condition: item?.condition || lines.find(l => /^(Neu|Brandneu|Neuwertig|Gebraucht|Generalüberholt|Defekt)/.test(l))?.replace(/\s*\|$/, ""),
+      ...(dims.length ? { size: dims.join(" × ") } : {}),
+      ...(s["Außenfarbe"] || s["Farbe"] ? { color: s["Außenfarbe"] ?? s["Farbe"] } : {}),
+      ...(s["Außenmaterial"] || s["Material"] ? { material: s["Außenmaterial"] ?? s["Material"] } : {}),
+      ships_from: code ? (COUNTRY.of(code) ?? from) : from || "not stated",
+      ...(code && !EU.has(code) ? { non_eu: true } : {}),
+      ...(photo ? { photo } : {}),
+      ...(model || item?.sellerNote ? { description: clip([model && `model: ${model}`, item?.sellerNote].filter(Boolean).join("; ")) } : {}),
+      ...(seller ? { seller } : {}),
+      note: [
+        card && !item ? "from the search card" : "",
+        item?.approxText && original && !/EUR/.test(original) ? `priced ${original}, converted by eBay` : "",
+        lines.includes("oder Preisvorschlag") || item?.offer ? "best offer" : "",
+        auth ? "eBay checks authenticity" : "",
+        shipping ?? "",
+        item?.returns ? `returns: ${item.returns}` : "",
+      ].filter(Boolean).join("; "),
+    });
+  }
+  if (gone) searched.push(`${gone} ended, sold or auctions, left out`);
+  return { shop: "ebay", scanned_at: new Date().toISOString(), searched, candidates };
+}
+
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 // --- Yaga ---------------------------------------------------------------------------------------
@@ -639,7 +1030,10 @@ async function main(): Promise<number> {
       brand: { type: "string", multiple: true, default: [] },
       model: { type: "string", multiple: true, default: [] },
       category: { type: "string", multiple: true, default: [] },
-      query: { type: "string" },
+      query: { type: "string", multiple: true, default: [] },
+      ids: { type: "string" },
+      details: { type: "boolean" },
+      pause: { type: "string" },
       match: { type: "string" },
       filters: { type: "string" },
       shops: { type: "string" },
@@ -663,6 +1057,11 @@ async function main(): Promise<number> {
     die(`--match isn't a valid regex: ${e}`);
   }
   const brands = values.brand;
+  // One --query, except for eBay and Farfetch, which take several
+  if (shop !== "ebay" && shop !== "farfetch" && values.query.length > 1) die(`${shop} takes one --query`);
+  const pause = Number(values.pause ?? (shop === "ebay" ? 2000 : 1500));
+  if (!Number.isFinite(pause) || pause < 0) die("--pause takes milliseconds");
+  const query = values.query[0] ?? null;
   const needTag = () => values.tag ?? die(`${shop} runs in the ai-skills browser: give your tab tag with --tag`);
   let result: ScanFile;
   if (shop === "shopify") {
@@ -681,15 +1080,22 @@ async function main(): Promise<number> {
     } catch (e) {
       die(`--filters isn't valid JSON: ${e}`);
     }
-    result = await vestiaire(needTag(), { brand: brands[0]!, models: values.model, query: values.query ?? null, filters, match: values.match ?? null });
+    result = await vestiaire(needTag(), { brand: brands[0]!, models: values.model, query, filters, match: values.match ?? null });
   } else if (shop === "jolicloset") {
-    if (!values.category.length && !values.query) die("give a --category or a --query");
-    result = await jolicloset(needTag(), values.category, values.query ?? null, values.match ?? null);
+    if (!values.category.length && !query) die("give a --category or a --query");
+    result = await jolicloset(needTag(), values.category, query, values.match ?? null);
   } else if (shop === "yaga") {
     if (!brands.length) die("give the brand with --brand");
-    result = await yaga(brands, values.query ?? null, match);
+    result = await yaga(brands, query, match);
+  } else if (shop === "farfetch") {
+    if (!values.category.length && !query) die("give a --category or a --query");
+    result = await farfetch(needTag(), values.category, values.query, brands, values.match ?? null, pause);
+  } else if (shop === "ebay") {
+    const ids = (values.ids ?? "").split(/[\s,]+/).filter(id => /^\d+$/.test(id));
+    if (!values.query.length && !ids.length) die("give a --query or --ids");
+    result = await ebay(needTag(), values.query, ids, match, !!values.details, pause);
   } else {
-    die(`no scanner for ${shop}: the shops are shopify, vestiaire, jolicloset and yaga`);
+    die(`no scanner for ${shop}: the shops are shopify, vestiaire, jolicloset, yaga, farfetch and ebay`);
   }
   const out = values.out ?? `${(Bun.env.TMPDIR ?? "/tmp").replace(/\/$/, "")}/fashion-hunt/scan-${shop}-${Date.now()}.json`;
   await Bun.write(out, JSON.stringify(result, null, 1));

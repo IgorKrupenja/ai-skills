@@ -1,5 +1,21 @@
 # eBay.de (ebay.de)
 
+Scan it first:
+
+```bash
+bun <skill dir>/scripts/scan.ts ebay --tag <tag> --query "louis vuitton marelle" --query "louis vuitton marellini" --match marel --out <run dir>/scan/ebay.json
+```
+
+It reads the search cards for each query (Buy It Now only, up to the count in the results
+heading, auctions left out) and prints a line per card: id, price, condition, ships from, title.
+Classify from the lines, by LV's model code where the title has one, and save in batches. For the
+cards a line can't settle, read their item pages with `--ids <id>,...`: the condition grade, item
+specifics (material, colour, measurements), where it ships from and returns. eBay answers 403
+after about 15 item pages, whether 1.5 or 4 seconds apart, and lifts the block within about ten
+minutes, so read item pages for a handful of cards and settle the rest from their photos: number
+24 card photos on one sheet with ImageMagick's `montage` and read the sheet. Without the scan,
+search the site as below.
+
 Search `/sch/i.html?_nkw=<query>&LH_BIN=1&_ipg=240`, which keeps Sofort-Kaufen (Buy It Now)
 listings only, 240 a page, and page with `&_pgn=2` and so on. The heading "<N> Ergebnisse für
 <query>" gives the real count: results past it, under "Ergebnisse für weniger Suchbegriffe", match
