@@ -1,8 +1,9 @@
 # The bookmarked shops
 
 What each shop carries, how to search it and its notes file under `references/shops/`, as of
-November 2026. Skip a shop that can't have the item (YOOX for Louis Vuitton, the bag shops for a
-jacket) and say so in the report's notes. A shop added to the bookmarks later isn't listed here:
+November 2026. Skip a shop only when its line here rules the item out (YOOX for Louis Vuitton, the
+bag shops for a jacket) and say so in the report's notes. When it's unclear, as for a shop that
+sells "accessories", give it to the small-shops agent, which settles it with one search. A shop added to the bookmarks later isn't listed here:
 give it to an agent with the small shops, and add it here afterwards.
 
 | Shop | Search with | Notes | Carries |
@@ -14,7 +15,7 @@ give it to an agent with the small shops, and add it here afterwards.
 | Yaga | `scan.ts yaga` | yaga.md | pre-owned, mostly high-street brands, sellers in Estonia |
 | The 9 Shopify shops below | `scan.ts shopify` | shopify.md | designer bags and accessories, see below |
 | A Retro Tale | `scan.ts aretrotale` | small-shops.md | pre-owned designer bags and accessories |
-| Care of Carl | browser | small-shops.md | new men's clothing and accessories, plus pre-owned designer bags and accessories |
+| Care of Carl | browser | small-shops.md | new men's clothing and accessories (umbrellas too: Fox Umbrellas in November 2026), plus pre-owned designer bags and accessories |
 | Collector Square | `scan.ts collectorsquare` | small-shops.md | pre-owned designer bags, accessories, watches and jewellery |
 | Eppli | browser | small-shops.md | pre-owned designer bags, accessories, watches and jewellery |
 | Farfetch | `scan.ts farfetch` | farfetch.md | new designer clothing, shoes, bags and accessories from boutiques, plus pre-owned from resellers (Louis Vuitton only as "Louis Vuitton Pre-Owned") |
