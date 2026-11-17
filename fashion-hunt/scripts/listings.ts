@@ -135,8 +135,11 @@ async function add(runDir: string, shop: string, scanPath: string | undefined, s
   if (restOut && !scanPath) die("--rest out needs the scan file, with --scan");
   let data: unknown;
   try {
-    // Nothing given is fine with --rest out
-    const text = source === "-" ? (restOut && process.stdin.isTTY ? "" : await Bun.stdin.text()) : await Bun.file(source).text();
+    // Nothing given is fine with --rest out. Its stdin may be a pipe that never closes, as a
+    // background shell's is, so it gives up on stdin after two seconds
+    const fromStdin = (): Promise<string> =>
+      !restOut ? Bun.stdin.text() : process.stdin.isTTY ? Promise.resolve("") : Promise.race([Bun.stdin.text(), Bun.sleep(2000).then(() => "")]);
+    const text = source === "-" ? await fromStdin() : await Bun.file(source).text();
     data = text.trim() || !restOut ? JSON.parse(text) : [];
   } catch (e) {
     die(`the listings aren't valid JSON: ${e}`);
