@@ -59,6 +59,21 @@ const link = (url: string, text: string) => (
   </a>
 );
 
+/** The shop's name, linked to the listing, with its authenticity shield kept on the line of its last word */
+function ShopName({ r }: { r: Row }) {
+  const words = r.shop.split(" ");
+  const last = words.pop()!;
+  return (
+    <a href={r.url} target="_blank" rel="noopener">
+      {words.length ? `${words.join(" ")} ` : ""}
+      <span className="keep">
+        {last}
+        <Shield auth={r.auth} note={r.authNote} />
+      </span>
+    </a>
+  );
+}
+
 /** One listing's row. Cells left empty stay truly empty, so phones can hide them */
 const Listing = memo(function Listing({ r, S, showGroup }: { r: Row; S: Setup; showGroup: boolean }) {
   const { T, cols, money } = S;
@@ -89,8 +104,7 @@ const Listing = memo(function Listing({ r, S, showGroup }: { r: Row; S: Setup; s
   return (
     <tr>
       <td className="shop" data-l={cols[0]}>
-        {link(r.url, r.shop)}
-        <Shield auth={r.auth} note={r.authNote} />
+        <ShopName r={r} />
       </td>
       <td className="item">
         <div className="iwrap">

@@ -14,8 +14,11 @@ stock, then reads each candidate's product page: colour (the description's first
 "white"), composition ("Calf Leather" for Epi, canvas for Monogram), measurements and condition
 ("Condition: GOOD" in the description). Width tells a Marelle (about 25 cm) from a Marellini
 (about 19 cm). Search by model name rather than the designer listing: the listing runs to 20 pages
-and more, and Farfetch answers a burst of requests with 429 for half an hour and more, also to
-the browser, so the scan reads one page at a time, 1.5 seconds apart.
+and more, and Farfetch answers a burst of requests with 429, also to the browser and to its photo
+server, so the scan reads one page at a time, 1.5 seconds apart, and stops at the first 429. In
+November 2026 it took about 7 product pages in a row, then about one every 45 seconds, and lifted
+a block within about 15 minutes (once it lasted an hour): a second round read its 13 pages 8 to
+50 seconds apart. Photos stop at the first 429 too, so fetch them again once the block lifts.
 
 Prices are in euros with import duties included, and returns are free for 30 days. There's no
 ships-from field: the seller's address is only in the "Seller details" dialog (a Dubai reseller

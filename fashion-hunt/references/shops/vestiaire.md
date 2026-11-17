@@ -46,8 +46,10 @@ ships from (`non_eu` set outside the EU), the photo, the buyer fee and any dutie
 says whether Vestiaire's authentication is included or optional at checkout, the crossed-out
 earlier price ("was €342"), and what comes with the item where the seller listed it (box, dust
 bag, card), and its `seller` gives the seller's kind (individual or professional), sales ("no
-sales yet") and badge ("expert seller"). A listing page adds only more photos and the rest of
-the description, so open one only when those would settle it. Material and
+sales yet") and badge ("expert seller"). The scan's description is a snippet, with the sizes
+from the rest of the text added in brackets. A listing page adds only more photos and the rest
+of the description (whole in its `__NEXT_DATA__` script, under productPdp), so open one only
+when those would settle it. Material and
 colour are the seller's choice from a list: "Leather" on a Marelle is usually Epi, "Cloth" usually
 Monogram canvas, but read the title and description (and look at the photo when it's unclear).
 Some sellers stuff a description with every model name the brand has, so `--match` and the text

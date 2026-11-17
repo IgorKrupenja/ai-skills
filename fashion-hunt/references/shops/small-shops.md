@@ -13,7 +13,9 @@
   `/en/louis-vuitton-pre-owned`. Category pages end "show N of N" and have a Brand filter, and
   `/en/<brand-slug>` is a 404 for a brand it doesn't carry. Its `/en` home page renders a 404 body,
   so start from a category. Plain requests got full pages in November 2026, but the browser is
-  safer.
+  safer. Read product pages one at a time: about 100 at once got a Cloudflare 429. Pages go
+  `?page=N` (`?p=` and the like return page 1), search is `/en/search?q=<query>`, and briefcases
+  are at `/en/bags-2/briefcases-2`.
 - **Collector Square (collectorsquare.com):** scan it: `bun <skill dir>/scripts/scan.ts
   collectorsquare --query "louis vuitton marelle" --brand "Louis Vuitton" --match marel --out
   <run dir>/scan/collectorsquare.json` reads its search pages, 120 cards a page, from the data

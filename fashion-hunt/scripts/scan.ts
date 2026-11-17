@@ -84,8 +84,8 @@ farfetch    the result pages of each text search in the women's and men's sectio
             items; then each candidate's product page: colour, composition, measurements and
             condition. One page at a time, --pause ms apart (default 1500), since Farfetch answers
             a burst with 429; when it blocks anyway, the scan stops at once and reports what it
-            read, as the block lasts an hour and more. Prices are Farfetch Estonia's euros, import
-            duties included.
+            read: the block lasted about 15 minutes in November 2026, once an hour. Prices are
+            Farfetch Estonia's euros, import duties included.
 ebay        eBay.de's search cards for each --query, Buy It Now only and up to the count in the
             results heading, auctions left out. A card says only Gebraucht, so each used card's
             grade (Hervorragend, Gut or Akzeptabel) comes from the same search again under eBay's
@@ -159,6 +159,8 @@ export type Candidate = {
   /** The brand's model code in its title or description, such as M80689, and what the code table says it is */
   code?: string;
   model?: string;
+  /** When listings with the code were saved as different items: how many as model, and as what else */
+  saves?: string;
   /** What the last run of the search (--known) decided about it, if it judged it */
   known?: "match" | "near" | "out";
   /** For a candidate without a code that others resemble: its material, colour and width, such as LEATHER/WHITE/25CM */
@@ -177,13 +179,19 @@ const norm = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCas
 const words = (s: string) => new RegExp(`(^|[^a-z0-9])${norm(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^a-z0-9])`);
 const stripHtml = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&#39;|&rsquo;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
 const clip = (s: string | undefined, n = 300) => (s && s.length > n ? `${s.slice(0, n - 1)}…` : s);
-/** About 300 characters of a description: around the first hit of re where it has one, else its start. */
+/** Measurements in a description, such as "40 x 30 x 6 cm" or "Width: 40 cm", in the shops' languages */
+const SIZES = /(?:[A-Za-z]{1,2}\s*[:.]?\s*)?\d{1,3}(?:[.,]\d)?\s*(?:cm)?\s*[x×]\s*(?:[A-Za-z]{1,2}\s*[:.]?\s*)?\d{1,3}(?:[.,]\d)?(?:\s*(?:cm)?\s*[x×]\s*(?:[A-Za-z]{1,2}\s*[:.]?\s*)?\d{1,3}(?:[.,]\d)?)?\s*cm|\b(?:width|height|depth|length|breite|höhe|tiefe|länge|largeur|hauteur|profondeur|longueur|larghezza|altezza|profondità|lunghezza)\s*[:.]?\s*\d{1,3}(?:[.,]\d)?\s*cm/gi;
+/**
+ * About 300 characters of a description: around the first hit of re where it has one, else its
+ * start, plus up to three measurements from the rest, which sellers often paste at the end.
+ */
 function snippet(text: string | null | undefined, re: RegExp | null, n = 300): string | undefined {
   const flat = (text ?? "").replace(/\s+/g, " ").trim();
   const at = re ? flat.search(re) : -1;
-  if (at < 0 || flat.length <= n) return clip(flat, n);
-  const start = Math.max(0, at - 100);
-  return `${start ? "…" : ""}${flat.slice(start, start + n - 1)}…`;
+  const start = at < 0 || flat.length <= n ? 0 : Math.max(0, at - 100);
+  const part = start ? `…${flat.slice(start, start + n - 1)}…` : clip(flat, n);
+  const sizes = [...new Set((flat.match(SIZES) ?? []).map(s => s.trim().replace(/^[a-z](?=[A-Z])/, "")))].filter(s => !part?.includes(s)).slice(0, 3);
+  return sizes.length ? `${part} [sizes in the text: ${sizes.join("; ")}]` : part;
 }
 /** The country an ISO code names, and whether it's outside the EU. */
 function place(iso: string | undefined): { ships_from: string; non_eu?: boolean } {
@@ -840,7 +848,7 @@ async function inFarfetch(A: FarfetchArgs): Promise<FarfetchResult> {
       } catch { /* try again */ }
       await sleep(2000);
     }
-    blocked = `${url.replace(location.origin, "")} didn't load (Farfetch answers too many requests with 429 and keeps blocking for an hour or more)`;
+    blocked = `${url.replace(location.origin, "")} didn't load (Farfetch answers too many requests with 429; the block lasted about 15 minutes in November 2026, once an hour)`;
     return null;
   }
   // The JSON-LD nodes of a page, with those of an @graph
@@ -978,7 +986,7 @@ async function farfetch(tag: string, categories: string[], queries: string[], br
 type EbayCard = { id: string; title: string; lines: string[]; photo: string };
 type EbayItem = {
   id: string; status: number; title?: string; priceText?: string; approxText?: string; condition?: string;
-  specifics?: Record<string, string>; sellerNote?: string; seller?: string; location?: string; returns?: string;
+  specifics?: Record<string, string>; descUrl?: string; descSize?: string; sellerNote?: string; seller?: string; location?: string; returns?: string;
   buyNow?: boolean; bids?: boolean; offer?: boolean; ended?: boolean; photo?: string;
 };
 
@@ -990,11 +998,13 @@ type EbayItem = {
  * in A.grades: a card found there has that grade. A query whose cards an earlier query's grade
  * searches covered needs none of its own.
  */
-async function inEbaySearch(A: { queries: string[]; pause: number; grades: [string, string][] }): Promise<{ searched: string[]; cards: EbayCard[]; blocked?: string; graded: Record<string, string>; gradesBlocked?: string }> {
+async function inEbaySearch(A: { queries: string[]; pause: number; grades: [string, string][] }): Promise<{ searched: string[]; cards: EbayCard[]; blocked?: string; graded: Record<string, string>; gradesBlocked?: string; loads: number }> {
   const searched: string[] = [];
   const cards = new Map<string, EbayCard>();
   const text = (e: any) => String(e?.textContent ?? "").replace(/\s+/g, " ").trim();
   const count = (doc: any) => Number(text(doc.querySelector(".srp-controls__count-heading")).match(/^([\d.]+)/)?.[1]?.replace(/\./g, "") ?? 0);
+  // Every page load, which eBay counts towards a block as it does item pages
+  let loads = 0;
   let first = true;
   // Each query's cards, for the grade searches
   const found: string[][] = [];
@@ -1009,7 +1019,8 @@ async function inEbaySearch(A: { queries: string[]; pause: number; grades: [stri
       first = false;
       const url = `https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q).replace(/%20/g, "+")}&LH_BIN=1&_ipg=240&_pgn=${page}`;
       const res = await fetch(url, { credentials: "omit", headers: { "Accept-Language": "de-DE,de;q=0.9" } });
-      if (res.status !== 200) return { searched, cards: [...cards.values()], blocked: `search page ${page} for "${q}" answered ${res.status}`, graded: {} };
+      loads++;
+      if (res.status !== 200) return { searched, cards: [...cards.values()], blocked: `search page ${page} for "${q}" answered ${res.status}`, graded: {}, loads };
       const doc = new DOMParser().parseFromString(await res.text(), "text/html");
       if (page === 1) {
         const heading = text(doc.querySelector(".srp-controls__count-heading"));
@@ -1046,7 +1057,8 @@ async function inEbaySearch(A: { queries: string[]; pause: number; grades: [stri
         await new Promise(resolve => setTimeout(resolve, A.pause));
         const url = `https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q).replace(/%20/g, "+")}&LH_BIN=1&_ipg=240&LH_ItemCondition=${code}&_pgn=${page}`;
         const res = await fetch(url, { credentials: "omit", headers: { "Accept-Language": "de-DE,de;q=0.9" } });
-        if (res.status !== 200) return { searched, cards: [...cards.values()], graded, gradesBlocked: `the ${label} search for "${q}" answered ${res.status}` };
+        loads++;
+        if (res.status !== 200) return { searched, cards: [...cards.values()], graded, gradesBlocked: `the ${label} search for "${q}" answered ${res.status}`, loads };
         const doc = new DOMParser().parseFromString(await res.text(), "text/html");
         if (page === 1) wanted = count(doc);
         const lis = [...doc.querySelectorAll("ul.srp-results > li.s-card")];
@@ -1061,24 +1073,30 @@ async function inEbaySearch(A: { queries: string[]; pause: number; grades: [stri
     }
     for (const id of found[i]!) covered.add(id);
   }
-  return { searched, cards: [...cards.values()], graded };
+  return { searched, cards: [...cards.values()], graded, loads };
 }
 
-/** Item pages one at a time, signed out and with a pause between them; stops at the first 403. */
-async function inEbayItems(A: { ids: string[]; pause: number }): Promise<{ items: EbayItem[]; blocked?: string }> {
+/**
+ * Item pages one at a time, signed out and with a pause between them; stops at the first 403.
+ * Where the item specifics give no size, also the seller's description, a frame of its own, for
+ * the measurements sellers write there.
+ */
+async function inEbayItems(A: { ids: string[]; pause: number }): Promise<{ items: EbayItem[]; blocked?: string; loads: number }> {
   const items: EbayItem[] = [];
   const text = (e: any) => String(e?.textContent ?? "").replace(/\s+/g, " ").trim();
+  let loads = 0;
   for (const [n, id] of A.ids.entries()) {
     // eslint-disable-next-line bun/prefer-builtin-sleep -- this runs in the shop's page, so no Bun globals
     if (n) await new Promise(resolve => setTimeout(resolve, A.pause));
     let res: Response;
     try {
       res = await fetch(`https://www.ebay.de/itm/${id}`, { credentials: "omit", headers: { "Accept-Language": "de-DE,de;q=0.9" } });
+      loads++;
     } catch {
       items.push({ id, status: 0 });
       continue;
     }
-    if (res.status === 403) return { items, blocked: `item page ${id} answered 403 after ${n} pages` };
+    if (res.status === 403) return { items, blocked: `item page ${id} answered 403 after ${n} pages`, loads };
     const html = await res.text();
     if (res.status !== 200) {
       items.push({ id, status: res.status });
@@ -1092,7 +1110,13 @@ async function inEbayItems(A: { ids: string[]; pause: number }): Promise<{ items
       if (k && v && !(k in specifics)) specifics[k] = v.slice(0, 300);
     });
     const grade = specifics["Artikelzustand"] ?? "";
-    const condition = grade.match(/^(Neu mit Etikett|Neu ohne Etikett|Neu mit Fehlern|Neu \(Sonstige\)|Neuwertig|Neu|Gebraucht - (Hervorragend|Sehr gut|Gut|Akzeptabel)|Gebraucht|Generalüberholt|Defekt|Vorführmodell)/)?.[0] ?? grade.slice(0, 40);
+    const named = grade.match(/^(Neu mit Etikett|Neu ohne Etikett|Neu mit (Fehlern|Mängeln)|Neu \(Sonstige\)|Neuwertig|Neu|Gebraucht - (Hervorragend|Sehr gut|Gut|Akzeptabel)|Gebraucht|Generalüberholt|Defekt|Vorführmodell)/)?.[0] ?? grade.slice(0, 40);
+    // A plain Gebraucht is eBay's used condition 3000, the one graded listings call Gebraucht - Gut
+    const condition = named === "Gebraucht" ? "Gebraucht - Gut" : named;
+    // The seller's description, where the specifics give no size: a frame on another site, which
+    // inEbayDescs reads from a tab of its own
+    const frame = doc.querySelector("iframe#desc_ifr")?.getAttribute("src");
+    const descUrl = frame && !["Taschenbreite", "Taschenhöhe", "Abmessungen", "Maße"].some(k => specifics[k]) ? frame : "";
     const sellerNote = specifics["Hinweise des Verkäufers"];
     delete specifics["Artikelzustand"];
     delete specifics["Hinweise des Verkäufers"];
@@ -1106,6 +1130,7 @@ async function inEbayItems(A: { ids: string[]; pause: number }): Promise<{ items
       approxText: text(doc.querySelector(".x-price-approx")),
       condition,
       specifics,
+      ...(descUrl ? { descUrl } : {}),
       ...(sellerNote ? { sellerNote: sellerNote.replace(/Mehr zum Thema.*$/, "").slice(0, 300) } : {}),
       seller: text(doc.querySelector(".x-sellercard-atf__info")).replace(/Mehr Artikel des Verkäufers.*$/, "").slice(0, 140),
       location: shipping.match(/Standort:\s*(.+?)(?=Lieferung|Bei Kombiversand|Rücknahme|Zahlung|Einfuhr|$)/)?.[1]?.trim() ?? "",
@@ -1117,7 +1142,32 @@ async function inEbayItems(A: { ids: string[]; pause: number }): Promise<{ items
       photo: doc.querySelector('meta[property="og:image"]')?.getAttribute("content") ?? "",
     });
   }
-  return { items };
+  return { items, loads };
+}
+
+/**
+ * The measurements in sellers' descriptions, such as "W 37 x H 27 x D 5 cm" or "Breite: 40 cm", up
+ * to three each, read in a tab on itm.ebaydesc.com, where the description frames live: from an
+ * ebay.de page the browser refuses to read them.
+ */
+async function inEbayDescs(A: { urls: string[]; pause: number }): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const [n, url] of A.urls.entries()) {
+    // eslint-disable-next-line bun/prefer-builtin-sleep -- this runs in the shop's page, so no Bun globals
+    if (n) await new Promise(resolve => setTimeout(resolve, A.pause));
+    try {
+      const res = await fetch(url, { credentials: "omit" });
+      if (!res.ok) continue;
+      const words = String(new DOMParser().parseFromString(await res.text(), "text/html").body?.textContent ?? "").replace(/\s+/g, " ");
+      const sizes = words.match(/(?:[A-Za-z]{1,2}\s*[:.]?\s*)?\d{1,3}(?:[.,]\d)?\s*(?:cm)?\s*[x×]\s*(?:[A-Za-z]{1,2}\s*[:.]?\s*)?\d{1,3}(?:[.,]\d)?(?:\s*(?:cm)?\s*[x×]\s*(?:[A-Za-z]{1,2}\s*[:.]?\s*)?\d{1,3}(?:[.,]\d)?)?\s*cm|\b(?:breite|höhe|tiefe|länge|width|height|depth|length|[BHTWLD])\s*[:.]?\s*(?:ca\.?\s*)?\d{1,3}(?:[.,]\d)?\s*cm/gi) ?? [];
+      // A stray letter from the text before it, as "nW37cm" after a broken line, is dropped
+      const found = [...new Set(sizes.map(s => s.trim().replace(/^[a-z](?=[A-Z])/, "")))].slice(0, 3).join(", ");
+      if (found) out[url] = found;
+    } catch {
+      // No description: the specifics stand
+    }
+  }
+  return out;
 }
 
 /** An amount such as "EUR 1.590,00" or "ca. EUR 1.590,00", in euros. */
@@ -1168,11 +1218,15 @@ async function ebay(tag: string, queries: string[], ids: string[], match: RegExp
   const site = "https://www.ebay.de";
   const searched: string[] = [];
   let cards: EbayCard[] = [];
+  // The cards --match left out, to skim for the item under another name
+  let others: EbayCard[] = [];
   // Each used card's condition grade, from eBay's search filters
   let graded: Record<string, string> = {};
   let gradesRead = false;
   if (queries.length) {
     const r = await inTab(tag, site, inEbaySearch, { queries, pause, grades: EBAY_GRADES });
+    // Searches count towards eBay's block as item pages do
+    await spendBudget("ebay.de pages", r.loads);
     searched.push(...r.searched);
     if (r.blocked) searched.push(`stopped early: ${r.blocked}; eBay lifts a block within about ten minutes`);
     graded = r.graded;
@@ -1183,31 +1237,43 @@ async function ebay(tag: string, queries: string[], ids: string[], match: RegExp
     // Auctions don't count, even with a Buy It Now price
     for (const card of r.cards) card.lines = card.lines.map(germanLine);
     const auctions = r.cards.filter(c => c.lines.some(l => /^\d+ Gebote?\b/.test(l))).length;
-    cards = r.cards.filter(c => !c.lines.some(l => /^\d+ Gebote?\b/.test(l)) && (!match || match.test(c.title)));
+    const buyNow = r.cards.filter(c => !c.lines.some(l => /^\d+ Gebote?\b/.test(l)));
+    cards = buyNow.filter(c => !match || match.test(c.title));
+    others = match ? buyNow.filter(c => !match.test(c.title)) : [];
     searched.push(`${r.cards.length} cards${auctions ? `, ${auctions} auctions left out` : ""}${match ? `, ${cards.length} with titles matching ${match}` : ""}`);
+    searched.push(`${r.loads} search pages read, which count towards eBay's block`);
   }
   const wanted = [...new Set([...ids, ...(details ? cards.map(c => c.id) : [])])];
   const items = new Map<string, EbayItem>();
   // Only as many item pages as eBay takes before it blocks, counting what other runs read lately
-  const { left, freeAt } = await budgetLeft("ebay.de item pages");
+  const { left, freeAt } = await budgetLeft("ebay.de pages");
   const now = wanted.slice(0, left);
   if (now.length) {
     const r = await inTab(tag, site, inEbayItems, { ids: now, pause });
     for (const item of r.items) items.set(item.id, item);
-    await spendBudget("ebay.de item pages", r.items.length + (r.blocked ? 1 : 0));
+    await spendBudget("ebay.de pages", r.loads);
     if (r.blocked) searched.push(`item pages stopped: ${r.blocked}`);
+    // The sellers' descriptions of those whose specifics give no size, for the measurements in them
+    const descs = r.items.filter(i => i.descUrl);
+    if (descs.length) {
+      const sizes = await inTab(tag, "https://itm.ebaydesc.com", inEbayDescs, { urls: descs.map(i => i.descUrl!), pause });
+      for (const i of descs) if (sizes[i.descUrl!]) i.descSize = sizes[i.descUrl!];
+      searched.push(`${descs.length} sellers' descriptions read for sizes, ${Object.keys(sizes).length} giving some`);
+    }
   }
   const later = wanted.filter(id => !items.has(id));
   if (later.length) {
-    const at = (await budgetLeft("ebay.de item pages")).freeAt;
+    const at = (await budgetLeft("ebay.de pages")).freeAt;
     searched.push(`${later.length} item pages not read: eBay blocks after about 15 in ten minutes, so read them from ${(left ? at : freeAt).toTimeString().slice(0, 5)} on with --ids ${later.join(",")}`);
   }
   if (wanted.length) searched.push(`${items.size} item pages read`);
 
-  const byId = new Map(cards.map(c => [c.id, c]));
+  const byId = new Map([...cards, ...others].map(c => [c.id, c]));
   const candidates: Candidate[] = [];
+  const loose: Candidate[] = [];
   let gone = 0;
-  for (const id of new Set([...cards.map(c => c.id), ...ids])) {
+  const skim = new Set(others.map(c => c.id));
+  for (const id of new Set([...cards.map(c => c.id), ...ids, ...skim])) {
     const card = byId.get(id);
     const item = items.get(id);
     if (!card && !item) continue;
@@ -1224,7 +1290,8 @@ async function ebay(tag: string, queries: string[], ids: string[], match: RegExp
     const price = euros(item?.approxText) ?? euros(item?.priceText) ?? euros(priceLine);
     // A price in another currency stays in the note, for the agent to convert
     const foreign = price === undefined ? lines.find(l => /^(US \$|C \$|AU \$|\$|£|GBP|USD|CAD)\s?\d/.test(l)) : undefined;
-    const dims = [["Taschenbreite", "W"], ["Taschenhöhe", "H"], ["Taschentiefe", "D"]].filter(([k]) => s[k!]).map(([k, l]) => `${l} ${s[k!]}`);
+    const specified = [["Taschenbreite", "W"], ["Taschenhöhe", "H"], ["Taschentiefe", "D"]].filter(([k]) => s[k!]).map(([k, l]) => `${l} ${s[k!]}`);
+    const dims = specified.length ? specified : item?.descSize ? [`${item.descSize} (from the description)`] : [];
     const sellerType = lines.find(l => /^(Privat|Gewerblich)$/.test(l)) ?? item?.seller?.match(/Gewerblich|Privat/)?.[0];
     // Such as "luxuryfindsitalia(37)PrivatAngemeldet als ...": the name, ratings and kind of seller
     const sellerName = item?.seller?.match(/^(.*?)\((\d[\d.]*)\)/);
@@ -1235,7 +1302,7 @@ async function ebay(tag: string, queries: string[], ids: string[], match: RegExp
     // Only the search card says whether eBay checks this listing: every item page mentions the check
     const auth = lines.includes("Mit Echtheitsprüfung");
     const model = [s["Produktlinie"], s["Modell"], s["Muster"]].filter(Boolean).join(", ");
-    candidates.push({
+    (skim.has(id) && !ids.includes(id) ? loose : candidates).push({
       id,
       shop: "eBay.de",
       url: `${site}/itm/${id}`,
@@ -1264,7 +1331,7 @@ async function ebay(tag: string, queries: string[], ids: string[], match: RegExp
     });
   }
   if (gone) searched.push(`${gone} ended, sold or auctions, left out`);
-  return { shop: "ebay", scanned_at: new Date().toISOString(), searched, candidates };
+  return { shop: "ebay", scanned_at: new Date().toISOString(), searched, candidates, ...(loose.length ? { loose } : {}) };
 }
 
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -1592,7 +1659,13 @@ export async function markCodes(candidates: Candidate[]): Promise<void> {
       .sort((a, b) => Number(!!learned[b]) - Number(!!learned[a]) || count.get(b)! - count.get(a)!)[0];
     if (!code) return;
     c.code = code;
-    if (learned[code]) c.model = learned[code].item;
+    const saved = learned[code];
+    if (!saved) return;
+    // Where listings with the code were saved as different items, say how many were saved as each
+    const votes = Object.entries(saved.votes ?? {}).sort((a, b) => b[1] - a[1]);
+    const total = votes.reduce((sum, [, n]) => sum + n, 0);
+    c.model = saved.item;
+    if (votes.length > 1) c.saves = `${votes[0]![1]} of ${total} saves; else ${votes.slice(1, 3).map(([item, n]) => `"${item}" ${n}×`).join(", ")}`;
   });
 }
 
@@ -1628,7 +1701,8 @@ export function codeSummary(candidates: Candidate[]): string[] {
     if (field === "traits") lines.push("alike without a code (material/colour/width):");
     for (const [name, cs] of [...groups].sort((a, b) => b[1].length - a[1].length)) {
       const titles = [...new Set(cs.map(c => c.title))].sort((a, b) => a.length - b.length).slice(0, 2).map(t => `"${clip(t, 80)}"`);
-      lines.push(`${name} ×${cs.length}: ${cs[0]!.model ? `saved before as "${cs[0]!.model}"; ` : ""}${titles.join(", ")}`);
+      const saved = cs[0]!.model ? `saved before as "${cs[0]!.model}"${cs[0]!.saves ? ` (${cs[0]!.saves})` : ""}; ` : "";
+      lines.push(`${name} ×${cs.length}: ${saved}${titles.join(", ")}`);
     }
   }
   if (!lines.length) return [];

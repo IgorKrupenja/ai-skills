@@ -10,16 +10,21 @@ It reads the search cards for each query (Buy It Now only, up to the count in th
 heading, auctions left out) and prints a line per card: id, price, condition, ships from, title
 and the model code in it. A card says only "Gebraucht", so the scan also runs each search under
 eBay's grade filters: `LH_ItemCondition=2990` lists the Gebraucht - Hervorragend items and `3010`
-the Gebraucht - Akzeptabel ones, and a used card under neither is Gebraucht - Gut (`3000` lists
-every used item, so it can't single those out). The report puts Hervorragend at very good. Many cards carry the brand's model code (six in ten of the Louis
-Vuitton cards in November 2026): save each code as a whole, then classify the rest from their
-titles and save in batches. For the
-cards a line can't settle, read their item pages with `--ids <id>,...`: the condition grade, item
-specifics (material, colour, measurements), where it ships from and returns. eBay answers 403
-after about 15 item pages, whether 1.5 or 4 seconds apart, or about 20 searches in five minutes,
-and lifts the block within about ten
-minutes, so the scan and `photos.ts` share a budget of 14 item pages in 12 minutes, counted across
-runs: past it, the scan lists the ids it left and the time they can be read. Read item pages for
+the Gebraucht - Akzeptabel ones, and a used card under neither has eBay's condition 3000, which
+graded listings call Gebraucht - Gut and older ones a plain Gebraucht (`3000` lists every used
+item, so it can't single those out): the scan calls both Gebraucht - Gut, so keep its label over
+an item page's plain Gebraucht. The report puts Hervorragend at very good. The cards that
+`--match` left out are listed apart, to skim for the item under another name. Many cards carry
+the brand's model code (six in ten of the Louis Vuitton cards in November 2026): save each code
+as a whole, then classify the rest from their titles and save in batches. For the cards a line
+can't settle, read their item pages with `--ids <id>,...`: item specifics (material, colour,
+measurements), where it ships from and returns, and, where the specifics give no size, the
+measurements the seller wrote in the description, which sits in a frame of its own. eBay
+answers 403 after about 15 page loads in ten minutes, searches and item pages alike, whether 1.5
+or 4 seconds apart, and lifts the block within about ten minutes, so the scan (its searches
+included) and `photos.ts` share a budget of 14 pages in 12 minutes, counted across runs: past it,
+the scan lists the ids it left and the time they can be read. While `fetch` from a tab still
+gets 403, loading the item page itself in your tab has worked (November 2026). Read item pages for
 a handful of cards and settle the rest from their photos (`scripts/sheet.ts`). Signed out, eBay.de
 now and then answers in English: the scan asks for German, and reads English cards too (prices such
 as "EUR 1,590.00", "from Canada"), so only a German card without a country line counts as Germany. Without the scan,

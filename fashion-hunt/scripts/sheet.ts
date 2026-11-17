@@ -86,8 +86,15 @@ async function main(): Promise<number> {
     if (made.exitCode === 0) tiles.push(tile);
   }
   const sheets: string[] = [];
+  // Number on from the sheets an earlier call left in the folder, so this one doesn't overwrite them
+  let last = 0;
+  try {
+    for await (const name of new Bun.Glob("sheet-*.png").scan({ cwd: folder })) last = Math.max(last, Number(name.match(/\d+/)?.[0] ?? 0));
+  } catch {
+    // No folder yet: the first sheet is sheet-1
+  }
   for (let i = 0; i < tiles.length; i += PER_SHEET) {
-    const sheet = `${folder}/sheet-${Math.floor(i / PER_SHEET) + 1}.png`;
+    const sheet = `${folder}/sheet-${last + Math.floor(i / PER_SHEET) + 1}.png`;
     await Bun.$`magick montage ${tiles.slice(i, i + PER_SHEET)} -tile 6x4 -geometry +3+3 ${sheet}`.quiet();
     sheets.push(sheet);
   }

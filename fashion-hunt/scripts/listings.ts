@@ -5,7 +5,7 @@
  */
 
 import { parseArgs } from "node:util";
-import { type LearnedCode, key, lastVerdicts, learnCodes, learnedCodes, longSide, outsideEU } from "./common.ts";
+import { key, lastVerdicts, learnCodes, longSide, outsideEU } from "./common.ts";
 import type { Candidate, ScanFile } from "./scan.ts";
 
 const USAGE = `Save a shop agent's listings as it verifies them, and merge them into the run file.
@@ -177,24 +177,21 @@ async function add(runDir: string, shop: string, scanPath: string | undefined, s
     if (entry.id !== undefined && entry.url === undefined) {
       const c = byId.get(String(entry.id));
       if (!c) die(`listing ${i + 1}: no candidate with id ${entry.id} in ${scanPath ?? "a scan file (give it with --scan)"}`);
-      const { id: _id, title, description: _d, brand: _b, seller: _s, listed: _l, material: _m, model: _model, traits: _t, known: _k, ...fields } = c;
+      const { id: _id, title, description: _d, brand: _b, seller: _s, listed: _l, material: _m, model: _model, saves: _saves, traits: _t, known: _k, ...fields } = c;
       listing = { ...fields, item: title, ...entry };
       delete listing.id;
     }
     return check(listing, `listing ${i + 1}`);
   });
-  // What each code was saved as, for the next scan to show: a code entry's item, or else the item
-  // of the first listing saved with a code no search has saved before
-  const known = await learnedCodes();
-  const seen = new Date().toISOString().slice(0, 10);
-  const learned: Record<string, LearnedCode> = {};
-  for (const entry of given) {
-    if (entry.code !== undefined && entry.id === undefined && entry.url === undefined && typeof entry.item === "string") {
-      learned[String(entry.code).toUpperCase()] = { item: entry.item, seen };
-    }
-  }
-  for (const l of listings) if (typeof l.code === "string" && !known[l.code] && !learned[l.code]) learned[l.code] = { item: l.item, seen };
-  await learnCodes(learned);
+  // What each code was saved as, for the next scan to show: a vote for each listing saved with a
+  // code, so the item most of its listings were saved as names it, not the first one saved. A
+  // listing saved as out counts only when it says what it is (an item), as when an agent saves a
+  // whole code as another model; out alone says nothing about the code, only about this search.
+  const votes = entries.flatMap((entry, i) => {
+    const code = listings[i]!.code;
+    return typeof code === "string" && typeof entry.item === "string" && entry.item ? [{ code, item: entry.item, n: 1 }] : [];
+  });
+  await learnCodes(votes);
 
   const path = fileOf(runDir, shop);
   const saved = new Map((await readSaved(path)).map(l => [key(l.url), l]));

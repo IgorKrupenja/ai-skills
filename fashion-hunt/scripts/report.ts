@@ -511,6 +511,22 @@ async function main(argv: string[]): Promise<number> {
     };
   });
 
+  // The authenticity risk rule for every listing, carried over or new: one priced under a third
+  // of the median of its variant's listings (with at least 8 to go by) is flagged, unless the
+  // shop or the platform checks it before it ships
+  const byVariant = new Map<string, number[]>();
+  for (const row of rows) if (row.variant && row.price !== null) byVariant.set(row.variant, [...(byVariant.get(row.variant) ?? []), row.price]);
+  const euro = new Intl.NumberFormat(ru ? "ru-RU" : "en-IE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+  for (const row of rows) {
+    const prices = (byVariant.get(row.variant) ?? []).toSorted((a, b) => a - b);
+    if (row.risk || row.price === null || prices.length < 8 || row.auth === "shop" || row.auth === "listing") continue;
+    const median = prices[Math.floor(prices.length / 2)]!;
+    if (row.price >= median / 3) continue;
+    row.risk = ru
+      ? `цена ${euro.format(row.price)}, меньше трети медианы ${euro.format(median)} для «${row.variant}», и никто не проверяет подлинность до отправки`
+      : `priced at ${euro.format(row.price)}, under a third of the ${euro.format(median)} median for ${row.variant}, and nobody checks it before it ships`;
+  }
+
   // The size filter. Bags give measurements: with the model's size chart (page.sizes) each goes
   // under a named size, by a name in its size or by its width, and without one under a range of
   // widths. Anything else goes in letter or number buckets, unless the listing gives its own

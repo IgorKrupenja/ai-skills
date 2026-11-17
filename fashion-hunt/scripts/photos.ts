@@ -103,19 +103,23 @@ async function inPage({ kind, urls, workers = 8, pause = 0, tries = 3 }: { kind:
     return { type: res.headers.get("content-type")?.split(";")[0] ?? "", b64: btoa(text) };
   }
   let next = 0;
+  // A 429 means the site is limiting us: stop at once, since every further request, retries
+  // included, makes the block last longer (Farfetch's photo server, November 2026)
+  let limited = false;
   async function worker() {
-    while (next < urls.length) {
+    while (next < urls.length && !limited) {
       // eslint-disable-next-line bun/prefer-builtin-sleep -- this runs in the shop's page, so no Bun globals
       if (pause && next) await new Promise(resolve => setTimeout(resolve, pause));
       const url = urls[next++]!;
       out[url] = null;
       // More tries after a pause, for the odd request a busy shop drops
-      for (let attempt = 0; attempt < tries && out[url] === null; attempt++) {
+      for (let attempt = 0; attempt < tries && out[url] === null && !limited; attempt++) {
         try {
           out[url] = await read(url);
-        } catch {
+        } catch (e) {
+          if (String((e as Error)?.message) === "429") limited = true;
           // eslint-disable-next-line bun/prefer-builtin-sleep -- this runs in the shop's page, so no Bun globals
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          else await new Promise(resolve => setTimeout(resolve, 2000));
         }
       }
     }
@@ -205,10 +209,10 @@ async function main(args: string[]): Promise<number> {
     let group = all;
     const ebay = /ebay\.de$/.test(new URL(origin).hostname);
     if (ebay) {
-      const { left, freeAt } = await budgetLeft("ebay.de item pages");
+      const { left, freeAt } = await budgetLeft("ebay.de pages");
       group = all.slice(0, left);
       if (group.length < all.length) console.warn(`${all.length - group.length} eBay item pages left for later: eBay blocks after about 15 in ten minutes, so run photos.ts again from ${freeAt.toTimeString().slice(0, 5)} on`);
-      await spendBudget("ebay.de item pages", group.length);
+      await spendBudget("ebay.de pages", group.length);
     }
     if (!group.length) continue;
     const found = await viaBrowser(origin, "page", group.map(listing => listing.url), ebay ? GENTLE : {});

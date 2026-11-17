@@ -322,7 +322,8 @@ Each listing's fields:
   "white on one side only" for a reversible item. Put "new since <date>" or "price cut from €X"
   from the history in `change`. The page's colour filter reads the colour from the item (and the shop's
   colour field), so name it in plain words, such as "чёрный", "navy", "gold" or "floral print".
-- **Risk:** an agent's authenticity flag, with its reason.
+- **Risk:** an agent's authenticity flag, with its reason. `report.ts` also flags each listing
+  priced under a third of its variant's median (8 listings or more) that nobody checks.
 - **Authenticity check:** the page draws a shield by the shop when someone checks the item before
   it ships, with an Authenticity filter: `report.ts` knows which shops check everything they sell
   (`CHECKING_SHOPS`, from their notes), and on eBay.de and Vestiaire the scans give each listing's

@@ -117,8 +117,11 @@ export function outsideEU(shipsFrom: unknown, nonEU: unknown): boolean {
  */
 export const DATA_HOME = Bun.env.FASHION_HUNT_HOME || `${import.meta.dir.replace(/\/scripts$/, "")}/data`;
 
-/** What an agent saved listings with a model code as, such as {"M80689": {"item": "Marelle, Epi Noir"}}. */
-export type LearnedCode = { item: string; seen: string };
+/**
+ * What agents saved listings with a model code as, such as {"M80689": {"item": "Marelle, Epi Noir"}}:
+ * the item most listings were saved as (votes counts each), so one exception doesn't name the code.
+ */
+export type LearnedCode = { item: string; seen: string; votes?: Record<string, number> };
 const CODES_FILE = `${DATA_HOME}/codes.json`;
 
 export async function learnedCodes(): Promise<Record<string, LearnedCode>> {
@@ -126,8 +129,19 @@ export async function learnedCodes(): Promise<Record<string, LearnedCode>> {
   return (await file.exists()) ? ((await file.json()) as Record<string, LearnedCode>) : {};
 }
 
-export async function learnCodes(codes: Record<string, LearnedCode>): Promise<void> {
-  if (Object.keys(codes).length) await Bun.write(CODES_FILE, JSON.stringify({ ...(await learnedCodes()), ...codes }, null, 1));
+/** Count what listings with each code were saved as, and name each code by its most saved item. */
+export async function learnCodes(saves: { code: string; item: string; n: number }[]): Promise<void> {
+  if (!saves.length) return;
+  const codes = await learnedCodes();
+  const seen = new Date().toISOString().slice(0, 10);
+  for (const { code, item, n } of saves) {
+    const old = codes[code];
+    const votes = { ...(old?.votes ?? (old ? { [old.item]: 1 } : {})) };
+    votes[item] = (votes[item] ?? 0) + n;
+    const top = Object.entries(votes).sort((a, b) => b[1] - a[1])[0]![0];
+    codes[code] = { item: top, seen, votes };
+  }
+  await Bun.write(CODES_FILE, JSON.stringify(codes, null, 1));
 }
 
 /**
@@ -145,16 +159,18 @@ export function codeTokens(text: string): string[] {
 
 /**
  * A bag's longer side in whole centimetres, from a size such as "Width 41 cm, Height 30 cm",
- * "W 40 x H 30 cm" or "18x26x12 cm": sellers swap width and height, so the longer of the two
- * (or of the first two numbers) is what tells a large size from a small one.
+ * "W 40 x H 30 cm" or "18x26x12 cm": sellers swap width, height and even depth (a briefcase's
+ * 40 cm typed as its depth), so the longest of them is what tells a large size from a small one.
  */
 export function longSide(size: unknown): number | undefined {
   const s = String(size ?? "").replace(/(\d),(\d)/g, "$1.$2");
-  const w = s.match(/\b(?:width|breite|w)\s*:?\s*(\d+(?:\.\d+)?)/i)?.[1];
-  const h = s.match(/\b(?:height|höhe|h)\s*:?\s*(\d+(?:\.\d+)?)/i)?.[1];
-  if (w || h) return Math.round(Math.max(Number(w ?? 0), Number(h ?? 0)));
-  const dims = s.match(/(\d+(?:\.\d+)?)\s*(?:cm)?\s*[x×]\s*(\d+(?:\.\d+)?)/i);
-  return dims ? Math.round(Math.max(Number(dims[1]), Number(dims[2]))) : undefined;
+  const labelled = ["width|breite|w|b", "height|höhe|h", "depth|tiefe|length|länge|d|l|t"]
+    .map(names => s.match(new RegExp(`\\b(?:${names})\\s*:?\\s*(\\d+(?:\\.\\d+)?)`, "i"))?.[1])
+    .filter(n => n !== undefined)
+    .map(Number);
+  if (labelled.length) return Math.round(Math.max(...labelled));
+  const dims = s.match(/(?:[a-z]{1,2}\s*)?(\d+(?:\.\d+)?)\s*(?:cm)?\s*[x×]\s*(?:[a-z]{1,2}\s*)?(\d+(?:\.\d+)?)(?:\s*(?:cm)?\s*[x×]\s*(?:[a-z]{1,2}\s*)?(\d+(?:\.\d+)?))?/i);
+  return dims ? Math.round(Math.max(...dims.slice(1).filter(n => n !== undefined).map(Number))) : undefined;
 }
 
 /**
@@ -174,12 +190,12 @@ export async function lastVerdicts(search: string): Promise<Map<string, Verdict>
 /**
  * Pages that a site blocks after a run of them, with how many it took in how many minutes before it
  * blocked us (November 2026): eBay.de answered 403 after 15 or 16 item pages, whether they were 1.5
- * or 4 seconds apart, and lifted the block within about ten minutes. Scripts check the budget
- * before such pages and record each one, so that scans, photo fetches and agents stay under it
- * together.
+ * or 4 seconds apart, and lifted the block within about ten minutes. Its search pages count too:
+ * after a scan's 10 searches it blocked the 4th item page. Scripts check the budget before such
+ * pages and record each one, so that scans, photo fetches and agents stay under it together.
  */
 const BUDGETS: Record<string, { pages: number; minutes: number }> = {
-  "ebay.de item pages": { pages: 14, minutes: 12 },
+  "ebay.de pages": { pages: 14, minutes: 12 },
 };
 const budgetFile = (site: string) => `${DATA_HOME}/budgets/${site.replace(/[^a-z0-9]+/gi, "-")}.json`;
 
