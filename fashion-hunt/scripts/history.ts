@@ -52,7 +52,8 @@ const isDirectory = (path: string) => Bun.file(path).stat().then(stat => stat.is
 async function runs(search: string): Promise<string[]> {
   const folder = `${HOME}/${search}`;
   if (!(await isDirectory(folder))) return [];
-  return [...new Bun.Glob("*.json").scanSync(folder)].sort().map(name => `${folder}/${name}`);
+  // Runs are named by their time; verdicts.json next to them isn't one
+  return [...new Bun.Glob("[0-9]*.json").scanSync(folder)].sort().map(name => `${folder}/${name}`);
 }
 
 /** A price such as €1,234.50. */
@@ -80,7 +81,7 @@ async function list(): Promise<number> {
     return 0;
   }
   // The searches with at least one saved run
-  const searches = new Set(Array.from(new Bun.Glob("*/*.json").scanSync(HOME), path => path.split("/")[0]!));
+  const searches = new Set(Array.from(new Bun.Glob("*/[0-9]*.json").scanSync(HOME), path => path.split("/")[0]!));
   for (const search of [...searches].sort()) {
     const saved = await runs(search);
     const last: Run = await Bun.file(saved.at(-1)!).json();
