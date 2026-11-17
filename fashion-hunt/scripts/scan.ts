@@ -867,7 +867,7 @@ type EbayCard = { id: string; title: string; lines: string[]; photo: string };
 type EbayItem = {
   id: string; status: number; title?: string; priceText?: string; approxText?: string; condition?: string;
   specifics?: Record<string, string>; sellerNote?: string; seller?: string; location?: string; returns?: string;
-  buyNow?: boolean; bids?: boolean; offer?: boolean; ended?: boolean; auth?: boolean; photo?: string;
+  buyNow?: boolean; bids?: boolean; offer?: boolean; ended?: boolean; photo?: string;
 };
 
 /**
@@ -964,7 +964,6 @@ async function inEbayItems(A: { ids: string[]; pause: number }): Promise<{ items
       bids: !!doc.querySelector(".x-bid-action"),
       offer: /Preisvorschlag/.test(body),
       ended: /Dieses Angebot wurde beendet|Angebot beendet|nicht mehr verfügbar|wurde vom Verkäufer beendet/.test(body) && !doc.querySelector(".x-bin-action"),
-      auth: /Echtheitsprüfung|Echtheitsgarantie/.test(body),
       photo: doc.querySelector('meta[property="og:image"]')?.getAttribute("content") ?? "",
     });
   }
@@ -1032,7 +1031,8 @@ async function ebay(tag: string, queries: string[], ids: string[], match: RegExp
     const original = item?.priceText?.replace(/oder Preisvorschlag.*$/, "").trim();
     const shipping = lines.find(l => /Lieferung|Versand/.test(l));
     const photo = [card?.photo, item?.photo].find(p => p && !/stockimage|\.gif$/.test(p));
-    const auth = lines.includes("Mit Echtheitsprüfung") || item?.auth;
+    // Only the search card says whether eBay checks this listing: every item page mentions the check
+    const auth = lines.includes("Mit Echtheitsprüfung");
     const model = [s["Produktlinie"], s["Modell"], s["Muster"]].filter(Boolean).join(", ");
     candidates.push({
       id,
