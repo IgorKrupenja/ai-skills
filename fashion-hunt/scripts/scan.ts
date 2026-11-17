@@ -35,10 +35,12 @@ shopify     the products of the brand's collection (such as /collections/louis-v
             bookmarked Shopify shops, listed in SHOPIFY below). --profile prints what each shop
             carries instead: products in stock, vendors and product types.
 vestiaire   the search the catalog page loads, unsold items only, 200 a call: --brand picks the
-            designer, --model the model filter (repeat it for several, such as Marelle and
-            Marellini), --query adds the shop's text search, --filters adds raw filters such as
-            '{"color.id":["1"]}'. Each candidate is then checked with the product API: material,
-            colour, condition, measurements, buyer fee and whether it's for sale now.
+            designer and its collaborations ("Louis Vuitton x Yayoi Kusama"), --model the model
+            filter (repeat it for several, such as Marelle and Marellini), plus a text search for
+            each model name, which finds listings whose seller set no model; --query adds a text
+            search of its own, --filters adds raw filters such as '{"color.id":["1"]}'. Each
+            candidate is then checked with the product API: material, colour, condition,
+            measurements, buyer fee and whether it's for sale now.
 jolicloset  the result pages of a designer category (such as
             designers-women/louis-vuitton/womens-bags) or of a text search in both the women's and
             men's sections, read from the list data each page embeds, 60 a page; then each
@@ -103,6 +105,14 @@ const norm = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCas
 const words = (s: string) => new RegExp(`(^|[^a-z0-9])${norm(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^a-z0-9])`);
 const stripHtml = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&#39;|&rsquo;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
 const clip = (s: string | undefined, n = 300) => (s && s.length > n ? `${s.slice(0, n - 1)}…` : s);
+/** About 300 characters of a description: around the first hit of re where it has one, else its start. */
+function snippet(text: string | null | undefined, re: RegExp | null, n = 300): string | undefined {
+  const flat = (text ?? "").replace(/\s+/g, " ").trim();
+  const at = re ? flat.search(re) : -1;
+  if (at < 0 || flat.length <= n) return clip(flat, n);
+  const start = Math.max(0, at - 100);
+  return `${start ? "…" : ""}${flat.slice(start, start + n - 1)}…`;
+}
 /** The country an ISO code names, and whether it's outside the EU. */
 function place(iso: string | undefined): { ships_from: string; non_eu?: boolean } {
   if (!iso) return { ships_from: "not stated" };
@@ -126,7 +136,7 @@ async function pace(gap: number): Promise<void> {
 async function getJson(url: string, gap = 500): Promise<unknown> {
   for (let attempt = 0; ; attempt++) {
     await pace(gap);
-    const res = await Bun.$`curl -sS --compressed --max-time 30 -A ${UA} -H ${"accept: application/json"} -w ${"\n%{http_code}"} ${url}`.quiet().nothrow();
+    const res = await Bun.$`curl -sS -g --compressed --max-time 30 -A ${UA} -H ${"accept: application/json"} -w ${"\n%{http_code}"} ${url}`.quiet().nothrow();
     const out = res.stdout.toString();
     const cut = out.lastIndexOf("\n");
     const status = Number(out.slice(cut + 1));
@@ -273,7 +283,7 @@ async function shopify(domains: string[], brands: string[], match: RegExp | null
         ...(size ? { size } : {}),
         ships_from: info.country,
         ...(p.images[0] ? { photo: p.images[0].src } : {}),
-        description: clip(text),
+        description: snippet(text, match),
         listed: p.published_at?.slice(0, 10),
       });
     }
@@ -327,51 +337,65 @@ async function inVestiaire(A: VestiaireArgs): Promise<VestiaireResult> {
     if (!res.ok) throw new Error(`the search answered ${res.status}`);
     return res.json();
   }
-  const filters: Record<string, string[]> = { sold: ["0"], ...A.filters };
+  // The designer and its collaborations, which Vestiaire files as designers of their own
+  // ("Louis Vuitton x Yayoi Kusama")
   const brands = (await search(A.brand, {}, 0, 1, ["brand"])).facets?.fields?.brand ?? [];
-  const brand = brands.find((b: any) => norm(b.name) === norm(A.brand));
-  if (!brand) return { error: `no designer named "${A.brand}"; that search finds: ${brands.slice(0, 10).map((b: any) => b.name).join(", ")}`, searched, items: [] };
-  filters["brand.id"] = [brand.id];
-  searched.push(`designer ${brand.name} (id ${brand.id})`);
+  const mine = brands.filter((b: any) => norm(b.name) === norm(A.brand) || norm(b.name).startsWith(`${norm(A.brand)} x `));
+  if (!mine.some((b: any) => norm(b.name) === norm(A.brand))) return { error: `no designer named "${A.brand}"; that search finds: ${brands.slice(0, 10).map((b: any) => b.name).join(", ")}`, searched, items: [] };
+  const base: Record<string, string[]> = { sold: ["0"], ...A.filters, "brand.id": mine.map((b: any) => b.id) };
+  searched.push(`designers ${mine.map((b: any) => `${b.name} (id ${b.id})`).join(", ")}`);
+  // Passes, merged: the model filter, and the shop's text search for each model name, which also
+  // finds listings whose seller set no model (often titled just "Leather handbag")
+  const passes: { label: string; q: string | null; filters: Record<string, string[]> }[] = [];
   if (A.models.length) {
     const ids: string[] = [];
     for (const name of A.models) {
-      const models = (await search(name, { "brand.id": [brand.id] }, 0, 1, ["model"])).facets?.fields?.model ?? [];
+      const models = (await search(name, base, 0, 1, ["model"])).facets?.fields?.model ?? [];
       const hits = models.filter((m: any) => norm(m.name) === norm(name));
-      if (!hits.length) return { error: `${brand.name} has no model named "${name}"; that search finds: ${models.slice(0, 12).map((m: any) => m.name).join(", ")}`, searched, items: [] };
+      if (!hits.length) return { error: `${A.brand} has no model named "${name}"; that search finds: ${models.slice(0, 12).map((m: any) => m.name).join(", ")}`, searched, items: [] };
       for (const m of hits) {
         ids.push(m.id);
-        searched.push(`model ${m.name} (id ${m.id}, ${m.count} listed, sold ones included)`);
+        searched.push(`model ${m.name} (id ${m.id}, ${m.count} listed)`);
       }
+      passes.push({ label: `text "${name}"`, q: name, filters: base });
     }
-    filters["model.id"] = ids;
+    passes.unshift({ label: "model filter", q: null, filters: { ...base, "model.id": ids } });
   }
+  if (A.query) passes.push({ label: `text "${A.query}"`, q: A.query, filters: base });
+  if (!passes.length) passes.push({ label: "every listing of the designer", q: null, filters: base });
   const items: VestiaireItem[] = [];
-  let total = 0;
-  for (let offset = 0; offset < 10000; offset += 200) {
-    const page = await search(A.query, filters, offset, 200, []);
-    total = page.paginationStats?.totalHits ?? 0;
-    for (const it of page.items ?? []) {
-      items.push({
-        id: String(it.id),
-        url: `https://www.vestiairecollective.com${it.link}`,
-        title: it.name,
-        brand: it.brand?.name ?? "",
-        model: it.model?.name ?? "",
-        price: (it.price?.cents ?? 0) / 100,
-        currency: it.price?.currency ?? "EUR",
-        condition: it.condition?.label ?? "",
-        country: it.country ?? "",
-        colors: (it.colors?.all ?? []).map((c: any) => c.name).join(", "),
-        photo: it.pictures?.[0] ? `https://images.vestiairecollective.com/images/resized/w=768,q=75,f=auto,${it.pictures[0]}` : "",
-        description: it.description ?? "",
-        seller: `${it.seller?.firstname ?? ""}${it.seller?.isOfficialStore ? " (official store)" : ""}`,
-        listed: it.createdAt ? new Date(it.createdAt * 1000).toISOString().slice(0, 10) : "",
-      });
+  const seen = new Set<string>();
+  for (const pass of passes) {
+    let total = 0;
+    let added = 0;
+    for (let offset = 0; offset < 10000; offset += 200) {
+      const page = await search(pass.q, pass.filters, offset, 200, []);
+      total = page.paginationStats?.totalHits ?? 0;
+      for (const it of page.items ?? []) {
+        if (seen.has(String(it.id))) continue;
+        seen.add(String(it.id));
+        added++;
+        items.push({
+          id: String(it.id),
+          url: `https://www.vestiairecollective.com${it.link}`,
+          title: it.name,
+          brand: it.brand?.name ?? "",
+          model: it.model?.name ?? "",
+          price: (it.price?.cents ?? 0) / 100,
+          currency: it.price?.currency ?? "EUR",
+          condition: it.condition?.label ?? "",
+          country: it.country ?? "",
+          colors: (it.colors?.all ?? []).map((c: any) => c.name).join(", "),
+          photo: it.pictures?.[0] ? `https://images.vestiairecollective.com/images/resized/w=768,q=75,f=auto,${it.pictures[0]}` : "",
+          description: it.description ?? "",
+          seller: `${it.seller?.firstname ?? ""}${it.seller?.isOfficialStore ? " (official store)" : ""}`,
+          listed: it.createdAt ? new Date(it.createdAt * 1000).toISOString().slice(0, 10) : "",
+        });
+      }
+      if (offset + 200 >= Math.min(total, 10000)) break;
     }
-    if (offset + 200 >= Math.min(total, 10000)) break;
+    searched.push(`${pass.label}: ${total} unsold listings, ${added} not found by an earlier pass${total >= 10000 ? " (only the first 10,000 can be read: narrow the search)" : ""}`);
   }
-  searched.push(`${total} unsold listings${A.query ? ` for "${A.query}"` : ""}${total >= 10000 ? " (only the first 10,000 can be read: narrow the search)" : ""}`);
   const re = A.match ? new RegExp(A.match, "i") : null;
   const kept = re ? items.filter(i => re.test(`${i.title} ${i.model} ${i.description}`)) : items;
   if (re) searched.push(`${kept.length} matching /${A.match}/`);
@@ -398,6 +422,8 @@ async function inVestiaire(A: VestiaireArgs): Promise<VestiaireResult> {
 }
 
 async function vestiaire(tag: string, args: VestiaireArgs): Promise<ScanFile> {
+  // What the description snippet centres on
+  const re = args.match ? new RegExp(args.match, "i") : args.models.length ? new RegExp(args.models.map(m => m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i") : null;
   const r = await inTab(tag, "https://www.vestiairecollective.com", inVestiaire, args);
   if (r.error) die(r.error);
   const candidates: Candidate[] = [];
@@ -421,7 +447,7 @@ async function vestiaire(tag: string, args: VestiaireArgs): Promise<ScanFile> {
       ...(i.material ? { material: i.material } : {}),
       ...place(i.country),
       photo: i.photo,
-      description: clip(i.description.replace(/\s+/g, " ")),
+      description: snippet(i.description, re),
       seller: i.seller,
       listed: i.listed,
       ...(notes.length ? { note: notes.join("; ") } : {}),
@@ -530,7 +556,7 @@ async function jolicloset(tag: string, categories: string[], query: string | nul
       ...(chars.Fabrics ? { material: chars.Fabrics } : {}),
       ships_from: "not stated (via Paris, where JoliCloset checks it)",
       photo: i.photo,
-      description: clip(i.description),
+      description: snippet(i.description, match ? new RegExp(match, "i") : null),
       ...(i.seller ? { seller: i.seller } : {}),
       ...(i.delivery ? { note: `average delivery ${i.delivery}` } : {}),
     };
@@ -544,7 +570,7 @@ async function jolicloset(tag: string, categories: string[], query: string | nul
 
 type YagaListItem = { slug: string; price: number; images?: { thumbnail?: string }[]; shop?: { activeSlug?: string }; listedAt?: string };
 type YagaProduct = {
-  name: string; description: string; price: number; currency?: string; status: string; reservedUntil?: string | null;
+  name: string | null; description: string | null; price: number; currency?: string; status: string; reservedUntil?: string | null;
   condition?: { namesMultilang?: { en?: string } }; size?: { name?: string } | null; colors?: { name?: string }[] | null;
   materials?: { name?: string }[] | null; location?: string | null; shop?: { activeSlug?: string; name?: string };
   images?: { url?: string; thumbnail?: string }[];
@@ -567,17 +593,20 @@ async function yaga(brands: string[], query: string | null, match: RegExp | null
   }
   searched.push(`${found.length} listings${query ? ` for "${query}"` : ""}`);
   const details = await pool(found, 8, item => getJson(`${site}/api/product/${item.slug}`, 100).then(d => ((d as { data?: YagaProduct }).data ?? d) as YagaProduct, () => null));
+  const failed = found.filter((_, i) => !details[i]).map(item => item.slug);
+  if (failed.length) searched.push(`${failed.length} listings whose details didn't load, so they're left out: ${failed.join(", ")}`);
   const candidates: Candidate[] = [];
   found.forEach((item, i) => {
     const d = details[i];
     if (!d || d.status !== "published" || (d.reservedUntil && new Date(d.reservedUntil) > new Date())) return;
-    if (match && !match.test(`${d.name} ${d.description}`)) return;
+    if (match && !match.test(`${d.name} ${d.description ?? ""}`)) return;
     const shop = d.shop?.activeSlug ?? item.shop?.activeSlug;
     candidates.push({
       id: item.slug,
       shop: "Yaga",
       url: `${site}/${shop}/toode/${item.slug}`,
-      title: d.name,
+      // Yaga listings rarely have a title: the description stands in for one
+      title: d.name ?? clip((d.description ?? "").replace(/\s+/g, " "), 70) ?? "",
       price_eur: d.price,
       ...(d.condition?.namesMultilang?.en ? { condition: d.condition.namesMultilang.en } : {}),
       ...(d.size?.name ? { size: d.size.name } : {}),
@@ -585,7 +614,7 @@ async function yaga(brands: string[], query: string | null, match: RegExp | null
       ...(d.materials?.length ? { material: d.materials.map(m => m.name).join(", ") } : {}),
       ships_from: d.location ? `${d.location}, Estonia` : "Estonia",
       photo: (item.images?.[0]?.thumbnail ?? "").replace(/\?s=\d+$/, ""),
-      description: clip(d.description.replace(/\s+/g, " ")),
+      description: snippet(d.description, match),
       ...(d.shop?.name ? { seller: d.shop.name } : {}),
       ...(item.listedAt ? { listed: item.listedAt.slice(0, 10) } : {}),
     });
