@@ -25,14 +25,16 @@ where \`kind\` is "match" or "near". History lives in ~/.local/share/fashion-hun
 FASHION_HUNT_HOME to change it), outside the skill's public repo, and holds only listing links,
 titles and prices. Other fields, such as the page ones scripts/report.ts reads, are left out
 when a run is saved, except \`page_url\`, the run's published report page: list shows the
-latest one of each search.
+latest one of each search. record also keeps the last run's verdicts, every field of its
+listings and of the ones it judged not to match (the run's \`rejected\` list), in
+<search>/verdicts.json, for listings.ts merge --known to carry over.
 `;
 
-import { DATA_HOME as HOME, key } from "./common.ts";
+import { DATA_HOME as HOME, key, verdictsFile } from "./common.ts";
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,80}$/;
 
 type Listing = { url: string; kind: "match" | "near"; shop?: unknown; item?: unknown; price_eur?: unknown };
-type Run = { date?: unknown; request?: unknown; page_url?: unknown; listings?: Listing[] };
+type Run = { date?: unknown; request?: unknown; page_url?: unknown; listings?: Listing[]; rejected?: unknown };
 
 function die(message: string): never {
   console.error(message);
@@ -154,7 +156,11 @@ async function record(search: string, source: string, save: boolean): Promise<nu
   };
   const path = `${HOME}/${search}/${timestamp()}.json`;
   await Bun.write(path, JSON.stringify(saved, null, 1));
-  console.log(`saved ${path}`);
+  // Everything the run decided, so the next run of the search judges only new listings
+  const rejected = Array.isArray(run.rejected) ? (run.rejected as Listing[]) : [];
+  const verdicts = [...(listings as Listing[]), ...rejected].map(({ image: _image, ...rest }: Listing & { image?: unknown }) => rest);
+  await Bun.write(verdictsFile(search), JSON.stringify(verdicts, null, 1));
+  console.log(`saved ${path}, and the verdicts on its ${verdicts.length} listings for the next run`);
   return 0;
 }
 

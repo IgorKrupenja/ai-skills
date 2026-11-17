@@ -5,14 +5,14 @@
  */
 
 import { parseArgs } from "node:util";
-import { type LearnedCode, key, learnCodes, learnedCodes, outsideEU } from "./common.ts";
+import { type LearnedCode, key, lastVerdicts, learnCodes, learnedCodes, outsideEU } from "./common.ts";
 import type { Candidate, ScanFile } from "./scan.ts";
 
 const USAGE = `Save a shop agent's listings as it verifies them, and merge them into the run file.
 
-    listings.ts add <run dir> <shop slug> [--scan <scan file>] [file]
+    listings.ts add <run dir> <shop slug> [--scan <scan file> [--rest out]] [file]
     listings.ts show <run dir>
-    listings.ts merge <run file> [--rate <CUR>=<EUR per unit>]...
+    listings.ts merge <run file> [--known <search>] [--rate <CUR>=<EUR per unit>]...
 
 add    saves listings (a JSON object or list, from file or stdin) in <run dir>/listings/<shop
        slug>.json, replacing any saved before with the same link, so whatever an agent saved
@@ -28,15 +28,22 @@ add    saves listings (a JSON object or list, from file or stdin) in <run dir>/l
        {"code": "M80689", "kind": "match", "item": "Marelle, Epi Noir"}: it stands for every
        candidate the scan marked with that code, except those given by id, and the next scan
        shows the code as saved as that item. A country in ships_from sets non_eu, whatever it
-       said.
+       said. Kind "out" records a candidate judged not to match, so a repeat run doesn't judge
+       it again: it needs only an id or url. --rest out saves every candidate of the scan that
+       isn't saved yet (and that the last run didn't judge) as out, once the agent has saved
+       the ones that count.
 show   prints how many listings each shop has saved.
 merge  adds every saved listing to the run file's listings: one already there by link gets the
        agent's fields (price, condition and so on) and keeps the rest (group, variant, new price).
-       --rate converts prices in other currencies, such as --rate USD=0.8612, and notes the
-       original price in price_note.
+       Those saved as out go to the run file's rejected list. --known <search> also carries over
+       the last run's verdicts (saved by history.ts record) for every candidate in the run's
+       scans (<run dir>/scan/*.json) that no agent saved this time: the scan's price, condition
+       and photo, and the verdict's item, kind, tab, variant and new price. --rate converts
+       prices in other currencies, such as --rate USD=0.8612, and notes the original price in
+       price_note.
 `;
 
-type Listing = Record<string, unknown> & { url: string; item: string; kind: "match" | "near" };
+type Listing = Record<string, unknown> & { url: string; item: string; kind: "match" | "near" | "out" };
 
 /** What a shop agent sets; merge leaves the other fields of a run file's listing alone. */
 const AGENT_FIELDS = ["url", "shop", "item", "kind", "misses", "price_eur", "price", "currency", "condition", "size", "ships_from", "non_eu", "photo", "risk", "note"];
@@ -57,8 +64,10 @@ async function readSaved(path: string): Promise<Listing[]> {
 function check(listing: Record<string, unknown>, at: string): Listing {
   const problems: string[] = [];
   if (typeof listing.url !== "string" || !/^https?:\/\//.test(listing.url)) problems.push("url");
+  // A listing judged not to match needs only its link
+  if (listing.kind === "out" && !problems.length) return { item: "", ...listing } as Listing;
   if (typeof listing.item !== "string" || !listing.item) problems.push("item");
-  if (listing.kind !== "match" && listing.kind !== "near") problems.push('kind ("match" or "near")');
+  if (listing.kind !== "match" && listing.kind !== "near") problems.push('kind ("match", "near" or "out")');
   if (listing.kind === "near" && (typeof listing.misses !== "string" || !listing.misses)) problems.push("misses (what the near match misses)");
   const eur = typeof listing.price_eur === "number";
   const other = typeof listing.price === "number" && typeof listing.currency === "string";
@@ -70,11 +79,14 @@ function check(listing: Record<string, unknown>, at: string): Listing {
   return listing as Listing;
 }
 
-async function add(runDir: string, shop: string, scanPath: string | undefined, source: string): Promise<void> {
+async function add(runDir: string, shop: string, scanPath: string | undefined, source: string, restOut: boolean): Promise<void> {
   if (!SLUG_RE.test(shop)) die("the shop slug may only use lowercase letters, digits and hyphens");
+  if (restOut && !scanPath) die("--rest out needs the scan file, with --scan");
   let data: unknown;
   try {
-    data = JSON.parse(source === "-" ? await Bun.stdin.text() : await Bun.file(source).text());
+    // Nothing given is fine with --rest out
+    const text = source === "-" ? (restOut && process.stdin.isTTY ? "" : await Bun.stdin.text()) : await Bun.file(source).text();
+    data = text.trim() || !restOut ? JSON.parse(text) : [];
   } catch (e) {
     die(`the listings aren't valid JSON: ${e}`);
   }
@@ -120,9 +132,19 @@ async function add(runDir: string, shop: string, scanPath: string | undefined, s
   const path = fileOf(runDir, shop);
   const saved = new Map((await readSaved(path)).map(l => [key(l.url), l]));
   for (const l of listings) saved.set(key(l.url), l);
+  // The rest of the scan's new candidates don't match
+  let rest = 0;
+  if (restOut) {
+    for (const c of scan?.candidates ?? []) {
+      if (c.known || saved.has(key(c.url))) continue;
+      saved.set(key(c.url), { url: c.url, shop: c.shop, item: c.title, kind: "out" });
+      rest++;
+    }
+  }
   await Bun.write(path, JSON.stringify([...saved.values()], null, 1));
   const kinds = [...saved.values()].map(l => l.kind);
-  console.log(`saved ${listings.length}; ${shop} now has ${kinds.filter(k => k === "match").length} matches and ${kinds.filter(k => k === "near").length} near matches`);
+  const n = (kind: string) => kinds.filter(k => k === kind).length;
+  console.log(`saved ${listings.length}${restOut ? ` and ${rest} more as out` : ""}; ${shop} now has ${n("match")} matches, ${n("near")} near matches and ${n("out")} out`);
 }
 
 async function savedFiles(runDir: string): Promise<{ shop: string; listings: Listing[] }[]> {
@@ -136,51 +158,90 @@ async function show(runDir: string): Promise<void> {
   if (!files.length) console.log("no listings saved yet");
   for (const { shop, listings } of files) {
     const n = (kind: string) => listings.filter(l => l.kind === kind).length;
-    console.log(`${shop}: ${n("match")} matches, ${n("near")} near`);
+    console.log(`${shop}: ${n("match")} matches, ${n("near")} near, ${n("out")} out`);
   }
 }
 
-async function merge(runFile: string, rates: Map<string, number>): Promise<void> {
+/** A verdict's fields that a fresh scan replaces, or that belonged to the last run's page only. */
+const STALE = ["image", "change", "price_note", "price_eur", "price", "currency", "condition", "size", "ships_from", "non_eu", "photo"];
+
+/** The last run's verdicts for this run's scan candidates that no agent saved: listings, and those that were out. */
+async function carriedOver(runDir: string, search: string, savedKeys: Set<string>): Promise<Listing[]> {
+  const verdicts = await lastVerdicts(search);
+  if (!verdicts.size) {
+    console.log(`no verdicts saved for ${search} yet, so nothing is carried over`);
+    return [];
+  }
+  const carried = new Map<string, Listing>();
+  const folder = `${runDir.replace(/\/$/, "")}/scan`;
+  for await (const name of new Bun.Glob("*.json").scan({ cwd: folder })) {
+    const scan = (await Bun.file(`${folder}/${name}`).json()) as ScanFile;
+    for (const c of scan.candidates ?? []) {
+      const k = key(c.url);
+      const verdict = verdicts.get(k);
+      if (!verdict || savedKeys.has(k) || carried.has(k)) continue;
+      const kept = Object.fromEntries(Object.entries(verdict).filter(([field]) => !STALE.includes(field)));
+      const fresh = Object.fromEntries(STALE.filter(field => c[field as keyof Candidate] !== undefined).map(field => [field, c[field as keyof Candidate]]));
+      carried.set(k, check({ ...kept, ...fresh, url: c.url }, `the verdict on ${c.url}`));
+    }
+  }
+  return [...carried.values()];
+}
+
+async function merge(runFile: string, rates: Map<string, number>, search: string | undefined): Promise<void> {
   const file = Bun.file(runFile);
-  const run = ((await file.exists()) ? await file.json() : {}) as { listings?: Listing[] };
+  const run = ((await file.exists()) ? await file.json() : {}) as { listings?: Listing[]; rejected?: Listing[] };
   const runDir = runFile.replace(/\/[^/]*$/, "") || ".";
   const listings = run.listings ?? [];
+  const rejected = new Map((run.rejected ?? []).map(l => [key(l.url), l]));
   const at = new Map(listings.map((l, i) => [key(l.url), i]));
   let added = 0;
   let updated = 0;
   const missingRates = new Set<string>();
-  for (const { listings: saved } of await savedFiles(runDir)) {
-    for (const l of saved) {
-      const rate = typeof l.currency === "string" ? rates.get(l.currency.toUpperCase()) : undefined;
-      if (typeof l.price === "number" && typeof l.currency === "string" && typeof l.price_eur !== "number") {
-        if (rate) {
-          l.price_eur = Math.round(l.price * rate);
-          const original = new Intl.NumberFormat("en-IE", { style: "currency", currency: l.currency.toUpperCase(), maximumFractionDigits: 0 }).format(l.price);
-          l.price_note = `about ${original}, converted at ${rate}`;
-        } else missingRates.add(l.currency.toUpperCase());
-      }
-      const i = at.get(key(l.url));
-      if (i === undefined) {
-        at.set(key(l.url), listings.length);
-        listings.push(l);
-        added++;
-      } else {
-        const old = listings[i]!;
-        for (const field of [...AGENT_FIELDS, "price_note"]) if (l[field] !== undefined) old[field] = l[field];
-        updated++;
-      }
+  const saved = (await savedFiles(runDir)).flatMap(f => f.listings);
+  const carried = search ? await carriedOver(runDir, search, new Set(saved.map(l => key(l.url)))) : [];
+  for (const l of [...saved, ...carried]) {
+    if (l.kind === "out") {
+      rejected.set(key(l.url), l);
+      continue;
+    }
+    const rate = typeof l.currency === "string" ? rates.get(l.currency.toUpperCase()) : undefined;
+    if (typeof l.price === "number" && typeof l.currency === "string" && typeof l.price_eur !== "number") {
+      if (rate) {
+        l.price_eur = Math.round(l.price * rate);
+        const original = new Intl.NumberFormat("en-IE", { style: "currency", currency: l.currency.toUpperCase(), maximumFractionDigits: 0 }).format(l.price);
+        l.price_note = `about ${original}, converted at ${rate}`;
+      } else missingRates.add(l.currency.toUpperCase());
+    }
+    const i = at.get(key(l.url));
+    if (i === undefined) {
+      at.set(key(l.url), listings.length);
+      listings.push(l);
+      added++;
+    } else {
+      const old = listings[i]!;
+      for (const field of [...AGENT_FIELDS, "price_note"]) if (l[field] !== undefined) old[field] = l[field];
+      updated++;
     }
   }
   run.listings = listings;
+  if (rejected.size) run.rejected = [...rejected.values()];
   await Bun.write(runFile, JSON.stringify(run, null, 1));
-  console.log(`added ${added} and updated ${updated} listings; the run file has ${listings.length}`);
+  const kept = carried.filter(l => l.kind !== "out").length;
+  console.log(`added ${added} and updated ${updated} listings${search ? `, ${kept} of them carried over from the last run's verdicts, as were ${carried.length - kept} judged out` : ""}; the run file has ${listings.length} listings and ${rejected.size} out`);
   if (missingRates.size) console.log(`no --rate for ${[...missingRates].join(", ")}: those listings have no price_eur yet`);
 }
 
 async function main(): Promise<number> {
   const { values, positionals } = parseArgs({
     args: Bun.argv.slice(2),
-    options: { scan: { type: "string" }, rate: { type: "string", multiple: true, default: [] }, help: { type: "boolean", short: "h" } },
+    options: {
+      scan: { type: "string" },
+      rest: { type: "string" },
+      known: { type: "string" },
+      rate: { type: "string", multiple: true, default: [] },
+      help: { type: "boolean", short: "h" },
+    },
     allowPositionals: true,
   });
   const [command, ...rest] = positionals;
@@ -188,8 +249,9 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return 0;
   }
+  if (values.rest !== undefined && values.rest !== "out") die("--rest takes only out");
   if (command === "add" && (rest.length === 2 || rest.length === 3)) {
-    await add(rest[0]!, rest[1]!, values.scan, rest[2] ?? "-");
+    await add(rest[0]!, rest[1]!, values.scan, rest[2] ?? "-", values.rest === "out");
   } else if (command === "show" && rest.length === 1) {
     await show(rest[0]!);
   } else if (command === "merge" && rest.length === 1) {
@@ -199,7 +261,7 @@ async function main(): Promise<number> {
       if (!cur || !Number(value)) die(`--rate takes CUR=<EUR per unit>, such as USD=0.8612: ${r}`);
       rates.set(cur.toUpperCase(), Number(value));
     }
-    await merge(rest[0]!, rates);
+    await merge(rest[0]!, rates, values.known);
   } else {
     console.log(USAGE);
     return 2;

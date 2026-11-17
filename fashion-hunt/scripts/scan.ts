@@ -9,7 +9,7 @@
  */
 
 import { parseArgs } from "node:util";
-import { EU, codeTokens, countryCode, learnedCodes } from "./common.ts";
+import { EU, codeTokens, countryCode, key, lastVerdicts, learnedCodes } from "./common.ts";
 
 const USAGE = `Scan a shop's catalogue for a fashion-hunt search and list the candidates.
 
@@ -116,6 +116,8 @@ export type Candidate = {
   /** The brand's model code in its title or description, such as M80689, and what the code table says it is */
   code?: string;
   model?: string;
+  /** What the last run of the search (--known) decided about it, if it judged it */
+  known?: "match" | "near" | "out";
 };
 
 export type ScanFile = { shop: string; scanned_at: string; searched: string[]; candidates: Candidate[] };
@@ -1083,6 +1085,7 @@ async function main(): Promise<number> {
       ids: { type: "string" },
       details: { type: "boolean" },
       pause: { type: "string" },
+      known: { type: "string" },
       match: { type: "string" },
       filters: { type: "string" },
       shops: { type: "string" },
@@ -1147,14 +1150,25 @@ async function main(): Promise<number> {
     die(`no scanner for ${shop}: the shops are shopify, vestiaire, jolicloset, yaga, farfetch and ebay`);
   }
   await markCodes(result.candidates);
+  // A repeat run lists only the candidates the last run didn't judge; merge carries over the rest
+  let shown = result.candidates;
+  if (values.known) {
+    const verdicts = await lastVerdicts(values.known);
+    for (const c of result.candidates) c.known = verdicts.get(key(c.url))?.kind;
+    shown = result.candidates.filter(c => !c.known);
+    const n = (kind: string) => result.candidates.filter(c => c.known === kind).length;
+    result.searched.push(verdicts.size
+      ? `${result.candidates.length - shown.length} judged in the last run of ${values.known} (${n("match")} matches, ${n("near")} near, ${n("out")} out), which listings.ts merge --known carries over: only the ${shown.length} new ones are listed`
+      : `no verdicts saved for ${values.known} yet, so every candidate is listed`);
+  }
   const out = values.out ?? `${(Bun.env.TMPDIR ?? "/tmp").replace(/\/$/, "")}/fashion-hunt/scan-${shop}-${Date.now()}.json`;
   await Bun.write(out, JSON.stringify(result, null, 1));
   for (const s of result.searched) console.log(`# ${s}`);
-  const codes = codeSummary(result.candidates);
+  const codes = codeSummary(shown);
   if (codes.length) console.log(`# model codes:\n${codes.map(l => `#   ${l}`).join("\n")}`);
-  console.log(`# ${result.candidates.length} candidates, sorted by price; all fields saved in ${out}`);
+  console.log(`# ${shown.length} candidates below, sorted by price; all ${result.candidates.length}, with every field, saved in ${out}`);
   const price = (c: Candidate) => c.price_eur ?? c.price ?? Infinity;
-  for (const c of [...result.candidates].sort((a, b) => price(a) - price(b))) console.log(line(c));
+  for (const c of [...shown].sort((a, b) => price(a) - price(b))) console.log(line(c));
   return 0;
 }
 

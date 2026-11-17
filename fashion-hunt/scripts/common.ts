@@ -7,6 +7,9 @@ export function key(url: string): string {
   // one, whose path also changes with the listing's category and colour.
   const vestiaire = bare.match(/^(vestiairecollective\.[a-z.]+)\/.*-(\d+)\.shtml$/);
   if (vestiaire) return `${vestiaire[1]}/${vestiaire[2]}`;
+  // A Farfetch item is its id, whether its link goes through the women's or the men's section
+  const farfetch = bare.match(/^farfetch\.com\/.*-item-(\d+)\.aspx$/);
+  if (farfetch) return `farfetch.com/item/${farfetch[1]}`;
   return bare.match(/^vinted\.[a-z.]+\/items\/\d+/)?.[0] ?? bare;
 }
 
@@ -129,4 +132,18 @@ export async function learnCodes(codes: Record<string, LearnedCode>): Promise<vo
 export function codeTokens(text: string): string[] {
   const tokens = text.toUpperCase().match(/\b(?=[A-Z0-9]*\d)[A-Z0-9]{5,12}\b/g) ?? [];
   return [...new Set(tokens.filter(t => !/^[A-Z]?\d{1,3}(CM|MM|IN|ML|OZ|G|KG|X\d+)?$|^\d+(X\d+)+(CM|MM|IN)?$|^(19|20)\d\dS$/.test(t)))];
+}
+
+/**
+ * What the last run of a search decided about each listing it judged, by key(url): the listings
+ * on its page (kind match or near, with their tab, variant and new price) and the ones it judged
+ * not to match (kind out). history.ts record saves them, and a repeat run carries them over.
+ */
+export type Verdict = Record<string, unknown> & { url: string; kind: "match" | "near" | "out" };
+export const verdictsFile = (search: string) => `${DATA_HOME}/${search}/verdicts.json`;
+
+export async function lastVerdicts(search: string): Promise<Map<string, Verdict>> {
+  const file = Bun.file(verdictsFile(search));
+  const list = (await file.exists()) ? ((await file.json()) as Verdict[]) : [];
+  return new Map(list.map(v => [key(v.url), v]));
 }

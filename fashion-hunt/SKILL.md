@@ -113,16 +113,19 @@ so don't use it here.
    at a current verified rate:
 
    ```bash
-   bun scripts/listings.ts merge <run dir>/run.json --rate USD=<EUR per dollar>
+   bun scripts/listings.ts merge <run dir>/run.json --known <slug> --rate USD=<EUR per dollar>
    ```
 
-   Then give each listing its tab (`group`), variant and new price (below), with a short script
-   rather than by retyping listings, and compare with the last run: `bun scripts/history.ts diff
+   `--known` carries over the last run's verdicts: every listing a scan found again keeps its
+   item, tab, variant and new price, with today's price and condition, and the ones it judged
+   not to match stay out. Then give each new listing its tab (`group`), variant and new price
+   (below), with a short script rather than by retyping listings, and compare with the last run: `bun scripts/history.ts diff
    <slug> <run file>` prints what is new, gone or repriced since the last run of the same search.
    Open the page of each gone match in a tab of your own (`bun scripts/tab.ts`, used as
    `references/shop-agent.md` shows): if it's still for sale, this run missed it, so add it back to
    the file and say so; otherwise note it as sold or removed. Then write the report (below), and
-   once its page is published, save the run with `bun scripts/history.ts record <slug> <file>`.
+   once its page is published, save the run with `bun scripts/history.ts record <slug> <file>`,
+   which also keeps its verdicts for the next run.
 
 Where subagents aren't available, search the shops one at a time yourself, following
 `references/shop-agent.md` and then `references/brand-agent.md`.
@@ -136,8 +139,8 @@ its spellings>; <audience>; <color>; <other constraints>.
 A near match misses exactly one criterion, such as cream instead of white (rules in your file).
 <How to tell look-alike models apart, when you know, such as by their measurements.>
 Write each listing's item, misses and note in <the user's language>.
-Today is <date>. Run folder: <run dir>. Your tab tag is <run id>-<agent slug>. Skill folder:
-<skill dir>.
+Today is <date>. Run folder: <run dir>. Search slug: <slug>. Your tab tag is <run id>-<agent slug>.
+Skill folder: <skill dir>.
 First read <skill dir>/references/shop-agent.md, then your shops' notes: <notes files under
 references/shops/>, and follow them.
 ```

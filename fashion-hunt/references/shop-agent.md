@@ -22,6 +22,9 @@ minute, and saves every field to the `--out` file. Save scans in `<run dir>/scan
 - Trust the scan for what it covers: don't repeat it with the shop's text search or a sweep in the
   browser. Use the browser only for what it doesn't cover, such as text queries for items without
   a brand.
+- Add `--known <search slug>` from your brief to every scan. When the search ran before, the scan
+  lists only the candidates that run didn't judge; the main chat carries over the rest, with the
+  verdicts they had then, so judge only the new ones.
 
 ## Save as you go
 
@@ -36,7 +39,15 @@ JSON
 ```
 
 With many candidates, classify and save them in batches of 20 to 50 as you go: an agent that
-meant to save 400 listings at the end was stopped with none saved.
+meant to save 400 listings at the end was stopped with none saved. Once you've saved every match
+and near match from a scan, record the rest as not matching, so the next run of the search
+doesn't judge them again:
+
+```bash
+bun <skill dir>/scripts/listings.ts add <run dir> <shop slug> --scan <run dir>/scan/<file>.json --rest out
+```
+
+Save a single candidate as not matching with `{"id": "...", "kind": "out"}`.
 
 When candidates share a model code (letters and digits in the title, such as Louis Vuitton's
 M80689 or a style number), the scan's output starts with one line per code: how many candidates
