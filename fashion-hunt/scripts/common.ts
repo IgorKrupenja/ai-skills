@@ -147,3 +147,36 @@ export async function lastVerdicts(search: string): Promise<Map<string, Verdict>
   const list = (await file.exists()) ? ((await file.json()) as Verdict[]) : [];
   return new Map(list.map(v => [key(v.url), v]));
 }
+
+/**
+ * Pages that a site blocks after a run of them, with how many it took in how many minutes before it
+ * blocked us (November 2026): eBay.de answered 403 after 15 or 16 item pages, whether they were 1.5
+ * or 4 seconds apart, and lifted the block within about ten minutes. Scripts check the budget
+ * before such pages and record each one, so that scans, photo fetches and agents stay under it
+ * together.
+ */
+const BUDGETS: Record<string, { pages: number; minutes: number }> = {
+  "ebay.de item pages": { pages: 14, minutes: 12 },
+};
+const budgetFile = (site: string) => `${DATA_HOME}/budgets/${site.replace(/[^a-z0-9]+/gi, "-")}.json`;
+
+/** How many of a site's budgeted pages can be read now, and when the next one frees up. */
+export async function budgetLeft(site: string): Promise<{ left: number; freeAt: Date }> {
+  const budget = BUDGETS[site];
+  if (!budget) return { left: Infinity, freeAt: new Date() };
+  const file = Bun.file(budgetFile(site));
+  const since = Date.now() - budget.minutes * 60_000;
+  const recent = ((await file.exists()) ? ((await file.json()) as number[]) : []).filter(t => t > since).sort((a, b) => a - b);
+  const left = Math.max(0, budget.pages - recent.length);
+  return { left, freeAt: new Date(left ? Date.now() : recent[recent.length - budget.pages]! + budget.minutes * 60_000) };
+}
+
+/** Record that n of a site's budgeted pages were read just now. */
+export async function spendBudget(site: string, n: number): Promise<void> {
+  const budget = BUDGETS[site];
+  if (!budget || n <= 0) return;
+  const file = Bun.file(budgetFile(site));
+  const since = Date.now() - budget.minutes * 60_000;
+  const recent = ((await file.exists()) ? ((await file.json()) as number[]) : []).filter(t => t > since);
+  await Bun.write(budgetFile(site), JSON.stringify([...recent, ...Array.from({ length: n }, () => Date.now())]));
+}

@@ -4,6 +4,8 @@
  * how; photos come from the URL the shop agent reported, or else from the listing page's og:image.
  */
 
+import { budgetLeft, spendBudget } from "./common.ts";
+
 const USAGE = `Give each listing in a run file a small photo for the report page.
 
     photos.ts <run.json>
@@ -82,7 +84,7 @@ async function fetchPhoto(url: string): Promise<Photo | null> {
  * Runs in a tab of the shop's own site, where its pages and photos load as they do for a visitor:
  * "page" returns each URL's og:image, "photo" each photo as base64. It must stay self-contained.
  */
-async function inPage({ kind, urls }: { kind: "page" | "photo"; urls: string[] }): Promise<PageResult> {
+async function inPage({ kind, urls, workers = 8, pause = 0, tries = 3 }: { kind: "page" | "photo"; urls: string[]; workers?: number; pause?: number; tries?: number }): Promise<PageResult> {
   const out: PageResult = {};
   async function read(url: string) {
     const res = await fetch(url, { credentials: "include" });
@@ -102,10 +104,12 @@ async function inPage({ kind, urls }: { kind: "page" | "photo"; urls: string[] }
   let next = 0;
   async function worker() {
     while (next < urls.length) {
+      // eslint-disable-next-line bun/prefer-builtin-sleep -- this runs in the shop's page, so no Bun globals
+      if (pause && next) await new Promise(resolve => setTimeout(resolve, pause));
       const url = urls[next++]!;
       out[url] = null;
       // More tries after a pause, for the odd request a busy shop drops
-      for (let attempt = 0; attempt < 3 && out[url] === null; attempt++) {
+      for (let attempt = 0; attempt < tries && out[url] === null; attempt++) {
         try {
           out[url] = await read(url);
         } catch {
@@ -115,12 +119,15 @@ async function inPage({ kind, urls }: { kind: "page" | "photo"; urls: string[] }
       }
     }
   }
-  await Promise.all(Array.from({ length: 8 }, worker));
+  await Promise.all(Array.from({ length: workers }, worker));
   return out;
 }
 
 /** Run inPage in a tab of origin, opened for this call only. */
-async function viaBrowser(origin: string, kind: "page" | "photo", urls: string[]): Promise<PageResult | null> {
+/** How to read a touchy site's pages: one at a time, apart, and without retries, which count too. */
+const GENTLE = { workers: 1, pause: 2000, tries: 1 };
+
+async function viaBrowser(origin: string, kind: "page" | "photo", urls: string[], options: Partial<typeof GENTLE> = {}): Promise<PageResult | null> {
   const tag = `photos-${Math.random().toString(36).slice(2, 8)}`;
   const opened = await Bun.$`bun ${TAB} open ${tag} ${origin}`.quiet().nothrow();
   if (opened.exitCode !== 0) {
@@ -128,7 +135,7 @@ async function viaBrowser(origin: string, kind: "page" | "photo", urls: string[]
     return null;
   }
   try {
-    const code = `async (p) => p.evaluate(${inPage.toString()}, ${JSON.stringify({ kind, urls })})`;
+    const code = `async (p) => p.evaluate(${inPage.toString()}, ${JSON.stringify({ kind, urls, ...options })})`;
     const ran = await Bun.$`bun ${TAB} run ${tag} < ${new Response(code)}`.quiet().nothrow();
     if (ran.exitCode !== 0) {
       console.warn(`reading ${origin} in the browser failed: ${ran.stderr.toString().trim()}`);
@@ -192,8 +199,18 @@ async function main(args: string[]): Promise<number> {
     if (og) photoUrl.set(listing, og);
     else refused.push(listing);
   }));
-  for (const [origin, group] of byOrigin(refused)) {
-    const found = await viaBrowser(origin, "page", group.map(listing => listing.url));
+  for (const [origin, all] of byOrigin(refused)) {
+    // eBay blocks after about 15 item pages, so read only what its budget allows now, gently
+    let group = all;
+    const ebay = /ebay\.de$/.test(new URL(origin).hostname);
+    if (ebay) {
+      const { left, freeAt } = await budgetLeft("ebay.de item pages");
+      group = all.slice(0, left);
+      if (group.length < all.length) console.warn(`${all.length - group.length} eBay item pages left for later: eBay blocks after about 15 in ten minutes, so run photos.ts again from ${freeAt.toTimeString().slice(0, 5)} on`);
+      await spendBudget("ebay.de item pages", group.length);
+    }
+    if (!group.length) continue;
+    const found = await viaBrowser(origin, "page", group.map(listing => listing.url), ebay ? GENTLE : {});
     for (const listing of group) {
       const og = found?.[listing.url];
       if (typeof og === "string") photoUrl.set(listing, og);

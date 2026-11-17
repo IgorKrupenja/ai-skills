@@ -9,7 +9,7 @@
  */
 
 import { parseArgs } from "node:util";
-import { EU, codeTokens, countryCode, key, lastVerdicts, learnedCodes } from "./common.ts";
+import { EU, budgetLeft, codeTokens, countryCode, key, lastVerdicts, learnedCodes, spendBudget } from "./common.ts";
 
 const USAGE = `Scan a shop's catalogue for a fashion-hunt search and list the candidates.
 
@@ -911,14 +911,19 @@ async function ebay(tag: string, queries: string[], ids: string[], match: RegExp
   }
   const wanted = [...new Set([...ids, ...(details ? cards.map(c => c.id) : [])])];
   const items = new Map<string, EbayItem>();
-  // Item pages in runs of 60, each well within a tab.ts call's time limit
-  for (let i = 0; i < wanted.length; i += 60) {
-    const r = await inTab(tag, site, inEbayItems, { ids: wanted.slice(i, i + 60), pause });
+  // Only as many item pages as eBay takes before it blocks, counting what other runs read lately
+  const { left, freeAt } = await budgetLeft("ebay.de item pages");
+  const now = wanted.slice(0, left);
+  if (now.length) {
+    const r = await inTab(tag, site, inEbayItems, { ids: now, pause });
     for (const item of r.items) items.set(item.id, item);
-    if (r.blocked) {
-      searched.push(`item pages stopped: ${r.blocked}; ${wanted.length - items.size} not read`);
-      break;
-    }
+    await spendBudget("ebay.de item pages", r.items.length + (r.blocked ? 1 : 0));
+    if (r.blocked) searched.push(`item pages stopped: ${r.blocked}`);
+  }
+  const later = wanted.filter(id => !items.has(id));
+  if (later.length) {
+    const at = (await budgetLeft("ebay.de item pages")).freeAt;
+    searched.push(`${later.length} item pages not read: eBay blocks after about 15 in ten minutes, so read them from ${(left ? at : freeAt).toTimeString().slice(0, 5)} on with --ids ${later.join(",")}`);
   }
   if (wanted.length) searched.push(`${items.size} item pages read`);
 
