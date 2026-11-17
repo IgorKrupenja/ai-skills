@@ -36,6 +36,8 @@ Send LinkedIn connection requests (without a note) to people in search results, 
 
 This is the **main** skill to use until the weekly limit is hit.
 
+Before each run, this skill and `linkedin-grow` append your connection count to `linkedin-connect/connections.ndjson` (git-ignored), so the counts build up a history of how the network grows.
+
 | Variable               | Description                                |
 | ---------------------- | ------------------------------------------ |
 | `LINKEDIN_CONNECT_URL` | LinkedIn people search URL to iterate over |

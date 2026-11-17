@@ -51,7 +51,20 @@ Required env vars:
 Open your tab at <https://www.linkedin.com/mynetwork/grow/>. If LinkedIn shows a sign-in page,
 ask the user to sign in in that tab of the `ai-skills` browser window, then load the URL again.
 
-### 3. Open the "People you may know" modal
+### 3. Count the connections
+
+Before sending any invite, run linkedin-connect's counting script:
+
+```bash
+bun <skills dir>/linkedin-connect/connections.ts linkedin-grow
+```
+
+It reads the user's LinkedIn connection count in a background tab of its own, appends it to the
+history in `linkedin-connect/connections.ndjson` (git-ignored) and prints one line, such as
+`1,518 connections, +37 since 2026-11-15 19:58 (before linkedin-connect)`. Tell the user that
+line right away: it's the start report.
+
+### 4. Open the "People you may know" modal
 
 Look for the section **"People you may know in $LINKEDIN_GROW_LOCATION"**. It loads further down
 the page, sometimes only after **Load more**. If it doesn't show up, use **"People you may know
@@ -82,7 +95,7 @@ async (p, env) => {
 }
 ```
 
-### 4. Process the cards
+### 5. Process the cards
 
 Process all cards with this `run`. The modal is a native HTML `<dialog>` element (not
 `role="dialog"`).
@@ -182,10 +195,11 @@ Match on a **leading word boundary** (`\b` + keyword), **never** a naive substri
 
 After each connection attempt, check `document.body.innerText` for text matching `/invitation limit|weekly limit/i`. If found, stop immediately.
 
-### 5. Report summary
+### 6. Report summary
 
 When done (limit hit or all matching people processed), close your tab and report:
 
+- The connection count at the start (step 3's line)
 - Total connections sent
 - Total people skipped (title did not match)
 - Whether the weekly limit was hit

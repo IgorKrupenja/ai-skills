@@ -48,7 +48,20 @@ Required env vars:
 Open your tab at `$LINKEDIN_CONNECT_URL`. If LinkedIn shows a sign-in page instead of results,
 ask the user to sign in in that tab of the `ai-skills` browser window, then load the URL again.
 
-### 2. Process the pages
+### 2. Count the connections
+
+Before sending any invite, run:
+
+```bash
+bun <skills dir>/linkedin-connect/connections.ts linkedin-connect
+```
+
+It reads the user's LinkedIn connection count in a background tab of its own, appends it to the
+history in `linkedin-connect/connections.ndjson` (git-ignored) and prints one line, such as
+`1,518 connections, +37 since 2026-11-15 20:29 (before linkedin-grow)`. Tell the user that line
+right away: it's the start report.
+
+### 3. Process the pages
 
 Run this script once per page, again and again, until it returns `limit: true` or `done: true`.
 It clicks only controls labelled exactly **Connect** (search results render them as links,
@@ -95,10 +108,11 @@ invite didn't go through (for example LinkedIn asked for their email): take a sc
 that happens and say why in the report. When LinkedIn asks for their email, **Send without a note**
 stays disabled, so the script leaves it alone and dismisses the dialog.
 
-### 3. Report summary
+### 4. Report summary
 
 When done (limit hit or last page processed), close your tab and report:
 
+- The connection count at the start (step 2's line)
 - Total connections sent
 - Page number where the limit was hit (if applicable)
 - Any errors or skipped people
