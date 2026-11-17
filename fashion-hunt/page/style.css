@@ -40,7 +40,8 @@ h2 { font-size: 17px; font-weight: 600; margin: 8px 0 0; text-wrap: balance; }
 /* A pill per filter, showing its value while it filters; on phones they scroll sideways in one row */
 .pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .pill { font: inherit; font-size: 14px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 5px 10px 5px 12px; cursor: pointer; white-space: nowrap; }
-.pill .chev { font-size: 11px; color: var(--muted); }
+.pill .chev { width: 14px; height: 14px; flex: none; color: var(--muted); transition: transform .15s; }
+.pill[aria-expanded="true"] .chev { transform: rotate(180deg); }
 .pill.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); font-weight: 500; }
 .pill.on .chev { color: inherit; }
 .pill[aria-expanded="true"] { box-shadow: 0 0 0 1px var(--fg); }
