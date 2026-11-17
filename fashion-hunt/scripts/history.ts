@@ -118,12 +118,17 @@ async function record(search: string, source: string, save: boolean): Promise<nu
     const now = new Map((listings as Listing[]).map(listing => [key(listing.url), listing]));
     console.log(`Compared with the run of ${last.date ?? "?"}:`);
     const changes: string[] = [];
+    let drifted = 0;
     for (const [k, listing] of now) {
       const old = before.get(k);
       // A missing price and a null one are the same
       const price = listing.price_eur ?? null;
+      const was = typeof old?.price_eur === "number" ? old.price_eur : null;
       if (!old) {
         changes.push(`NEW (${listing.kind}): ${describe(listing)} | ${formatPrice(price)}`);
+      } else if (typeof price === "number" && was !== null && price !== was && Math.abs(price - was) / was < 0.02) {
+        // A seller pricing in another currency moves a little with the exchange rate every day
+        drifted++;
       } else if ((old.price_eur ?? null) !== price && price !== null) {
         changes.push(
           `PRICE (${listing.kind}): ${describe(listing)} | from ${formatPrice(old.price_eur)} to ${formatPrice(price)}`,
@@ -135,6 +140,7 @@ async function record(search: string, source: string, save: boolean): Promise<nu
     for (const [k, old] of before) {
       if (!now.has(k)) changes.push(`GONE (${old.kind}): ${describe(old)} | was ${formatPrice(old.price_eur)}`);
     }
+    if (drifted) changes.push(`${drifted} prices moved by less than 2%, likely with exchange rates, so they aren't listed`);
     console.log(changes.length ? changes.join("\n") : "no changes");
   } else {
     console.log("first run of this search: nothing to compare with");
