@@ -78,14 +78,16 @@ aretrotale  A Retro Tale's search service (Searchspring) for the brand, 100 item
             price, condition, colour and description; prices include delivery to Estonia.
 resee       ReSee's search service (Algolia) for the brand's name (and text), with Estonia's
             price, condition, colour, material and size, for sale and not on hold.
-farfetch    the result pages of each text search in the women's and men's sections, or of a
-            designer listing (such as women/louis-vuitton-pre-owned, 20 pages and more for a big
-            brand), from the item list each page embeds, 96 a page; --brand keeps that designer's
-            items; then each candidate's product page: colour, composition, measurements and
-            condition. One page at a time, --pause ms apart (default 1500), since Farfetch answers
-            a burst with 429; when it blocks anyway, the scan stops at once and reports what it
-            read: the block lasted about 15 minutes in November 2026, once an hour. Prices are
-            Farfetch Estonia's euros, import duties included.
+farfetch    the result pages of each text search in the women's and men's sections, with the
+            --brand's name added to the query and up to the first page with nothing of the brand
+            that --match takes, or of a designer listing (such as women/louis-vuitton-pre-owned,
+            20 pages and more for a big brand), from the item list each page embeds, 96 a page;
+            --brand keeps that designer's items; then the first 6 candidates' product pages:
+            colour, composition, measurements and condition. One page at a time, --pause ms apart
+            (default 1500), since Farfetch answers a burst with 429 (about 7 product pages in a
+            row in November 2026, then one every 45 seconds); when it blocks anyway, the scan
+            stops at once and reports what it read: the block lasted about 15 minutes, once an
+            hour. Prices are Farfetch Estonia's euros, import duties included.
 ebay        eBay.de's search cards for each --query, Buy It Now only and up to the count in the
             results heading, auctions left out. A card says only Gebraucht, so each used card's
             grade (Hervorragend, Gut or Akzeptabel) comes from the same search again under eBay's
@@ -816,6 +818,8 @@ declare const location: { origin: string };
 
 /** The country whose Farfetch site the scan reads, which sets the prices: euros with import duties. */
 const FARFETCH_COUNTRY = "ee";
+/** How many product pages the scan reads in a row, under the 7 or so Farfetch took before a 429 */
+const FARFETCH_BURST = 6;
 
 type FarfetchItem = {
   id: string; url: string; title: string; brand: string; price: number; currency: string; inStock: boolean; photo: string;
@@ -905,12 +909,16 @@ async function inFarfetch(A: FarfetchArgs): Promise<FarfetchResult> {
       }];
     });
   };
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const brandRe = A.brands.length ? new RegExp(A.brands.map(escape).join("|"), "i") : null;
+  const re = A.match ? new RegExp(A.match, "i") : null;
   for (const base of A.lists) {
     if (blocked) break;
     const sep = base.includes("?") ? "&" : "?";
     let items = 0;
     let page = 1;
-    // 96 a page, until a page comes back short or with nothing new
+    // 96 a page, until a page comes back short or with nothing new, or, as a search sorts by
+    // relevance, with nothing of the brand that --match takes: the rest is other items
     for (; page <= 60; page++) {
       const html = await read(page === 1 ? base : `${base}${sep}page=${page}`);
       if (html === null) break;
@@ -923,13 +931,11 @@ async function inFarfetch(A: FarfetchArgs): Promise<FarfetchResult> {
           fresh++;
         }
       }
-      if (list.length < 96 || !fresh) break;
+      const useful = list.filter(i => (!brandRe || brandRe.test(i.brand)) && (!re || re.test(i.title))).length;
+      if (list.length < 96 || !fresh || (base.includes("?q=") && (brandRe || re) && !useful)) break;
     }
     searched.push(`${base.replace(location.origin, "")}: ${items} items on ${page} pages`);
   }
-  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const brandRe = A.brands.length ? new RegExp(A.brands.map(escape).join("|"), "i") : null;
-  const re = A.match ? new RegExp(A.match, "i") : null;
   const kept = [...all.values()].filter(i => i.inStock && (!brandRe || brandRe.test(i.brand)) && (!re || re.test(i.title)));
   searched.push(`${kept.length} in stock${brandRe ? ` by ${A.brands.join(" or ")}` : ""}${re ? `, titles matching /${A.match}/` : ""}`);
   return { searched, items: kept, ...(blocked ? { blocked } : {}) };
@@ -938,28 +944,31 @@ async function inFarfetch(A: FarfetchArgs): Promise<FarfetchResult> {
 async function farfetch(tag: string, categories: string[], queries: string[], brands: string[], match: string | null, pause: number): Promise<ScanFile> {
   const site = "https://www.farfetch.com";
   const root = `${site}/${FARFETCH_COUNTRY}/shopping`;
+  // A search with the brand's name in it: Farfetch's search is loose, and "porte documents voyage"
+  // alone gave about 2,000 items of every brand over 21 pages, enough to get it blocking
+  const withBrand = (q: string) => (brands[0] && !q.toLowerCase().includes(brands[0].toLowerCase()) ? `${brands[0]} ${q}` : q);
   const lists = categories.length
     ? categories.map(c => `${root}/${c.replace(/^\/+|\/+$/g, "").replace(/\/items\.aspx$/, "")}/items.aspx`)
-    : queries.flatMap(q => ["women", "men"].map(section => `${root}/${section}/search/items.aspx?q=${encodeURIComponent(q)}`));
+    : queries.flatMap(q => ["women", "men"].map(section => `${root}/${section}/search/items.aspx?q=${encodeURIComponent(withBrand(q))}`));
   const listed = await inTab(tag, site, inFarfetch, { lists, brands, match, items: [], pause });
   const searched = listed.searched;
   if (listed.blocked) searched.push(`lists stopped early: ${listed.blocked}`);
-  // Product pages in runs of 30, each well within a tab.ts call's time limit, until a block
+  // Only the first product pages: Farfetch took about 7 in a row in November 2026, then about one
+  // every 45 seconds, so the rest are left to the agent, to read at that pace
   const items: FarfetchItem[] = [];
   const failed: FarfetchItem[] = [];
   let todo = listed.items;
-  while (todo.length && !listed.blocked) {
-    const r = await inTab(tag, site, inFarfetch, { lists: [], brands, match, items: todo.slice(0, 30), pause });
+  if (todo.length && !listed.blocked) {
+    const r = await inTab(tag, site, inFarfetch, { lists: [], brands, match, items: todo.slice(0, FARFETCH_BURST), pause });
     items.push(...r.items.filter(i => i.read));
     failed.push(...r.items.filter(i => i.tried && !i.read));
-    todo = [...r.items.filter(i => !i.tried), ...todo.slice(30)];
-    if (r.blocked) {
-      searched.push(`product pages stopped: ${r.blocked}`);
-      break;
-    }
+    todo = [...r.items.filter(i => !i.tried), ...todo.slice(FARFETCH_BURST)];
+    if (r.blocked) searched.push(`product pages stopped: ${r.blocked}`);
   }
   const unread = [...failed, ...todo];
-  if (unread.length) searched.push(`${unread.length} product pages didn't load, so their lines have only the list's title and price`);
+  if (unread.length) {
+    searched.push(`${items.length} product pages read; ${unread.length} left with only the list's title and price: open those that matter about one every 45 seconds, as Farfetch blocks a quicker run`);
+  }
   const titleCase = (s: string) => s.toLowerCase().replace(/(^|\s)\p{L}/gu, c => c.toUpperCase());
   const candidates: Candidate[] = [...items, ...unread].filter(i => i.inStock).map(i => ({
     id: i.id,
