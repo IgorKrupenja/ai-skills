@@ -9,7 +9,7 @@ const USAGE = `Give each listing in a run file a small photo for the report page
     photos.ts <run.json>
 
 A listing's photo is the URL of its main photo that the shop agent reported in photo, or else
-the og:image of its page. The script saves a copy about 320 pixels wide in img/ next to the run
+the og:image of its page, also when photo is a stand-in such as eBay's stock image. The script saves a copy about 320 pixels wide in img/ next to the run
 file and sets the listing's image to its path, which report.ts shows as a thumbnail. Listings
 that already have a saved image keep it. Shops that refuse scripts, such as Vestiaire Collective,
 are read inside the ai-skills browser instead, so it must be open (browser.ts open).
@@ -25,6 +25,8 @@ const MAX_BYTES = 60_000;
 const TYPES: Record<string, string> = { "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png", "image/avif": "avif" };
 const HEADERS = { "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Safari/537.36" };
 const TAB = `${import.meta.dir}/tab.ts`;
+/** Stand-ins a shop shows until a photo loads, such as eBay's stock image on search cards. */
+const PLACEHOLDER = /ebaystatic\.com\/pictures\/aw\/pics\/stockimage|\/(placeholder|no[-_]?image|spacer|blank)\.(gif|png|jpe?g|svg|webp)\b/i;
 
 type Listing = { url: string; photo?: unknown; image?: unknown };
 type Photo = { type: string; data: Uint8Array };
@@ -171,6 +173,11 @@ async function main(args: string[]): Promise<number> {
 
   const todo: Listing[] = [];
   for (const listing of listings) {
+    // A stand-in isn't the listing's photo, so look for the real one on its page
+    if (typeof listing.photo === "string" && PLACEHOLDER.test(listing.photo)) {
+      delete listing.photo;
+      delete listing.image;
+    }
     const saved = typeof listing.image === "string" && (await Bun.file(`${folder}/${listing.image}`).exists());
     if (!saved && typeof listing.url === "string") todo.push(listing);
   }

@@ -10,7 +10,9 @@ on eBay" ad cards (item id 123456). A card shows the condition, a "Gewerblich" (
 "Privat" seller, the EUR price, "oder Preisvorschlag" (best offer), shipping, "aus <Land>" when it
 ships from abroad (no such line means Germany), and "Mit Echtheitsprüfung" when eBay checks the
 bag's authenticity before delivery: report that as authentication included. Give the card's
-`i.ebayimg.com` image as the photo, since `scripts/photos.ts` can't open eBay item pages. Titles
+`i.ebayimg.com` image as the photo: `scripts/photos.ts` opens eBay item pages only in the browser,
+and eBay blocks a burst of them. It looks up the few cards that show eBay's stock image
+(`stockimage1.jpg`, before they scroll into view) on their item pages. Titles
 often carry LV's model code (such as M80689), which names the model and colour more reliably than
 the words around it.
 

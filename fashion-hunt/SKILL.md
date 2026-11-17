@@ -180,8 +180,8 @@ as Vestiaire that refuse scripts. It prints the files to publish with the page a
 that share a photo: often one bag listed twice, or a seller using someone else's photos. Say so in
 `note` on both, and flag a `risk` when they ship from different countries. A publish takes at most
 255 files, so when there are more photos than that (`photos.ts` says so), build the page with
-`report.ts --inline`, which puts a small copy of each photo into the page itself, and publish the
-page alone, without `files`.
+`report.ts --inline`, which puts the photos into the page itself (as saved while they fit in its
+16 MB, else as smaller AVIF copies), and publish the page alone, without `files`.
 
 - **Rows:** one per live listing from every shop searched, merged from all the agents' reports; the
   page sorts them by EUR price. When the user adds a shop or URL later, rebuild the page with every
@@ -219,11 +219,10 @@ Each listing's fields:
 - **New price:** the brand agent's closest item with its link, and in `new_note` what differs
   (size, material, edition, variant); or only a `new_note` saying "not currently listed by
   manufacturer".
-- **Ships from:** set `non_eu` for a country outside the EU, since import VAT and duties come on
-  top. EU countries are Austria, Belgium, Bulgaria, Croatia, Cyprus, Czechia, Denmark, Estonia,
-  Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta,
-  the Netherlands, Poland, Portugal, Romania, Slovakia, Slovenia, Spain and Sweden. "not stated"
-  isn't outside the EU. For a shop from a city folder, write "in store, <city>".
+- **Ships from:** the country, in any language: `report.ts` names it in the page's language and
+  works out from it whether it's outside the EU, where import VAT and duties come on top. Set
+  `non_eu` yourself only on a ships-from that names no country, which `report.ts` lists. "not
+  stated" isn't outside the EU. For a shop from a city folder, write "in store, <city>".
 
 Publish the page with the Artifact tool, with `root` set to the run file's folder and `files` set
 to the list `photos.ts` printed, a one-word icon for the item type (bag, belt, jacket, wallet) and

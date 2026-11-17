@@ -9,13 +9,16 @@
  */
 
 import { parseArgs } from "node:util";
+import { countryCode, countryName, isCountry, outsideEU } from "./common.ts";
 
 const USAGE = `Build the fashion-hunt report page from a run file.
 
     report.ts [--inline] <run.json> <page.html>
 
---inline puts a small copy of each photo into the page itself, so the page publishes as one
-file: use it when a run has more photos than one publish takes (255 files).
+--inline puts each photo into the page itself, so the page publishes as one file: use it when a
+run has more photos than one publish takes (255 files). The photos go in as photos.ts saved
+them when they fit in the Artifact's 16 MB page; otherwise as smaller AVIF copies, made with
+macOS's sips, only as much smaller as they need to be.
 
 The run file is the one scripts/history.ts takes, with more fields for the page. Each listing
 has url, shop, item, price_eur and kind as history.ts describes, plus any of:
@@ -31,8 +34,10 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
                     FR, IT, UK and US sizes, or a bare number such as a belt's 90), and sizes,
                     such as ["M"], overrides them
     price_note      shown under the price, such as "approx., from 950 PLN"
-    ships_from      a country, "not stated" or "in store, <city>"; non_eu: true bolds it, and
-                    the EU filter hides the listing
+    ships_from      a country, "not stated" or "in store, <city>". The page names a country in
+                    its own language whatever language it's given in, bolds one outside the EU and
+                    hides it with the EU filter; non_eu: true does the same for a ships_from that
+                    names no country, and the script lists those it can't place
     new_price_eur, new_url, new_note
                     the brand's closest new item, and how it differs ("no fur"), or only a
                     new_note such as "not currently listed by manufacturer"
@@ -190,26 +195,52 @@ function sizeOrder(buckets: Set<string>): string[] {
   return [...letters, ...numbers, ...others];
 }
 
-/** The width of a photo the page carries itself with --inline: the thumbnail is 64 pixels, the hover preview 205. */
-const INLINE_WIDTH = 180;
+/** The Artifact tool's limit for a page, embedded photos included, less a margin. */
+const PAGE_LIMIT = 15_500_000;
+/** The AVIF copies --inline tries when the photos as saved don't fit, best first. */
+const SMALLER: { quality: number; width?: number }[] = [{ quality: 70 }, { quality: 55 }, { quality: 55, width: 240 }, { quality: 45, width: 180 }];
+const MIME: Record<string, string> = { webp: "image/webp", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", avif: "image/avif", gif: "image/gif" };
 
-/** A small JPEG copy of each photo as a data URI, for a page that carries its photos itself. */
-async function inlinePhotos(paths: string[], folder: string): Promise<Map<string, string>> {
-  const tmp = `${(Bun.env.TMPDIR ?? "/tmp").replace(/\/$/, "")}/fashion-hunt-inline-${process.pid}`;
-  const out = new Map<string, string>();
-  let next = 0;
-  async function worker() {
-    while (next < paths.length) {
-      const path = paths[next++]!;
-      const small = `${tmp}/${Bun.hash(path).toString(36)}.jpg`;
-      const done = await Bun.$`mkdir -p ${tmp} && sips -s format jpeg -s formatOptions 55 -Z ${INLINE_WIDTH} ${`${folder}/${path}`} --out ${small}`.quiet().nothrow();
-      if (done.exitCode === 0) out.set(path, `data:image/jpeg;base64,${Buffer.from(await Bun.file(small).bytes()).toString("base64")}`);
-      else console.warn(`couldn't shrink ${path}, so the page shows no photo for it`);
-    }
+const dataUri = (type: string, bytes: Uint8Array) => `data:${type};base64,${Buffer.from(bytes).toString("base64")}`;
+const totalLength = (uris: Map<string, string>) => [...uris.values()].reduce((sum, uri) => sum + uri.length, 0);
+
+/**
+ * Each photo as a data URI, for a page that carries its photos itself: as photos.ts saved them
+ * when they fit in room bytes, or else as AVIF copies, smaller each step until they fit.
+ */
+async function inlinePhotos(paths: string[], folder: string, room: number): Promise<{ uris: Map<string, string>; how: string }> {
+  const saved = new Map<string, string>();
+  for (const path of paths) {
+    const file = Bun.file(`${folder}/${path}`);
+    const type = MIME[path.split(".").pop()!.toLowerCase()];
+    if (type && (await file.exists())) saved.set(path, dataUri(type, await file.bytes()));
+    else console.warn(`no photo file ${path}, so the page shows none for it`);
   }
-  await Promise.all(Array.from({ length: 8 }, worker));
-  await Bun.$`rm -rf ${tmp}`.quiet().nothrow();
-  return out;
+  if (totalLength(saved) <= room || !Bun.which("sips")) return { uris: saved, how: "as saved" };
+  const tmp = `${(Bun.env.TMPDIR ?? "/tmp").replace(/\/$/, "")}/fashion-hunt-inline-${process.pid}`;
+  let result = { uris: saved, how: "as saved" };
+  try {
+    for (const { quality, width } of SMALLER) {
+      const uris = new Map<string, string>();
+      const todo = [...saved.keys()];
+      let next = 0;
+      async function worker() {
+        while (next < todo.length) {
+          const path = todo[next++]!;
+          const copy = `${tmp}/${Bun.hash(path).toString(36)}-${quality}-${width ?? 0}.avif`;
+          const resize = width ? ["-Z", String(width)] : [];
+          const done = await Bun.$`mkdir -p ${tmp} && sips -s format avif -s formatOptions ${quality} ${resize} ${`${folder}/${path}`} --out ${copy}`.quiet().nothrow();
+          uris.set(path, done.exitCode === 0 ? dataUri("image/avif", await Bun.file(copy).bytes()) : saved.get(path)!);
+        }
+      }
+      await Promise.all(Array.from({ length: 8 }, worker));
+      result = { uris, how: `AVIF at quality ${quality}${width ? `, ${width} px` : ""}` };
+      if (totalLength(uris) <= room) break;
+    }
+  } finally {
+    await Bun.$`rm -rf ${tmp}`.quiet().nothrow();
+  }
+  return result;
 }
 
 async function main(argv: string[]): Promise<number> {
@@ -243,6 +274,14 @@ async function main(argv: string[]): Promise<number> {
     .filter(variant => typeof variant?.name === "string" && variant.name !== "")
     .map(variant => ({ name: variant.name, swatch: text(variant.swatch), hint: text(variant.hint) }));
 
+  // A country in the page's language, whatever language the agent gave it in; other text as given
+  const unplaced = new Map<string, number>();
+  const ships = (from: string) => {
+    if (!from) return ru ? "не указано" : "not stated";
+    const code = countryCode(from);
+    if (!code && !/^(not stated|не указано|unknown|in store\b)/i.test(from)) unplaced.set(from, (unplaced.get(from) ?? 0) + 1);
+    return code && isCountry(from) ? countryName(code, lang) : from;
+  };
   if (!Array.isArray(run.listings)) die("the run needs a 'listings' list");
   const seen = new Set<string>();
   const rows = (run.listings as Listing[]).map((listing, index) => {
@@ -266,8 +305,8 @@ async function main(argv: string[]): Promise<number> {
       sizes,
       price: price(listing.price_eur),
       priceNote: text(listing.price_note),
-      ships: text(listing.ships_from) || (ru ? "не указано" : "not stated"),
-      nonEU: listing.non_eu === true,
+      ships: ships(text(listing.ships_from)),
+      nonEU: outsideEU(listing.ships_from, listing.non_eu),
       newPrice: price(listing.new_price_eur),
       newUrl: text(listing.new_url),
       newNote: text(listing.new_note),
@@ -279,14 +318,6 @@ async function main(argv: string[]): Promise<number> {
       group,
     };
   });
-
-  if (values.inline) {
-    const folder = source.includes("/") ? source.replace(/\/[^/]*$/, "") : ".";
-    const photos = await inlinePhotos([...new Set(rows.map(row => row.image).filter(image => image && !image.startsWith("data:")))], folder);
-    for (const row of rows) if (photos.has(row.image)) row.image = photos.get(row.image)!;
-    const bytes = [...photos.values()].reduce((sum, uri) => sum + uri.length, 0);
-    console.log(`inlined ${photos.size} photos, ${(bytes / 1024 / 1024).toFixed(1)} MB`);
-  }
 
   const data = {
     lang,
@@ -306,17 +337,31 @@ async function main(argv: string[]): Promise<number> {
     conditionNames: CONDITION_NAMES[lang],
   };
   const template = await Bun.file(`${import.meta.dir}/../assets/report.html`).text();
-  // "<" escaped, so no listing text can close the script tag
-  const json = JSON.stringify(data).replace(/</g, "\\u003c");
   const fontLink = fonts ? `<link rel="stylesheet" href="${escapeHtml(fonts)}">` : "";
-  await Bun.write(
-    out,
+  const render = () =>
     template
       .replace("{{TITLE}}", () => escapeHtml(title))
       .replace("{{FONTS}}", () => fontLink)
       .replace("/*THEME*/", () => css)
-      .replace("/*REPORT*/", () => json),
-  );
+      // "<" escaped, so no listing text can close the script tag
+      .replace("/*REPORT*/", () => JSON.stringify(data).replace(/</g, "\\u003c"));
+
+  if (values.inline) {
+    const folder = source.includes("/") ? source.replace(/\/[^/]*$/, "") : ".";
+    const paths = [...new Set(rows.map(row => row.image).filter(image => image && !image.startsWith("data:")))];
+    const room = PAGE_LIMIT - Buffer.byteLength(render());
+    const { uris, how } = await inlinePhotos(paths, folder, room);
+    for (const row of rows) if (uris.has(row.image)) row.image = uris.get(row.image)!;
+    console.log(`inlined ${uris.size} photos ${how}, ${(totalLength(uris) / 1e6).toFixed(1)} MB`);
+  }
+  const html = render();
+  await Bun.write(out, html);
+  const size = Buffer.byteLength(html);
+  if (size > 16_000_000) console.warn(`the page is ${(size / 1e6).toFixed(1)} MB, more than an Artifact takes (16 MB)`);
+
+  if (unplaced.size) {
+    console.warn(`ships_from names no country, so the EU filter keeps these unless non_eu is set: ${[...unplaced].map(([from, n]) => `"${from}" (${n})`).join(", ")}`);
+  }
 
   for (const group of groups) {
     const prices = rows.filter(row => row.group === group.id).map(row => row.price);

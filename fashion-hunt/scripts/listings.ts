@@ -5,7 +5,7 @@
  */
 
 import { parseArgs } from "node:util";
-import { EU, countryCode, key } from "./common.ts";
+import { key, outsideEU } from "./common.ts";
 import type { Candidate, ScanFile } from "./scan.ts";
 
 const USAGE = `Save a shop agent's listings as it verifies them, and merge them into the run file.
@@ -24,7 +24,7 @@ add    saves listings (a JSON object or list, from file or stdin) in <run dir>/l
        reason) and note. With --scan, a listing may give the id of a candidate in that scan file
        instead of url, and takes the price, condition, size, ships from and photo from it; fields
        it gives itself win, so {"id": "73224341", "kind": "match", "item": "Marelle BB, Epi
-       leather, Quartz"} is enough. non_eu is set from ships_from.
+       leather, Quartz"} is enough. A country in ships_from sets non_eu, whatever it said.
 show   prints how many listings each shop has saved.
 merge  adds every saved listing to the run file's listings: one already there by link gets the
        agent's fields (price, condition and so on) and keeps the rest (group, variant, new price).
@@ -60,10 +60,9 @@ function check(listing: Record<string, unknown>, at: string): Listing {
   const other = typeof listing.price === "number" && typeof listing.currency === "string";
   if (!eur && !other && typeof listing.price_note !== "string") problems.push("price_eur, or price and currency (or a price_note saying why there's none)");
   if (problems.length) die(`${at} needs ${problems.join(", ")}: ${JSON.stringify(listing).slice(0, 300)}`);
-  if (typeof listing.ships_from === "string" && listing.non_eu === undefined) {
-    const code = countryCode(listing.ships_from);
-    if (code && !EU.has(code)) listing.non_eu = true;
-  }
+  // A country in ships_from settles non_eu, whatever the agent said
+  if (outsideEU(listing.ships_from, listing.non_eu)) listing.non_eu = true;
+  else delete listing.non_eu;
   return listing as Listing;
 }
 
