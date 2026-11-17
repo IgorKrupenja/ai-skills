@@ -84,35 +84,34 @@ so don't use it here.
    in the session's scratchpad folder or another temporary one, never in this skill's folder (the
    repo is public), such as `<scratchpad>/<slug>/`. Scans and the agents' listings go there. Each
    agent's tab tag is the run id plus its shops or brand, such as `qkzv-vinted`.
-3. Run the scans yourself, before any agent starts: they're scripts, and together take a few
-   minutes. The table in `references/shops.md` says which shops have one, and each shop's notes
-   give its command: fill in the request's brand, models and a loose `--match`, and add
-   `--known <slug>`, `--tag <run id>-scan-<shop slug>` where the scan needs a tab, and
-   `--out <run dir>/scan/<shop slug>.json`. Run them in parallel in one background command, each
-   printing to `<run dir>/scan/<shop slug>.txt`, then read only their summary lines with
-   `grep -h '^#' <run dir>/scan/*.txt`: how many new candidates each found, and anything that
-   stopped it. Leave the candidate lines to the agents.
-4. In a single message, start the agents: in Claude Code, the Agent tool with the general-purpose
-   type and `model: "sonnet"` for shop agents. Every agent pays a fixed cost to start and wakes
-   you when it reports, and the Agent tool runs at most 20 at once, so start only the ones there's
-   work for:
-   - for each scan with new candidates, an agent that judges them from its `.txt` file, or two
-     when it has more than about 200, each with half of the lines by price. A scan with no new
-     candidates needs no agent, and you can judge a handful yourself and save them as an agent
-     would (`references/shop-agent.md`);
-   - one or two agents for the shops without a scan, three to five shops each, and for any URL the
-     user pasted;
-   - one agent per requested brand for the new price, on the default model.
+3. First, in a single message, start the agents that need no scan, so they work while the scans
+   run: one or two for the shops without a scan, three to five shops each, and for any URL the user
+   pasted, and one per requested brand for the new price, on the default model. In Claude Code,
+   that's the Agent tool with the general-purpose type, and `model: "sonnet"` for shop agents. Set
+   a 15-minute background timer with them.
+4. Then run the scans yourself, each as a background command of its own, so that a slow or
+   blocked scan holds up only its own shop. The table in `references/shops.md` says which shops
+   have one, and each shop's notes give its command: fill in the request's brand, models and a
+   loose `--match`, and add `--known <slug>`, `--tag <run id>-scan-<shop slug>` where the scan
+   uses a tab, and `--out <run dir>/scan/<shop slug>.json`, printing to
+   `<run dir>/scan/<shop slug>.txt`. Most finish within a minute. As each finishes, read only its
+   summary lines (`grep -h '^#' <its .txt>`): how many new candidates it found, and anything that
+   stopped it. Then start its judging agent at once, together with any other scan that has
+   finished by then, with a 15-minute timer for that message's agents. Give a scan two agents when
+   it has more than about 200 new candidates, each with half of the lines by price. A scan with no
+   new candidates needs no agent, and you can judge a handful yourself and save them as an agent
+   would (`references/shop-agent.md`). Leave the candidate lines to the agents. Every agent pays a
+   fixed cost to start and wakes you when it reports, and the Agent tool runs at most 20 at once.
 
    Fill in the briefs below, giving this skill's folder and the run folder as absolute paths,
-   since an agent may start in another folder. Tell the user in one line how many agents are
-   searching, then wait for all of them to report, without browsing yourself.
+   since an agent may start in another folder, and give each judging agent a check budget: about
+   10 listing pages plus one for every 20 candidates, and 4 photo sheets. Tell the user in one line
+   how many agents are searching, then wait for all of them to report, without browsing yourself.
 5. If an agent fails or its report is unusable, start a fresh one for its shops once; if that fails
-   too, report them as not searched. Set a background timer for 15 minutes when you start them.
-   At that point, message every agent still running to stop, close its tab and report; stop any
-   that hasn't reported 3 minutes later. Agents save each listing as they verify it, so what a
-   stopped agent saved is kept: list its shops as partly searched (timed out), or as not searched
-   when it saved nothing.
+   too, report them as not searched. When a message's timer fires, message each of its agents
+   still running to stop, close its tab and report; stop any that hasn't reported 3 minutes later.
+   Agents save each listing as they verify it, so what a stopped agent saved is kept: list its
+   shops as partly searched (timed out), or as not searched when it saved nothing.
 6. An agent that lists unverified links that may be matches, because it ran out of time, gets a
    second round: start one more agent for its shop with just those links, on its own 15-minute
    timer. Only what that one can't check either goes into the page's unverified list. When all
@@ -142,7 +141,8 @@ Where subagents aren't available, search the shops one at a time yourself, follo
 Shop brief (for an agent that judges a scan, replace the first line with "Judge the candidates
 that the <shop> scan found for <the request in one line>." and add a line "Scan output: <run
 dir>/scan/<shop slug>.txt, every field in the .json next to it", with the lines it should take
-when two agents share a scan):
+when two agents share a scan, and a line "Check budget: <n> listing pages and <m> photo
+sheets"):
 
 ```
 Search <shop names, each with its url> for <the request in one line>.

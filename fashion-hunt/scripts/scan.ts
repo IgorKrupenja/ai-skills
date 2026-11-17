@@ -75,7 +75,9 @@ farfetch    the result pages of each text search in the women's and men's sectio
             brand), from the item list each page embeds, 96 a page; --brand keeps that designer's
             items; then each candidate's product page: colour, composition, measurements and
             condition. One page at a time, --pause ms apart (default 1500), since Farfetch answers
-            a burst with 429. Prices are Farfetch Estonia's euros, import duties included.
+            a burst with 429; when it blocks anyway, the scan stops at once and reports what it
+            read, as the block lasts an hour and more. Prices are Farfetch Estonia's euros, import
+            duties included.
 ebay        eBay.de's search cards for each --query, Buy It Now only and up to the count in the
             results heading, auctions left out; --details also reads every candidate's item page
             (condition grade, item specifics such as material, colour and measurements, where it
@@ -711,9 +713,10 @@ async function inFarfetch(A: FarfetchArgs): Promise<FarfetchResult> {
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   let last = 0;
   let blocked = "";
-  // One request at a time, A.pause ms apart: Farfetch answers a burst with 429 for a while
+  // One request at a time, A.pause ms apart. Farfetch answers a burst with 429 for an hour and
+  // more, so a block isn't waited out: the scan stops and reports what it read
   async function read(url: string): Promise<string | null> {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       const wait = last + A.pause - Date.now();
       if (wait > 0) await sleep(wait);
       last = Date.now();
@@ -721,14 +724,11 @@ async function inFarfetch(A: FarfetchArgs): Promise<FarfetchResult> {
         const res = await fetch(url, { credentials: "include" });
         if (res.ok) return await res.text();
         if (res.status === 404) return null;
-        if (res.status === 429) {
-          await sleep(15000 * (attempt + 1));
-          continue;
-        }
+        if (res.status === 429) break;
       } catch { /* try again */ }
       await sleep(2000);
     }
-    blocked = `${url.replace(location.origin, "")} still failed after three tries (Farfetch answers too many requests with 429)`;
+    blocked = `${url.replace(location.origin, "")} didn't load (Farfetch answers too many requests with 429 and keeps blocking for an hour or more)`;
     return null;
   }
   // The JSON-LD nodes of a page, with those of an @graph
@@ -824,19 +824,18 @@ async function farfetch(tag: string, categories: string[], queries: string[], br
   const listed = await inTab(tag, site, inFarfetch, { lists, brands, match, items: [], pause });
   const searched = listed.searched;
   if (listed.blocked) searched.push(`lists stopped early: ${listed.blocked}`);
-  // Product pages in runs of 30, each well within a tab.ts call's time limit; after a block, one
-  // more try a minute later
+  // Product pages in runs of 30, each well within a tab.ts call's time limit, until a block
   const items: FarfetchItem[] = [];
   const failed: FarfetchItem[] = [];
   let todo = listed.items;
-  for (let waits = 0; todo.length; ) {
+  while (todo.length && !listed.blocked) {
     const r = await inTab(tag, site, inFarfetch, { lists: [], brands, match, items: todo.slice(0, 30), pause });
     items.push(...r.items.filter(i => i.read));
     failed.push(...r.items.filter(i => i.tried && !i.read));
     todo = [...r.items.filter(i => !i.tried), ...todo.slice(30)];
     if (r.blocked) {
-      if (++waits > 1) break;
-      await Bun.sleep(60_000);
+      searched.push(`product pages stopped: ${r.blocked}`);
+      break;
     }
   }
   const unread = [...failed, ...todo];

@@ -10,7 +10,20 @@ folder it gives (the folder above this file). For each shop, read its notes file
 
 When your brief gives a scan's output file, the scan has already run: don't run it again. Judge
 the candidates in that file and save them as below, and use the browser only for the few that its
-lines can't settle.
+lines can't settle, within your check budget.
+
+## Check budget
+
+A scan has already read what judging needs: only listings for sale, with their price, condition,
+size, material, colour and title, and for most shops what their product page says. So decide from
+the lines, and open a listing page or a photo sheet (`scripts/sheet.ts`) only where a line can't
+settle the candidate: no size in a search where size decides, a title that contradicts its model
+code, a price far below the rest, or a group whose lines disagree. Your brief gives the budget,
+such as 15 listing pages and 4 photo sheets of 24; spend it on the likeliest matches first. Every
+page or sheet you open costs 15 seconds or so and a share of your context: in a run without a
+budget, agents with 31 and with 422 candidates each spent about 15 minutes, most of it opening
+listings the scan had already read. When the budget is spent, save what's settled and list the
+rest under UNVERIFIED, each with what's unclear about it.
 
 ## Scan first
 
@@ -138,8 +151,9 @@ a human check yourself. If one stays, or the shop wants a sign-in, report the sh
   group), which prints the sheets' paths and a legend of number, id, price and title.
 - Check the likely matches first and the near matches last, so that if time runs out, only near
   matches are left unchecked.
-- Aim to finish within about ten minutes. At fifteen, the agent that started you asks you to stop,
-  and three minutes later it stops you: whatever you saved is kept, the rest is lost.
+- Aim to finish within about five minutes when you judge a scan, and ten when you search a shop
+  in the browser. At fifteen, the agent that started you asks you to stop, and three minutes
+  later it stops you: whatever you saved is kept, the rest is lost.
 
 ## Search a shop without a scan
 
