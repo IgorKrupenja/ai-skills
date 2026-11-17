@@ -48,7 +48,10 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
     variant         such as "Damier Ebene": the page draws a card per variant with its count,
                     lowest and median price, and a click on a card filters the table to it
     image           a photo of the listing, as a path published next to the page such as
-                    "img/123.jpg": the page shows it as a thumbnail that opens the listing
+                    "img/123.jpg": the page shows it as a thumbnail that opens the listing.
+                    Listings whose photos are the same file get a note linking each other (often
+                    one item listed by several shops), and a risk when they ship from different
+                    countries
 
 and the run has one page object:
 
@@ -315,9 +318,32 @@ async function main(argv: string[]): Promise<number> {
       note: text(listing.note),
       variant: text(listing.variant),
       image: text(listing.image),
+      same: [] as { url: string; shop: string; price: number | null }[],
       group,
     };
   });
+
+  // Listings whose photos are the same file, often one item listed by several shops or a seller
+  // using someone else's photos: each links the others, and a group shipping from different
+  // countries gets a risk
+  const folder = source.includes("/") ? source.replace(/\/[^/]*$/, "") : ".";
+  const byPhoto = new Map<string, typeof rows>();
+  for (const row of rows) {
+    if (!row.image) continue;
+    const file = Bun.file(`${folder}/${row.image}`);
+    const photo = row.image.startsWith("data:") ? row.image : (await file.exists()) ? await file.bytes() : null;
+    if (!photo) continue;
+    const hash = Bun.hash(photo).toString(36);
+    byPhoto.set(hash, [...(byPhoto.get(hash) ?? []), row]);
+  }
+  const shared = [...byPhoto.values()].filter(group => group.length > 1);
+  for (const group of shared) {
+    const countries = new Set(group.map(row => countryCode(row.ships)).filter(Boolean));
+    for (const row of group) {
+      row.same = group.filter(other => other !== row).map(({ url, shop, price }) => ({ url, shop, price }));
+      if (countries.size > 1 && !row.risk) row.risk = ru ? "то же фото у объявлений из разных стран" : "the same photo is on listings shipping from different countries";
+    }
+  }
 
   const data = {
     lang,
@@ -347,7 +373,6 @@ async function main(argv: string[]): Promise<number> {
       .replace("/*REPORT*/", () => JSON.stringify(data).replace(/</g, "\\u003c"));
 
   if (values.inline) {
-    const folder = source.includes("/") ? source.replace(/\/[^/]*$/, "") : ".";
     const paths = [...new Set(rows.map(row => row.image).filter(image => image && !image.startsWith("data:")))];
     const room = PAGE_LIMIT - Buffer.byteLength(render());
     const { uris, how } = await inlinePhotos(paths, folder, room);
@@ -359,6 +384,7 @@ async function main(argv: string[]): Promise<number> {
   const size = Buffer.byteLength(html);
   if (size > 16_000_000) console.warn(`the page is ${(size / 1e6).toFixed(1)} MB, more than an Artifact takes (16 MB)`);
 
+  if (shared.length) console.log(`same photo: ${shared.flat().length} listings in ${shared.length} groups, marked on the page`);
   if (unplaced.size) {
     console.warn(`ships_from names no country, so the EU filter keeps these unless non_eu is set: ${[...unplaced].map(([from, n]) => `"${from}" (${n})`).join(", ")}`);
   }

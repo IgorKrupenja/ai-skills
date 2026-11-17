@@ -177,8 +177,10 @@ bun scripts/report.ts <run file> <run file's folder>/<slug>.html
 `photos.ts` saves a small copy of each listing's photo in `img/` next to the run file, finding it
 on the listing's page when the agent gave none, and inside the `ai-skills` browser for shops such
 as Vestiaire that refuse scripts. It prints the files to publish with the page and the listings
-that share a photo: often one bag listed twice, or a seller using someone else's photos. Say so in
-`note` on both, and flag a `risk` when they ship from different countries. A publish takes at most
+that share a photo: often one bag listed by several shops, or a seller using someone else's
+photos. `report.ts` marks those itself, with a note on each linking the others and a `risk` when
+they ship from different countries; add a `risk` yourself where a group looks like a seller using
+someone else's photos. A publish takes at most
 255 files, so when there are more photos than that (`photos.ts` says so), build the page with
 `report.ts --inline`, which puts the photos into the page itself (as saved while they fit in its
 16 MB, else as smaller AVIF copies), and publish the page alone, without `files`.

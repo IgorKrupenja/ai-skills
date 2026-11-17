@@ -16,7 +16,7 @@ are read inside the ai-skills browser instead, so it must be open (browser.ts op
 
 It then prints the files to publish with the page, as the JSON list the Artifact tool's files
 takes with root set to the run file's folder, and the listings that share a photo: often one bag
-listed twice, or a seller using someone else's photos.
+listed twice, or a seller using someone else's photos. report.ts marks those on the page.
 `;
 
 const WIDTH = 320;
