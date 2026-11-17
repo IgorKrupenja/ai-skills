@@ -373,7 +373,8 @@ async function main(argv: string[]): Promise<number> {
   // A country in the page's language, whatever language the agent gave it in; other text as given
   const unplaced = new Map<string, number>();
   const ships = (from: string) => {
-    if (!from) return ru ? "не указано" : "not stated";
+    // Also "not stated (via Paris, ...)": the page says it in its own language
+    if (!from || /^not stated\b/i.test(from)) return ru ? "не указано" : "not stated";
     const code = countryCode(from);
     if (!code && !/^(not stated|не указано|unknown|in store\b)/i.test(from)) unplaced.set(from, (unplaced.get(from) ?? 0) + 1);
     // Just the country, so the column sorts and reads alike whatever town or region a shop adds

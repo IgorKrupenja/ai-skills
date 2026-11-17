@@ -149,6 +149,8 @@ details .hint { margin-top: 8px; }
 .notes p { margin: 0; }
 .eyebrow { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .hero { margin-top: 14px; }
+/* The item's illustration: small, whatever size its SVG gives */
+.hero svg { display: block; width: min(220px, 60vw); height: auto; max-width: 100%; }
 .variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .variant { font: inherit; color: inherit; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; display: grid; gap: 4px; align-content: start; min-width: 0; }
 .variant:hover, .variant[aria-pressed="true"] { border-color: var(--accent); }
