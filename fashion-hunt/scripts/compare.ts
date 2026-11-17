@@ -33,12 +33,14 @@ sell now and words that pick a variant:
      "rest": {"name": "Canvas not stated"},
      "not_listed": "not currently listed by Louis Vuitton"}
 
-A listing whose item or code names an item's code gets that item. Otherwise its variant is the
+A listing whose item or code names an item's code gets that item, a code of several words
+(Pasotti's "460N 21065-71 G15") included. Otherwise its variant is the
 one whose name or match words its item or code contains, the words the fewest listings have
 winning (so "Monogram Eclipse" beats "Monogram", and "Nigo" beats "black leather"), and never
 one whose not words it has, such as {"name": "Monogram Macassar", ..., "not": ["heritage"]}. It
-gets the price of that variant's item whose colour it names, or else of its cheapest item, and
-a new_note saying how it differs. A variant's price_of (a code) prices it by that item instead.
+gets the price of that variant's item whose name shares its most telling words (the fewer items
+have a word, the more it counts, so a "horse head" handle picks Pasotti's horse umbrella), then
+whose colour it names, or else of its cheapest item, and a new_note saying how it differs. A variant's price_of (a code) prices it by that item instead.
 A variant without items gets its new_note, or not_listed. Listings no variant fits go to rest
 when the spec has one; the rest are printed with the words they share most, to add to the spec
 before running it again. So are the listings picked by words though their item names another
@@ -162,15 +164,30 @@ function pick(text: string, variants: Variant[], seen: (phrase: string) => numbe
   return { v: best?.v, by: best?.w, over: named.filter(v => v !== best?.v).map(v => v.name) };
 }
 
-/** The item of a variant whose colour words the text has most of, else its cheapest; the same
- * colour only when the text has all of them, and oneColor when the item's colour is just the
- * variant's name */
-function closest(text: string, v: Variant): { item: BrandItem; sameColor: boolean; oneColor: boolean } {
+/** The item of a variant whose name shares the most telling words with the text, then whose
+ * colour words it has most of, else its cheapest; the same colour only when the text has all of
+ * the item's colour words, and oneColor when the item's colour is just the variant's name. seen
+ * counts the listings that have a word. */
+function closest(text: string, v: Variant, seen: (phrase: string) => number): { item: BrandItem; sameColor: boolean; oneColor: boolean } {
   const nameWords = new Set(norm(v.name).trim().split(" "));
   const colorWords = (it: BrandItem) => norm(it.color).trim().split(" ").filter(w => w.length > 2 && !nameWords.has(w));
   const score = (it: BrandItem) => colorWords(it).filter(w => text.includes(` ${w} `)).length;
+  // The item's name words the text has, each counting more the fewer of the variant's items and of
+  // the listings have it, so a model or handle ("Marellini", "horse") outweighs what many share
+  // ("double cloth", or the "head" of every listed animal-head handle). Its colour is left to the
+  // colour field, and joining words don't count.
+  const joining = new Set(["with", "and", "the", "for", "from", "into", "con", "per"]);
+  const nameWordsOf = (it: BrandItem) => {
+    const own = new Set(colorWords(it));
+    return new Set(norm(it.item).trim().split(" ").filter(w => w.length > 2 && !nameWords.has(w) && !own.has(w) && !joining.has(w)));
+  };
+  const df = new Map<string, number>();
+  for (const it of v.items) for (const w of nameWordsOf(it)) df.set(w, (df.get(w) ?? 0) + 1);
+  const named = (it: BrandItem) => [...nameWordsOf(it)].filter(w => text.includes(` ${w} `)).reduce((sum, w) => sum + 1 / (df.get(w)! * Math.max(1, seen(w))), 0);
   const cheap = (a: BrandItem, b: BrandItem) => (a.price_eur ?? Infinity) - (b.price_eur ?? Infinity);
-  const ranked = [...v.items].sort((a, b) => score(b) - score(a) || Number(b.orderable !== false) - Number(a.orderable !== false) || cheap(a, b));
+  // The name first, so a "chihuahua head" handle on white dots finds Pasotti's chihuahua umbrella
+  // rather than its polka-dot one, then the colour
+  const ranked = [...v.items].sort((a, b) => named(b) - named(a) || score(b) - score(a) || Number(b.orderable !== false) - Number(a.orderable !== false) || cheap(a, b));
   const item = ranked[0]!;
   const words = colorWords(item).length;
   return { item, sameColor: words > 0 && score(item) === words, oneColor: words === 0 };
@@ -199,6 +216,8 @@ async function compare(runFile: string, specFile: string | undefined, dry: boole
   const P = PHRASES[run.page?.lang === "ru" ? "ru" : "en"];
   const byCode = new Map(items.filter(it => it.code).map(it => [norm(it.code).trim(), it]));
   const codeOf = (code: string | undefined) => (code ? byCode.get(norm(code).trim()) : undefined);
+  // Codes of several words, such as Pasotti's "460N 21065-71 G15", looked for as phrases, longest first
+  const phrases = [...byCode].filter(([code]) => code.includes(" ")).sort(([a], [b]) => b.length - a.length);
   const counts = { code: 0, words: 0, rest: 0, none: 0 };
   const unmatched: Listing[] = [];
   const texts = run.listings.map(l => norm(`${l.item} ${l.code ?? ""}`));
@@ -221,7 +240,7 @@ async function compare(runFile: string, specFile: string | undefined, dry: boole
     delete l.new_price_eur;
     delete l.new_url;
     delete l.new_note;
-    const named = text.trim().split(" ").map(w => byCode.get(w)).find(Boolean);
+    const named = text.trim().split(" ").map(w => byCode.get(w)).find(Boolean) ?? phrases.find(([code]) => text.includes(` ${code} `))?.[1];
     let v: Variant | undefined;
     let item: BrandItem | undefined;
     let note: string | undefined;
@@ -246,7 +265,7 @@ async function compare(runFile: string, specFile: string | undefined, dry: boole
         item = priced;
         note = v.new_note;
       } else if (v.items.length) {
-        const c = closest(text, v);
+        const c = closest(text, v, seen);
         item = c.item;
         note = c.sameColor ? P.sameColor(c.item.color!) : c.oneColor ? P.sameVariant : P.closest(c.item.color!);
       } else note = v.new_note ?? spec.not_listed ?? P.notListed;
