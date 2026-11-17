@@ -7,8 +7,9 @@ bun <skill dir>/scripts/scan.ts ebay --tag <tag> --query "louis vuitton marelle"
 ```
 
 It reads the search cards for each query (Buy It Now only, up to the count in the results
-heading, auctions left out) and prints a line per card: id, price, condition, ships from, title.
-Classify from the lines, by LV's model code where the title has one, and save in batches. For the
+heading, auctions left out) and prints a line per card: id, price, condition, ships from, title
+and the model code in it. Six in ten of the Marelle cards carried a code in November 2026: save
+each code as a whole, then classify the rest from their titles and save in batches. For the
 cards a line can't settle, read their item pages with `--ids <id>,...`: the condition grade, item
 specifics (material, colour, measurements), where it ships from and returns. eBay answers 403
 after about 15 item pages, whether 1.5 or 4 seconds apart, and lifts the block within about ten

@@ -20,7 +20,9 @@ add to a cart, wishlist or newsletter. On a cookie banner, pick the most privacy
 - A reseller's or department store's price isn't the retail price.
 - List every item the brand sells now that matches the request, and the nearest current
   equivalents (same model in another material or edition, say). For each, give the name, the color
-  and material as the product page states them, the price, whether it can be ordered, and the link.
+  and material as the product page states them, the model code where the brand has one (Louis
+  Vuitton's M80689, the end of its product URL), the price, whether it can be ordered, and the
+  link.
 - If the brand doesn't sell the item now, say so; don't estimate a price. Older models that the
   resale listings may carry (a past collaboration or season) count as not currently listed.
 - Search through the brand site's own search and category filters, not a search engine.
@@ -46,7 +48,7 @@ Reply with this and nothing else:
 BRAND: <name>
 STORE: <store used, currency> <link>
 ITEMS: none, or
-| Link | Item / variant | Color and material | Price | Can be ordered |
+| Link | Item / variant | Color and material | Code | Price | Can be ordered |
 NOT LISTED: <requested variants the brand doesn't sell now>
 NOTES: anything left unverified
 ```

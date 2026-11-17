@@ -24,7 +24,10 @@ add    saves listings (a JSON object or list, from file or stdin) in <run dir>/l
        reason) and note. With --scan, a listing may give the id of a candidate in that scan file
        instead of url, and takes the price, condition, size, ships from and photo from it; fields
        it gives itself win, so {"id": "73224341", "kind": "match", "item": "Marelle BB, Epi
-       leather, Quartz"} is enough. A country in ships_from sets non_eu, whatever it said.
+       leather, Quartz"} is enough. A listing may give a model code instead of an id, such as
+       {"code": "M80689", "kind": "match", "item": "Marelle, Epi Noir"}: it stands for every
+       candidate the scan marked with that code, except those given by id. A country in
+       ships_from sets non_eu, whatever it said.
 show   prints how many listings each shop has saved.
 merge  adds every saved listing to the run file's listings: one already there by link gets the
        agent's fields (price, condition and so on) and keeps the rest (group, variant, new price).
@@ -77,12 +80,24 @@ async function add(runDir: string, shop: string, scanPath: string | undefined, s
   const given = (Array.isArray(data) ? data : [data]) as Record<string, unknown>[];
   const scan = scanPath ? ((await Bun.file(scanPath).json()) as ScanFile) : null;
   const byId = new Map<string, Candidate>((scan?.candidates ?? []).map(c => [String(c.id), c]));
-  const listings = given.map((entry, i) => {
+  // A model code stands for every candidate marked with it that isn't given by id
+  const byCode = new Map<string, Candidate[]>();
+  for (const c of scan?.candidates ?? []) if (c.code) byCode.set(c.code, [...(byCode.get(c.code) ?? []), c]);
+  const explicit = new Set(given.filter(e => e.id !== undefined).map(e => String(e.id)));
+  const entries = given.flatMap((entry, i) => {
+    if (entry.code === undefined || entry.id !== undefined || entry.url !== undefined) return [entry];
+    const code = String(entry.code).toUpperCase();
+    const matching = (byCode.get(code) ?? []).filter(c => !explicit.has(String(c.id)));
+    if (!matching.length) die(`listing ${i + 1}: no candidate with code ${code} in ${scanPath ?? "a scan file (give it with --scan)"}`);
+    const { code: _code, ...rest } = entry;
+    return matching.map(c => ({ ...rest, id: c.id }));
+  });
+  const listings = entries.map((entry, i) => {
     let listing = entry;
     if (entry.id !== undefined && entry.url === undefined) {
       const c = byId.get(String(entry.id));
       if (!c) die(`listing ${i + 1}: no candidate with id ${entry.id} in ${scanPath ?? "a scan file (give it with --scan)"}`);
-      const { id: _id, title, description: _d, brand: _b, seller: _s, listed: _l, color: _c, material: _m, ...fields } = c;
+      const { id: _id, title, description: _d, brand: _b, seller: _s, listed: _l, color: _c, material: _m, model: _model, ...fields } = c;
       listing = { ...fields, item: title, ...entry };
       delete listing.id;
     }

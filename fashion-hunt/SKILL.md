@@ -123,6 +123,11 @@ so don't use it here.
    `references/shop-agent.md` shows): if it's still for sale, this run missed it, so add it back to
    the file and say so; otherwise note it as sold or removed. Then write the report (below), and
    once its page is published, save the run with `bun scripts/history.ts record <slug> <file>`.
+7. Teach the brand's code table, `references/codes/<brand slug>.json` (Louis Vuitton's has the
+   Marelle family): add the model codes this run settled, from the brand agent's current range
+   and from listings whose photo or page confirmed what their code is, and fix any the agents
+   found wrong, so the next scan sorts more listings by itself. Commit it, since the table is
+   part of the skill.
 
 Where subagents aren't available, search the shops one at a time yourself, following
 `references/shop-agent.md` and then `references/brand-agent.md`.

@@ -38,6 +38,14 @@ JSON
 With many candidates, classify and save them in batches of 20 to 50 as you go: an agent that
 meant to save 400 listings at the end was stopped with none saved.
 
+When the scan found the brand's model codes (such as Louis Vuitton's M80689 in a title), its
+output starts with a count per code and what the brand's code table says each one is. Judge a
+whole code at once and save it in one entry, `{"code": "M80689", "kind": "match", "item":
+"Marelle, Epi Noir"}`, which stands for every candidate with that code except those you give by
+id; then go through the candidates without a code. A code the table doesn't know, or one whose
+candidates disagree with it, is worth a look at the photo, and worth a line in your NOTES so the
+table can learn it.
+
 A scan candidate needs only its id, kind (`match` or `near`), the item (model, material and colour,
 specific enough to compare with the brand's range) and, for a near match, what it misses; add
 `risk` (an authenticity flag with its reason) and `note` when there's something to say. A listing

@@ -64,9 +64,11 @@ ebay        eBay.de's search cards for each --query, Buy It Now only and up to t
             pages, whether 1.5 or 4 seconds apart, and lifts the block within about ten minutes,
             so read item pages for a few cards only.
 
-Prints one line per candidate: id | price | condition | ships from | title | details. Agents
-save their picks by id with scripts/listings.ts add --scan <out file>, so they don't retype
-fields.
+Prints one line per candidate: id | price | condition | ships from | title | details | model
+code. A code is the brand's model code in the title or description, such as Louis Vuitton's
+M80689, with what references/codes/<brand>.json says it is, and the lines start with a count per
+code. Agents save their picks by id, or a whole code at once, with scripts/listings.ts add --scan
+<out file>, so they don't retype fields.
 `;
 
 const TAB = `${import.meta.dir}/tab.ts`;
@@ -109,6 +111,9 @@ export type Candidate = {
   listed?: string;
   /** Anything that changes whether or how it can be bought: a buyer fee, reserved, not for sale */
   note?: string;
+  /** The brand's model code in its title or description, such as M80689, and what the code table says it is */
+  code?: string;
+  model?: string;
 };
 
 export type ScanFile = { shop: string; scanned_at: string; searched: string[]; candidates: Candidate[] };
@@ -1014,13 +1019,66 @@ async function yaga(brands: string[], query: string | null, match: RegExp | null
   return { shop: "yaga", scanned_at: new Date().toISOString(), searched, candidates };
 }
 
+// --- Model codes --------------------------------------------------------------------------------
+
+type CodeEntry = { model: string; collab?: string; material?: string; colour?: string; current?: string; note?: string };
+type CodeTable = { brand: string; pattern: string; codes: Record<string, CodeEntry> };
+
+/** The brands' model code tables in references/codes/, such as louis-vuitton.json. */
+async function codeTables(): Promise<{ re: RegExp; codes: Record<string, CodeEntry> }[]> {
+  const folder = `${import.meta.dir}/../references/codes`;
+  const names = await Array.fromAsync(new Bun.Glob("*.json").scan({ cwd: folder })).catch(() => [] as string[]);
+  return Promise.all(names.map(async name => {
+    const table: CodeTable = await Bun.file(`${folder}/${name}`).json();
+    return { re: new RegExp(table.pattern, "gi"), codes: table.codes };
+  }));
+}
+
+/** What a code table says a code is, such as "Marelle, Epi, Noir (black)". */
+const describeCode = (e: CodeEntry) => [e.model, e.collab, e.material, e.colour].filter(Boolean).join(", ") + (e.current ? `; in the brand's range ${e.current}` : "");
+
+/**
+ * Mark each candidate with the first model code in its title or description that a table knows,
+ * or else the first that looks like one, so an agent can judge a whole code at once.
+ */
+async function markCodes(candidates: Candidate[]): Promise<void> {
+  const tables = await codeTables();
+  for (const c of candidates) {
+    const text = `${c.title} ${c.description ?? ""}`;
+    let unknown: string | undefined;
+    for (const { re, codes } of tables) {
+      for (const m of text.matchAll(re)) {
+        const code = m[0].toUpperCase();
+        if (codes[code]) {
+          c.code = code;
+          c.model = describeCode(codes[code]);
+          break;
+        }
+        unknown ??= code;
+      }
+      if (c.code) break;
+    }
+    if (!c.code && unknown) c.code = unknown;
+  }
+}
+
+/** One line per code: how many candidates have it and what it is, then those without one. */
+function codeSummary(candidates: Candidate[]): string[] {
+  const byCode = new Map<string, Candidate[]>();
+  for (const c of candidates) if (c.code) byCode.set(c.code, [...(byCode.get(c.code) ?? []), c]);
+  if (!byCode.size) return [];
+  const lines = [...byCode].sort((a, b) => b[1].length - a[1].length).map(([code, cs]) => `${code} ×${cs.length}: ${cs[0]!.model ?? "not in the code table"}`);
+  return [...lines, `no code ×${candidates.filter(c => !c.code).length}`];
+}
+
 // --- Output -------------------------------------------------------------------------------------
 
 function line(c: Candidate): string {
   const price = c.price_eur !== undefined ? `€${c.price_eur}` : c.price !== undefined ? `${c.price} ${c.currency}` : "price?";
   const ships = c.ships_from === "not stated" ? "?" : (c.ships_from ?? "?").replace(/ \(.*\)$/, "");
   const details = [c.material, c.color, c.size, c.note].filter(Boolean).join("; ");
-  return `${c.id} | ${price} | ${c.condition ?? "?"} | ${ships}${c.non_eu ? " (non-EU)" : ""} | ${c.title}${details ? ` | ${details}` : ""}`;
+  const code = c.code ? ` | ${c.code}: ${c.model ?? "not in the code table"}` : "";
+  return `${c.id} | ${price} | ${c.condition ?? "?"} | ${ships}${c.non_eu ? " (non-EU)" : ""} | ${c.title}${details ? ` | ${details}` : ""}${code}`;
 }
 
 async function main(): Promise<number> {
@@ -1097,9 +1155,12 @@ async function main(): Promise<number> {
   } else {
     die(`no scanner for ${shop}: the shops are shopify, vestiaire, jolicloset, yaga, farfetch and ebay`);
   }
+  await markCodes(result.candidates);
   const out = values.out ?? `${(Bun.env.TMPDIR ?? "/tmp").replace(/\/$/, "")}/fashion-hunt/scan-${shop}-${Date.now()}.json`;
   await Bun.write(out, JSON.stringify(result, null, 1));
   for (const s of result.searched) console.log(`# ${s}`);
+  const codes = codeSummary(result.candidates);
+  if (codes.length) console.log(`# model codes:\n${codes.map(l => `#   ${l}`).join("\n")}`);
   console.log(`# ${result.candidates.length} candidates, sorted by price; all fields saved in ${out}`);
   const price = (c: Candidate) => c.price_eur ?? c.price ?? Infinity;
   for (const c of [...result.candidates].sort((a, b) => price(a) - price(b))) console.log(line(c));
