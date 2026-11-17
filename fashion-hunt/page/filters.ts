@@ -28,6 +28,17 @@ export function cheapEnough(r: Row, below: Below): boolean {
   return below === "below" ? r.price < r.newPrice : r.price <= r.newPrice * SHARE[below];
 }
 
+/** The ships-from filter's options for listings that name no country, outside the EU or not */
+export const OUTSIDE = "_outside";
+export const NONE = "_none";
+const IN_STORE = /^(in store|в магазине)\b/i;
+
+/**
+ * A listing's option in the ships-from filter: its country, or for one that names none, the store
+ * it's in, or whether it's known to be outside the EU
+ */
+export const shipKey = (r: Row) => r.country || (IN_STORE.test(r.ships) ? r.ships : r.nonEU ? OUTSIDE : NONE);
+
 /** The filter pills: one per filterable column, and More for the switches */
 export type Facet = "shop" | "cond" | "size" | "price" | "new" | "diff" | "ships" | "more";
 
@@ -43,8 +54,8 @@ export type Filters = {
   price: Range;
   newPrice: Range;
   below: Below;
+  /** Ships-from options, as shipKey gives them */
   ships: Set<string>;
-  eu: boolean;
   norisk: boolean;
   norepeat: boolean;
   sortKey: SortKey;
@@ -64,7 +75,6 @@ export function defaults(group: string): Filters {
     newPrice: OPEN,
     below: "below",
     ships: new Set(),
-    eu: false,
     norisk: false,
     norepeat: true,
     sortKey: "price",
@@ -91,7 +101,7 @@ export function passes(r: Row, f: Filters, anyGroup: boolean, skip?: Facet | "va
   if (skip !== "price" && !inRange(r.price, f.price)) return false;
   if (skip !== "new" && !inRange(r.newPrice, f.newPrice)) return false;
   if (skip !== "diff" && !cheapEnough(r, f.below)) return false;
-  if (skip !== "ships" && ((f.eu && r.nonEU) || (f.ships.size && !f.ships.has(r.ships)))) return false;
+  if (skip !== "ships" && f.ships.size && !f.ships.has(shipKey(r))) return false;
   if (skip !== "more" && f.norisk && r.risk) return false;
   return true;
 }
@@ -147,7 +157,17 @@ const SHARED_KEY = "fashion-hunt-filters";
 export const storageKey = (report: Report) => `${SHARED_KEY}:${report.title}`;
 
 /** What the filters can be on this page, so a saved choice that no longer fits is dropped */
-export type Choices = { groups: string[]; variants: string[]; shops: string[]; conds: string[]; sizes: string[]; ships: string[]; sortKeys: SortKey[] };
+export type Choices = {
+  groups: string[];
+  variants: string[];
+  shops: string[];
+  conds: string[];
+  sizes: string[];
+  ships: string[];
+  /** The ships-from options not known to be outside the EU, which an old "EU only" switch kept */
+  inside: string[];
+  sortKeys: SortKey[];
+};
 
 /** The filters saved last time, where they still fit this page */
 export function loadFilters(key: string, base: Filters, choices: Choices): Filters {
@@ -169,13 +189,14 @@ export function loadFilters(key: string, base: Filters, choices: Choices): Filte
     f.conds = new Set(list(saved.conds).filter(among(choices.conds)));
     f.sizes = new Set(list(saved.sizes).filter(among(choices.sizes)));
     f.ships = new Set(list(saved.ships).filter(among(choices.ships)));
+    // Pages from before the countries could be picked had a switch that hid listings from outside the EU, as eu
+    if (saved.eu === true && !f.ships.size) f.ships = new Set(choices.inside);
     f.width = range(saved.width);
     f.price = range(saved.price);
     f.newPrice = range(saved.newPrice);
     // Pages from before the difference filter had a switch for listings below the new price, as cheap
     if (among(BELOW)(saved.below)) f.below = saved.below as Below;
     else if (saved.cheap === false) f.below = "any";
-    f.eu = !!saved.eu;
     f.norisk = !!saved.norisk;
     if (typeof saved.norepeat === "boolean") f.norepeat = saved.norepeat;
     if (among(choices.sortKeys)(saved.sortKey)) f.sortKey = saved.sortKey as SortKey;

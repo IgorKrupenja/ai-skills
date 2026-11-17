@@ -351,6 +351,11 @@ async function main(argv: string[]): Promise<number> {
     if (!code && !/^(not stated|не указано|unknown|in store\b)/i.test(from)) unplaced.set(from, (unplaced.get(from) ?? 0) + 1);
     return code && isCountry(from) ? countryName(code, lang) : from;
   };
+  // Just the country, such as Estonia for "Tartumaa, Estonia", for the ships-from filter
+  const country = (from: string) => {
+    const code = countryCode(from);
+    return code ? countryName(code, lang) : "";
+  };
   if (!Array.isArray(run.listings)) die("the run needs a 'listings' list");
   const seen = new Set<string>();
   // Condition labels the scale doesn't know, with their shops, for a warning after the build
@@ -381,6 +386,7 @@ async function main(argv: string[]): Promise<number> {
       price: price(listing.price_eur),
       priceNote: text(listing.price_note),
       ships: ships(text(listing.ships_from)),
+      country: country(text(listing.ships_from)),
       nonEU: outsideEU(listing.ships_from, listing.non_eu),
       newPrice: price(listing.new_price_eur),
       newUrl: text(listing.new_url),

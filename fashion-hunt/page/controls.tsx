@@ -32,6 +32,58 @@ export function CheckList({ options, picked, onChange, T }: { options: Option[];
   );
 }
 
+export type OptionGroup = { id: string; label: string; options: Option[] };
+
+/**
+ * Options in groups, each under a box that ticks or clears the whole group, then options in no
+ * group. Whatever is ticked adds up, so a group and a loose option can be picked together.
+ */
+export function GroupedChecks({ groups, loose, picked, onChange }: { groups: OptionGroup[]; loose: Option[]; picked: Set<string>; onChange: (next: Set<string>) => void }) {
+  const set = (ids: string[], on: boolean) => {
+    const next = new Set(picked);
+    for (const id of ids) {
+      if (on) next.add(id);
+      else next.delete(id);
+    }
+    onChange(next);
+  };
+  const option = (o: Option, nested: boolean) => (
+    <label key={o.id} className={`opt${nested ? " nested" : ""}${o.count || picked.has(o.id) ? "" : " none"}`}>
+      <input type="checkbox" checked={picked.has(o.id)} onChange={e => set([o.id], e.target.checked)} />
+      <span className="lbl">{o.label ?? o.text}</span>
+      <span className="n">{o.count}</span>
+    </label>
+  );
+  return (
+    <div className="opts">
+      {groups
+        .filter(g => g.options.length)
+        .map(g => {
+          const ids = g.options.map(o => o.id);
+          const ticked = ids.filter(id => picked.has(id)).length;
+          return (
+            <div key={g.id} className="group" role="group" aria-label={g.label}>
+              <label className="opt head">
+                <input
+                  type="checkbox"
+                  checked={ticked === ids.length}
+                  ref={el => {
+                    if (el) el.indeterminate = ticked > 0 && ticked < ids.length;
+                  }}
+                  onChange={() => set(ids, ticked < ids.length)}
+                />
+                <span className="lbl">{g.label}</span>
+                <span className="n">{g.options.reduce((sum, o) => sum + o.count, 0)}</span>
+              </label>
+              {g.options.map(o => option(o, true))}
+            </div>
+          );
+        })}
+      {loose.map(o => option(o, false))}
+    </div>
+  );
+}
+
 /** Options of which one is picked, each with how many listings it leaves */
 export function Choice<K extends string>({ name, options, picked, onPick }: { name: string; options: { id: K; label: string; count: number }[]; picked: K; onPick: (id: K) => void }) {
   return (

@@ -18,7 +18,8 @@ export function App({ report: R }: { report: Report }) {
       shops: S.shops,
       conds: R.conditionOrder,
       sizes: R.sizeOrder,
-      ships: S.ships.map(s => s.name),
+      ships: [...S.ships.eu, ...S.ships.outside, ...S.ships.other],
+      inside: [...S.ships.eu, ...S.ships.other],
       sortKeys: S.sortKeys,
     }),
   );

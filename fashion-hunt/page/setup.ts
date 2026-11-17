@@ -1,6 +1,6 @@
 /** What the report page works out from the report once: its words, formats, tabs, options and sortable columns. */
 
-import { ALL, sortsFor, type SortKey } from "./filters.ts";
+import { ALL, NONE, OUTSIDE, shipKey, sortsFor, type SortKey } from "./filters.ts";
 import { TEXT } from "./text.ts";
 import type { Dims, Group, Report, Row } from "./types.ts";
 
@@ -48,6 +48,16 @@ export function setup(R: Report) {
   const present = GRADES.filter(g => R.conditionOrder.includes(g));
   const better = present.slice(1, -1).map(grade => ({ grade, conds: present.slice(0, present.indexOf(grade) + 1) }));
 
+  // The ships-from options: the EU countries, those outside it, then listings that name no country
+  const outside = new Set(R.rows.filter(r => r.nonEU).map(shipKey));
+  const keys = byCount(R.rows.map(shipKey));
+  const ships = {
+    eu: keys.filter(k => !outside.has(k) && R.rows.some(r => r.country === k)),
+    outside: keys.filter(k => outside.has(k)),
+    other: keys.filter(k => !outside.has(k) && !R.rows.some(r => r.country === k)),
+  };
+  const shipLabel = (k: string) => (k === NONE ? T.notStated : k === OUTSIDE ? T.outsideUnnamed : k);
+
   return {
     T,
     cols,
@@ -63,7 +73,8 @@ export function setup(R: Report) {
     sortKeys,
     better,
     shops: byCount(R.rows.map(r => r.shop)),
-    ships: byCount(R.rows.map(r => r.ships)).map(name => ({ name, nonEU: R.rows.some(r => r.ships === name && r.nonEU) })),
+    ships,
+    shipLabel,
     /** Every listing's value for each range filter, for a scale that stays put as other filters change */
     scales: {
       price: R.rows.map(r => r.price).filter(v => v !== null),
@@ -83,8 +94,7 @@ export function setup(R: Report) {
       price: distinct(R.rows.map(r => r.price)) > 1,
       newPrice: distinct(R.rows.map(r => r.newPrice)) > 1,
       diff: R.rows.some(r => r.price !== null && r.newPrice !== null),
-      ships: new Set(R.rows.map(r => r.ships)).size > 1 || R.rows.some(r => r.nonEU),
-      nonEU: R.rows.some(r => r.nonEU),
+      ships: keys.length > 1,
       risk: R.rows.some(r => r.risk),
       dup: R.rows.some(r => r.dup),
     },

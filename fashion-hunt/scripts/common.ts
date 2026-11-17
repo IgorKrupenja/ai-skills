@@ -13,8 +13,11 @@ export function key(url: string): string {
   return bare.match(/^vinted\.[a-z.]+\/items\/\d+/)?.[0] ?? bare;
 }
 
-/** ISO codes of the EU countries. */
-export const EU = new Set("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE".split(" "));
+/**
+ * ISO codes of the places a parcel comes from into the EU without import VAT or duties: the EU
+ * countries, and Monaco, which is in the EU's customs and VAT area as part of France.
+ */
+export const EU = new Set("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE MC".split(" "));
 
 /** Region codes that aren't countries, such as EU for the European Union. */
 const NOT_COUNTRIES = new Set(["EU", "EZ", "QO", "UN", "ZZ"]);

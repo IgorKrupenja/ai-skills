@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type Ref } from "react";
-import { CheckList, Choice, RangeFilter, Toggle } from "./controls.tsx";
-import { BELOW, cheapEnough, isOpen, type Facet, type Filters, type Range, type SortKey } from "./filters.ts";
+import { CheckList, Choice, GroupedChecks, RangeFilter, Toggle } from "./controls.tsx";
+import { BELOW, cheapEnough, isOpen, shipKey, type Facet, type Filters, type Range, type SortKey } from "./filters.ts";
 import { Panel, useNarrow } from "./Panel.tsx";
 import type { Setup } from "./setup.ts";
 import type { Report, Row } from "./types.ts";
@@ -126,16 +126,21 @@ function pillsFor(R: Report, S: Setup, f: Filters): Pill[] {
     { id: "price", shown: S.has.price, name: cols[4]!, on: !isOpen(f.price), label: `${cols[4]}: ${range(f.price, n => wholeMoney.format(n))}` },
     { id: "new", shown: S.has.newPrice, name: cols[5]!, on: !isOpen(f.newPrice), label: `${cols[5]}: ${range(f.newPrice, n => wholeMoney.format(n))}` },
     { id: "diff", shown: S.has.diff, name: cols[6]!, on: f.below !== "any", label: T.belowPill[f.below] },
-    {
-      id: "ships",
-      shown: S.has.ships,
-      name: cols[7]!,
-      on: f.eu || f.ships.size > 0,
-      label: f.ships.size ? `${cols[7]}: ${[...(f.eu ? [T.euOnly] : []), one(f.ships, s => s)].join(", ")}` : T.euOnly,
-    },
+    { id: "ships", shown: S.has.ships, name: cols[7]!, on: f.ships.size > 0, label: shipsLabel(S, f) },
     { id: "more", shown: S.has.risk || S.has.dup, name: T.more, on: hiding.length > 0, label: hiding.length === 1 ? hiding[0]! : `${T.more}: ${hiding.length}` },
   ];
   return pills.filter(p => p.shown).map(({ shown: _, ...p }) => ({ ...p, label: p.on ? p.label : p.name }));
+}
+
+/** The ships-from pill's value: "EU only" for every EU country, a whole group by its name, else the options or how many */
+function shipsLabel(S: Setup, f: Filters): string {
+  const { T, cols } = S;
+  const whole = (ids: string[]) => ids.length > 0 && ids.every(id => f.ships.has(id));
+  const eu = whole(S.ships.eu), outside = whole(S.ships.outside);
+  const rest = [...f.ships].filter(id => !(eu && S.ships.eu.includes(id)) && !(outside && S.ships.outside.includes(id)));
+  if (eu && !outside && !rest.length) return T.euOnly;
+  const parts = [...(eu ? [T.inEU] : []), ...(outside ? [T.outsideEU] : []), ...rest.map(S.shipLabel)];
+  return `${cols[7]}: ${parts.length <= 3 ? parts.join(", ") : f.ships.size}`;
 }
 
 type BodyProps = { facet: Facet; R: Report; S: Setup; f: Filters; set: (change: Partial<Filters>) => void; rows: Row[] };
@@ -206,26 +211,18 @@ function FacetBody({ facet, R, S, f, set, rows }: BodyProps) {
         </>
       );
     case "ships": {
-      const n = tally(r => [r.ships]);
+      const n = tally(r => [shipKey(r)]);
+      const option = (id: string) => ({ id, text: S.shipLabel(id), count: n.get(id) ?? 0 });
       return (
-        <>
-          {S.has.nonEU ? (
-            <>
-              <label className="opt">
-                <input type="checkbox" checked={f.eu} onChange={e => set({ eu: e.target.checked })} />
-                <span className="lbl">{T.euOnly}</span>
-                <span className="n">{rows.filter(r => !r.nonEU).length}</span>
-              </label>
-              <div className="sep" />
-            </>
-          ) : null}
-          <CheckList
-            T={T}
-            options={S.ships.map(s => ({ id: s.name, text: s.name, label: s.nonEU ? <b>{s.name}</b> : s.name, count: n.get(s.name) ?? 0 }))}
-            picked={f.ships}
-            onChange={ships => set({ ships })}
-          />
-        </>
+        <GroupedChecks
+          groups={[
+            { id: "eu", label: T.inEU, options: S.ships.eu.map(option) },
+            { id: "outside", label: T.outsideEU, options: S.ships.outside.map(option) },
+          ]}
+          loose={S.ships.other.map(option)}
+          picked={f.ships}
+          onChange={ships => set({ ships })}
+        />
       );
     }
     case "more":

@@ -178,3 +178,7 @@ details .hint { margin-top: 8px; }
   .pill, .clear { flex: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/* Ships-from countries under their group, EU or outside it, whose box ticks them all */
+.opt.head .lbl { font-weight: 600; }
+.opt.nested { padding-left: 34px; }
+.group + .group, .group + .opt { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 4px; }
