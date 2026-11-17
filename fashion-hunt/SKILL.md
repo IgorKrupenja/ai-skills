@@ -10,10 +10,11 @@ with what the item costs new from the brand. Most of these shops sell pre-owned 
 the point is to show what can be bought right now and whether the price is good. The item is
 open-ended: use whatever brand, model, type and constraints the user gives.
 
-The search runs in parallel, with a few subagents for the shops and one per brand, each in a browser
-tab of its own, so a full search takes about as long as the slowest shop rather than all of them in
-turn. Scripts do the heavy reading: `scripts/scan.ts` lists the candidates of a whole shop or
-designer in seconds, and agents save what they verify with `scripts/listings.ts`.
+Scripts do the heavy reading: `scripts/scan.ts` lists the candidates of a whole shop or designer
+in seconds, and lists only those an earlier run of the same search hasn't judged. Then a few
+subagents judge the new candidates, search the shops without a scan and find the brand's new
+price, in parallel and each in a browser tab of its own, and save what they verify with
+`scripts/listings.ts`.
 
 Run every command in this file from this skill's folder: `scripts/` is the skill's own scripts
 folder (its `tab.ts` links to skills-kit's), and `../node_modules/skills-kit/` holds the skills
@@ -81,35 +82,44 @@ so don't use it here.
    If it's already open, other chats may be using it, so leave its tabs alone.
 2. Pick a run id of four random lowercase letters, such as `qkzv`, and make a run folder for it
    in the session's scratchpad folder or another temporary one, never in this skill's folder (the
-   repo is public), such as `<scratchpad>/<slug>/`. Agents save their scans and listings there.
-   Each agent's tab tag is the run id plus its shops or brand, such as `qkzv-vinted`.
-3. In a single message, start the agents: in Claude Code, the Agent tool with the general-purpose
-   type and `model: "sonnet"` for shop agents, since the scans do the heavy reading. Every agent
-   pays a fixed cost to start and wakes you when it reports, and the Agent tool runs at most 20 at
-   once, so group the shops:
-   - one agent each for Vestiaire Collective, JoliCloset, Vinted and eBay.de. Vinted has no scan,
-     so when the request names several brands, give it one agent per brand (tab tag
-     `<run id>-<shop slug>-<brand slug>`). eBay.de blocks the browser after a burst of traffic,
-     and three agents on it at once got it blocked, so give it one;
-   - one agent for all the Shopify shops (`references/shops/shopify.md`);
-   - one or two agents for Yaga and the smaller shops, three to five shops each, and for any URL the
+   repo is public), such as `<scratchpad>/<slug>/`. Scans and the agents' listings go there. Each
+   agent's tab tag is the run id plus its shops or brand, such as `qkzv-vinted`.
+3. Run the scans yourself, before any agent starts: they're scripts, and together take a few
+   minutes. The table in `references/shops.md` says which shops have one, and each shop's notes
+   give its command: fill in the request's brand, models and a loose `--match`, and add
+   `--known <slug>`, `--tag <run id>-scan-<shop slug>` where the scan needs a tab, and
+   `--out <run dir>/scan/<shop slug>.json`. Run them in parallel in one background command, each
+   printing to `<run dir>/scan/<shop slug>.txt`, then read only their summary lines with
+   `grep -h '^#' <run dir>/scan/*.txt`: how many new candidates each found, and anything that
+   stopped it. Leave the candidate lines to the agents.
+4. In a single message, start the agents: in Claude Code, the Agent tool with the general-purpose
+   type and `model: "sonnet"` for shop agents. Every agent pays a fixed cost to start and wakes
+   you when it reports, and the Agent tool runs at most 20 at once, so start only the ones there's
+   work for:
+   - for each scan with new candidates, an agent that judges them from its `.txt` file, or two
+     when it has more than about 200, each with half of the lines by price. A scan with no new
+     candidates needs no agent, and you can judge a handful yourself and save them as an agent
+     would (`references/shop-agent.md`);
+   - one agent for Vinted, which has no scan, or one per brand when the request names several
+     (tab tag `<run id>-<shop slug>-<brand slug>`);
+   - one or two agents for the shops without a scan, three to five shops each, and for any URL the
      user pasted;
    - one agent per requested brand for the new price, on the default model.
 
    Fill in the briefs below, giving this skill's folder and the run folder as absolute paths,
    since an agent may start in another folder. Tell the user in one line how many agents are
    searching, then wait for all of them to report, without browsing yourself.
-4. If an agent fails or its report is unusable, start a fresh one for its shops once; if that fails
+5. If an agent fails or its report is unusable, start a fresh one for its shops once; if that fails
    too, report them as not searched. Set a background timer for 15 minutes when you start them.
    At that point, message every agent still running to stop, close its tab and report; stop any
    that hasn't reported 3 minutes later. Agents save each listing as they verify it, so what a
    stopped agent saved is kept: list its shops as partly searched (timed out), or as not searched
    when it saved nothing.
-5. An agent that lists unverified links that may be matches, because it ran out of time, gets a
+6. An agent that lists unverified links that may be matches, because it ran out of time, gets a
    second round: start one more agent for its shop with just those links, on its own 15-minute
    timer. Only what that one can't check either goes into the page's unverified list. When all
    have reported, run `bun scripts/tab.ts cleanup <run id>` to close any tab an agent left open.
-6. Merge the agents' listings into the run file, `<run dir>/run.json`, converting other currencies
+7. Merge the agents' listings into the run file, `<run dir>/run.json`, converting other currencies
    at a current verified rate:
 
    ```bash
@@ -130,7 +140,10 @@ so don't use it here.
 Where subagents aren't available, search the shops one at a time yourself, following
 `references/shop-agent.md` and then `references/brand-agent.md`.
 
-Shop brief:
+Shop brief (for an agent that judges a scan, replace the first line with "Judge the candidates
+that the <shop> scan found for <the request in one line>." and add a line "Scan output: <run
+dir>/scan/<shop slug>.txt, every field in the .json next to it", with the lines it should take
+when two agents share a scan):
 
 ```
 Search <shop names, each with its url> for <the request in one line>.

@@ -8,6 +8,10 @@ Your brief names your shops, the run folder and your tab tag. `<skill dir>` belo
 folder it gives (the folder above this file). For each shop, read its notes file under
 `<skill dir>/references/shops/` (only your shops' files), then search it.
 
+When your brief gives a scan's output file, the scan has already run: don't run it again. Judge
+the candidates in that file and save them as below, and use the browser only for the few that its
+lines can't settle.
+
 ## Scan first
 
 When your shop's notes give a `scripts/scan.ts` command, run it before anything else. It reads
