@@ -121,11 +121,11 @@ async function pace(gap: number): Promise<void> {
 /**
  * GET JSON through curl, spaced out, and try again after a pause when the shop answers 429 (too
  * many requests) or fails. Shopify refuses Bun's own fetch after a burst of requests while it
- * still answers curl, hence curl.
+ * still answers curl, hence curl. Requests start `gap` ms apart, 500 by default for Shopify.
  */
-async function getJson(url: string): Promise<unknown> {
+async function getJson(url: string, gap = 500): Promise<unknown> {
   for (let attempt = 0; ; attempt++) {
-    await pace(500);
+    await pace(gap);
     const res = await Bun.$`curl -sS --compressed --max-time 30 -A ${UA} -H ${"accept: application/json"} -w ${"\n%{http_code}"} ${url}`.quiet().nothrow();
     const out = res.stdout.toString();
     const cut = out.lastIndexOf("\n");
@@ -207,10 +207,12 @@ async function shopifyCatalogue(domain: string, collections: string[]): Promise<
     }
   }
   const products: ShopifyProduct[] = [];
-  for (let page = 1; page <= 200; page++) {
+  for (let page = 1; page <= 100; page++) {
     const batch = page === 1 && first ? first : ((await getJson(`${base}?limit=250&page=${page}`)) as { products: ShopifyProduct[] }).products;
     products.push(...batch);
     if (batch.length < 250) break;
+    // Shopify serves no page past 100
+    if (page === 100) source += ", only its first 25,000 products (Shopify serves no more)";
   }
   const cart = (await getJson(`https://${domain}/cart.js`).catch(() => ({}))) as { currency?: string };
   return { products, currency: cart.currency ?? "EUR", source };
@@ -564,7 +566,7 @@ async function yaga(brands: string[], query: string | null, match: RegExp | null
     if (page.data.list.length < 60) break;
   }
   searched.push(`${found.length} listings${query ? ` for "${query}"` : ""}`);
-  const details = await pool(found, 8, item => getJson(`${site}/api/product/${item.slug}`).then(d => ((d as { data?: YagaProduct }).data ?? d) as YagaProduct, () => null));
+  const details = await pool(found, 8, item => getJson(`${site}/api/product/${item.slug}`, 100).then(d => ((d as { data?: YagaProduct }).data ?? d) as YagaProduct, () => null));
   const candidates: Candidate[] = [];
   found.forEach((item, i) => {
     const d = details[i];

@@ -10,8 +10,10 @@ with what the item costs new from the brand. Most of these shops sell pre-owned 
 the point is to show what can be bought right now and whether the price is good. The item is
 open-ended: use whatever brand, model, type and constraints the user gives.
 
-The search runs in parallel, with one subagent per shop and one per brand, each in a browser tab of
-its own, so a full search takes about as long as the slowest shop rather than all of them in turn.
+The search runs in parallel, with a few subagents for the shops and one per brand, each in a browser
+tab of its own, so a full search takes about as long as the slowest shop rather than all of them in
+turn. Scripts do the heavy reading: `scripts/scan.ts` lists the candidates of a whole shop or
+designer in seconds, and agents save what they verify with `scripts/listings.ts`.
 
 Run every command in this file from this skill's folder: `scripts/` is the skill's own scripts
 folder (its `tab.ts` links to skills-kit's), and `../node_modules/skills-kit/` holds the skills
@@ -40,6 +42,10 @@ never history, cookies or passwords.
 
 A URL the user pastes may be inspected even if its site isn't bookmarked, but that doesn't add the
 site to the search. Mark results from it as coming from outside the bookmarks.
+
+`references/shops.md` says what each bookmarked shop carries (item types and brands) and how to
+search it. Skip a shop that can't have the item, such as YOOX for Louis Vuitton or the bag shops for
+a jacket, and list it in the report's notes as skipped, with why.
 
 ## Read the request
 
@@ -73,31 +79,46 @@ so don't use it here.
    ```
 
    If it's already open, other chats may be using it, so leave its tabs alone.
-2. Pick a run id of four random lowercase letters, such as `qkzv`. Each agent's tab tag is the run
-   id plus its shop or brand, such as `qkzv-vinted`.
-3. In a single message, start one subagent per shop the script printed and per URL the user pasted,
-   plus one per requested brand for the new price: in Claude Code, the Agent tool with the
-   general-purpose type. The big marketplaces, Vinted, Vestiaire Collective, eBay.de and JoliCloset,
-   take the longest, so when the request names several brands, start one agent per brand there instead (tab
-   tag `<run id>-<shop slug>-<brand slug>`). A popular model can have hundreds of listings even
-   for one brand, so split those shops further, such as Vestiaire into its men's catalog and
-   everything else, each agent told which part is its own. eBay.de blocks the browser after a burst
-   of traffic, and three agents on it at once got it blocked, so give it at most two, split by
-   price with `_udlo` and `_udhi`. Fill in the briefs below, giving this skill's folder as an
-   absolute path, since an agent may start in another folder. Tell the user in one line how many
-   agents are searching, then wait for all of them to report, without browsing yourself.
-4. If an agent fails or its report is unusable, start a fresh one for that shop once; if that fails
-   too, report the shop as not searched. Set a background timer for 15 minutes when you start
-   them. At that point, message every agent still running to stop, close its tab and report what it
-   has verified so far; stop any that hasn't reported 3 minutes later and list its shop as not
-   searched (timed out), so one slow shop doesn't hold up the rest.
+2. Pick a run id of four random lowercase letters, such as `qkzv`, and make a run folder for it
+   in the session's scratchpad folder or another temporary one, never in this skill's folder (the
+   repo is public), such as `<scratchpad>/<slug>/`. Agents save their scans and listings there.
+   Each agent's tab tag is the run id plus its shops or brand, such as `qkzv-vinted`.
+3. In a single message, start the agents: in Claude Code, the Agent tool with the general-purpose
+   type and `model: "sonnet"` for shop agents, since the scans do the heavy reading. Every agent
+   pays a fixed cost to start and wakes you when it reports, and the Agent tool runs at most 20 at
+   once, so group the shops:
+   - one agent each for Vestiaire Collective, JoliCloset, Vinted and eBay.de. Vinted and eBay.de
+     have no scan, so when the request names several brands, give them one agent per brand (tab tag
+     `<run id>-<shop slug>-<brand slug>`). eBay.de blocks the browser after a burst of traffic,
+     and three agents on it at once got it blocked, so give it at most two, split by price with
+     `_udlo` and `_udhi`;
+   - one agent for all the Shopify shops (`references/shops/shopify.md`);
+   - one or two agents for Yaga and the smaller shops, three to five shops each, and for any URL the
+     user pasted;
+   - one agent per requested brand for the new price, on the default model.
+
+   Fill in the briefs below, giving this skill's folder and the run folder as absolute paths,
+   since an agent may start in another folder. Tell the user in one line how many agents are
+   searching, then wait for all of them to report, without browsing yourself.
+4. If an agent fails or its report is unusable, start a fresh one for its shops once; if that fails
+   too, report them as not searched. Set a background timer for 15 minutes when you start them.
+   At that point, message every agent still running to stop, close its tab and report; stop any
+   that hasn't reported 3 minutes later. Agents save each listing as they verify it, so what a
+   stopped agent saved is kept: list its shops as partly searched (timed out), or as not searched
+   when it saved nothing.
 5. When all have reported, run `bun scripts/tab.ts cleanup <run id>` to close any tab an agent left
    open.
-6. Compare with the last run: write the merged matches and near matches as JSON to a run file
-   (format in `scripts/history.ts`) and run `bun scripts/history.ts diff <slug> <file>`. Keep the
-   file in the session's scratchpad folder or another temporary one, never in this skill's folder:
-   the repo is public. The diff prints what is new, gone or repriced since the last run of the same
-   search. Open the page of each gone match in a tab of your own (`bun scripts/tab.ts`, used as
+6. Merge the agents' listings into the run file, `<run dir>/run.json`, converting other currencies
+   at a current verified rate:
+
+   ```bash
+   bun scripts/listings.ts merge <run dir>/run.json --rate USD=<EUR per dollar>
+   ```
+
+   Then give each listing its tab (`group`), variant and new price (below), with a short script
+   rather than by retyping listings, and compare with the last run: `bun scripts/history.ts diff
+   <slug> <run file>` prints what is new, gone or repriced since the last run of the same search.
+   Open the page of each gone match in a tab of your own (`bun scripts/tab.ts`, used as
    `references/shop-agent.md` shows): if it's still for sale, this run missed it, so add it back to
    the file and say so; otherwise note it as sold or removed. Then write the report (below), and
    once its page is published, save the run with `bun scripts/history.ts record <slug> <file>`.
@@ -108,12 +129,14 @@ Where subagents aren't available, search the shops one at a time yourself, follo
 Shop brief:
 
 ```
-Search <shop name> (<shop url>) for <the request in one line>.
-Criteria: <item type>; brand <brands and aliases, or the one brand of a split agent>; <audience>;
-<color>; <other constraints>.
+Search <shop names, each with its url> for <the request in one line>.
+Criteria: <item type>; brand <brands and aliases, or the one brand of a split agent>; <model and
+its spellings>; <audience>; <color>; <other constraints>.
 A near match misses exactly one criterion, such as cream instead of white (rules in your file).
-Today is <date>. Your tab tag is <run id>-<shop slug>. Skill folder: <skill dir>.
-First read <skill dir>/references/shop-agent.md and follow it.
+Today is <date>. Run folder: <run dir>. Your tab tag is <run id>-<agent slug>. Skill folder:
+<skill dir>.
+First read <skill dir>/references/shop-agent.md, then your shops' notes: <notes files under
+references/shops/>, and follow them.
 ```
 
 Brand brief:

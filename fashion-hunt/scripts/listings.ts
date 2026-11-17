@@ -113,7 +113,8 @@ async function show(runDir: string): Promise<void> {
 }
 
 async function merge(runFile: string, rates: Map<string, number>): Promise<void> {
-  const run = (await Bun.file(runFile).json()) as { listings?: Listing[] };
+  const file = Bun.file(runFile);
+  const run = ((await file.exists()) ? await file.json() : {}) as { listings?: Listing[] };
   const runDir = runFile.replace(/\/[^/]*$/, "") || ".";
   const listings = run.listings ?? [];
   const at = new Map(listings.map((l, i) => [key(l.url), i]));
