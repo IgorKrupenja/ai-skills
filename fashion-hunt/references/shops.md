@@ -160,7 +160,8 @@ come and go, so none is listed as a shop's range: check a shop's brands live, as
 ### The Shopify shops
 
 `scan.ts shopify` reads all nine at once, by vendor, so it tells itself which carry a brand
-(shopify.md). For a quick look by hand from a shop's own tab (Bam's paths start with `/en-eu`):
+(shopify.md), and `scan.ts shopify --profile --tag <tag>` prints what each has in stock now, by
+vendor and product type, in about a minute. For a quick look by hand from a shop's own tab (Bam's paths start with `/en-eu`):
 `/search/suggest.json?q=<brand or item>&resources[type]=product&resources[options][unavailable_products]=hide`
 lists what's in stock (matching is fuzzy: compare the vendor or title), and `/collections/vendors?q=<Brand>`
 is a 404 when no product ever had that vendor. Brand collections and menu counts are no stock test:
@@ -190,4 +191,5 @@ some keep sold items, some are empty.
   stock only; sales are final.
 - **Collector's Cage** (Copenhagen): pre-owned luxury bags only, with wallets, straps and charms.
   Its Brands menu, in every page's header, gives each brand's count in stock, as does the vendor
-  facet of [/collections/shop](https://collectorscage.com/collections/shop).
+  facet of [/collections/shop](https://collectorscage.com/collections/shop), which misses a few
+  items.

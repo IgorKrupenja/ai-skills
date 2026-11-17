@@ -2,7 +2,7 @@
 
 Curated by NOAR (Tallinn), Affordable Luxury, Queen Station, ReLuxe Room (Sofia), Designer Exchange
 (Dublin), Luxury Helsinki, Labellov (Antwerp), Bam Luxury Store (Barcelona) and Collector's Cage
-(Copenhagen) all run on Shopify, so one scan covers them in about 20 seconds:
+(Copenhagen) all run on Shopify, so one scan covers them in about a minute:
 
 ```bash
 bun <skill dir>/scripts/scan.ts shopify --brand "Louis Vuitton" --brand LV --match marel --tag <tag> --out <run dir>/scan/shopify.json
@@ -11,19 +11,25 @@ bun <skill dir>/scripts/scan.ts shopify --brand "Louis Vuitton" --brand LV --mat
 After a day of scans, all nine shops answered 403 to requests from outside the browser, while the
 same JSON loaded in a tab: with `--tag`, the scan reads any shop that answers 403 in a tab instead.
 
-It reads each shop's brand collection (such as `/collections/louis-vuitton`), or the whole
-catalogue where there's none (brand collections can keep sold items or miss some, as shops.md
-says), keeps products in stock
-whose vendor, title or tags name a `--brand`, and prices them as the shop shows them in euros.
-Without `--match` it lists every in-stock product of the brand, so add one whenever the request
-names a model or type. The scan covers these shops: don't repeat it with their text search or
-browse their other products, unless the request is wider than a brand. If it fails with 403 or
-429, Cloudflare is limiting this machine after many scans: wait a few minutes, or read
-`/collections/<brand>/products.json` with `fetch` from a page of the shop in your tab. Then check
-each candidate's page for what the scan lacks: condition,
-measurements, colour and material, and whether the title is right (Collector's Cage once listed a
-Pochette Florentine as a "Pochette Marelle", and Bam an Easy Pouch On Strap). A product's JSON is
-at `/products/<handle>.js`, and its page's description usually gives condition and measurements.
+It reads each shop's whole catalogue or, for Queen Station, ReLuxe Room, Luxury Helsinki, Labellov
+and Bam, the collection holding all they have in stock (`SHOPIFY` in scan.ts names it): their
+whole catalogues keep thousands of sold products, and Labellov's stops at 25,000 of its 45,000,
+missing hundreds in stock. It keeps products in stock whose vendor, title or tags name a
+`--brand`, and prices them as the shop shows them in euros. Without `--match` it lists every
+in-stock product of the brand, so add one whenever the request names a model or type. The scan
+covers these shops: don't repeat it with their text search or browse their other products, unless
+the request is wider than a brand. If it fails with 403 or 429, Cloudflare is limiting this machine
+after many scans: wait a few minutes, or read `/collections/<handle>/products.json` (or
+`/products.json`) with `fetch` from a page of the shop in your tab. Then check each candidate's
+page for what the scan lacks: condition, measurements, colour and material, and whether the title
+is right (Collector's Cage once listed a Pochette Florentine as a "Pochette Marelle", and Bam an
+Easy Pouch On Strap). A product's JSON is at `/products/<handle>.js`, and its page's description
+usually gives condition and measurements.
+
+If a shop reworks its collections, check them: `scan.ts shopify --profile --tag <tag>` and the
+same with `--full` count the same products in stock, bar services, gift cards and care kits (and
+Labellov, whose whole catalogue is cut short). Where they differ, point the shop's `catalogue` in
+`SHOPIFY` at another collection, or drop it to read the whole catalogue.
 
 - **Own stock:** ReLuxe Room, Designer Exchange, Luxury Helsinki, Labellov, Bam, Queen Station and
   Collector's Cage sell their own stock, so each item ships from the shop's country, and each
@@ -37,7 +43,8 @@ at `/products/<handle>.js`, and its page's description usually gives condition a
   collection: `/collections/louis-vuitton?filter.p.product_type=Belts&filter.v.availability=1`, plus
   `&filter.p.m.custom.colors=White` for a colour. Men's items are tagged "mens" or "miesten".
 - **Collector's Cage:** bags and a few accessories; a "belt" search finds belt bags. It has no brand
-  collections, so the scan reads all 4,000 products (about a minute).
+  collections and keeps no sold products, so the scan reads all 4,100; its `shop` collection misses
+  a few, such as new arrivals and the shop's own straps.
 - **Curated by NOAR, Affordable Luxury:** a text search with no hits still lists other products, so
   count only results that match the brand and item.
 - Text search, if you need it: `/search?type=product&q=<query>`.

@@ -15,7 +15,7 @@ const USAGE = `Scan a shop's catalogue for a fashion-hunt search and list the ca
 
     scan.ts shopify    --brand <name> [--shops <domain>,...] [--match <regex>] [--full] [--tag <tab tag>]
                        [--out <file>]
-    scan.ts shopify    --profile [--shops <domain>,...]
+    scan.ts shopify    --profile [--shops <domain>,...] [--full] [--tag <tab tag>]
     scan.ts vestiaire  --tag <tab tag> --brand <name> [--model <name>]... [--query <text>]
                        [--filters <json>] [--match <regex>] [--out <file>]
     scan.ts jolicloset --tag <tab tag> (--category <path>... | --query <text>) [--match <regex>]
@@ -42,14 +42,16 @@ const USAGE = `Scan a shop's catalogue for a fashion-hunt search and list the ca
 --tag          the tab tag of the agent running the scan, as for tab.ts: the scan opens the tab if
                it isn't open, and leaves it open
 
-shopify     the products of the brand's collection (such as /collections/louis-vuitton), which
-            holds the brand's products in stock, where the shop has one, or else of the whole
-            catalogue (also with --full), kept when the vendor, title or tags name the brand.
-            Prices are the shop's own euro prices. --shops takes domains (default: the
-            bookmarked Shopify shops, listed in SHOPIFY below). A shop that answers 403 from
-            outside the browser, as all nine did after a day of scans, is read in a tab instead
-            when --tag gives one. --profile prints what each shop
-            carries instead: products in stock, vendors and product types.
+shopify     the products of each shop's whole catalogue or, where it keeps thousands of sold
+            products or passes the 25,000 Shopify serves, of the collection holding all the shop
+            has in stock (SHOPIFY below names it; --full reads the whole catalogue anyway). For a
+            shop not in SHOPIFY, its collection of the brand (such as /collections/louis-vuitton)
+            where it has one. Kept when the vendor, title or tags name the brand. Prices are the
+            shop's own euro prices. --shops takes domains (default: the bookmarked Shopify shops,
+            listed in SHOPIFY below). A shop that answers 403 from outside the browser, as all nine
+            did after a day of scans, is read in a tab instead when --tag gives one. --profile
+            prints what each shop carries instead: products in stock, vendors and product types;
+            with --full as well, it checks that each collection still holds all that's in stock.
 vestiaire   the search the catalog page loads, unsold items only, 200 a call, in slices by category,
             condition and colour past the 1,200 listings one search pages through: --brand picks the
             designer and its collaborations ("Louis Vuitton x Yayoi Kusama"), --model the model
@@ -104,16 +106,24 @@ scripts/listings.ts add --scan <out file>, which also remembers what each code w
 const TAB = `${import.meta.dir}/tab.ts`;
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36";
 
-/** The bookmarked shops on Shopify, with the country they ship from. */
-const SHOPIFY: Record<string, { name: string; country: string }> = {
+/**
+ * The bookmarked shops on Shopify, with the country they ship from. The scan reads a shop's whole
+ * /products.json, except where `catalogue` names a collection holding all it has in stock: there
+ * the whole feed keeps thousands of sold products, or stops at 25,000, short of Labellov's 45,000
+ * (newest first). Brand collections can't be trusted (some are empty or miss items, others keep
+ * sold ones), and Collector's Cage's `shop` collection misses some. Checked on 17 November 2026:
+ * `scan.ts shopify --profile` counts the same items in stock with and without `--full`, bar
+ * services, gift cards and care kits (and Labellov, whose whole feed is cut).
+ */
+const SHOPIFY: Record<string, { name: string; country: string; catalogue?: string }> = {
   "curatedbynoar.eu": { name: "Curated by NOAR", country: "Estonia" },
   "affordableluxurys.com": { name: "Affordable Luxury", country: "Sweden" },
-  "queenstation.fi": { name: "Queen Station", country: "Finland" },
-  "www.reluxeroom.com": { name: "ReLuxe Room", country: "Bulgaria" },
+  "queenstation.fi": { name: "Queen Station", country: "Finland", catalogue: "all-products-in-stock" },
+  "www.reluxeroom.com": { name: "ReLuxe Room", country: "Bulgaria", catalogue: "all-designers" },
   "www.designerexchange.ie": { name: "Designer Exchange", country: "Ireland" },
-  "luxuryhelsinki.fi": { name: "Luxury Helsinki", country: "Finland" },
-  "labellov.com": { name: "Labellov", country: "Belgium" },
-  "bamluxurystore.com": { name: "Bam Luxury Store", country: "Spain" },
+  "luxuryhelsinki.fi": { name: "Luxury Helsinki", country: "Finland", catalogue: "all-products" },
+  "labellov.com": { name: "Labellov", country: "Belgium", catalogue: "shop-by-designer" },
+  "bamluxurystore.com": { name: "Bam Luxury Store", country: "Spain", catalogue: "available" },
   "collectorscage.com": { name: "Collector's Cage", country: "Denmark" },
 };
 
@@ -263,9 +273,8 @@ type ShopifyProduct = {
 };
 
 /**
- * A shop's products: those of the first brand collection it has (such as /collections/louis-vuitton,
- * which in the shops checked holds exactly the brand's products in stock), or else its whole
- * catalogue, sold products included.
+ * A shop's products: those of the first of the given collections that has any (the shop's in-stock
+ * catalogue, or a brand collection), or else its whole catalogue, sold products included.
  */
 async function shopifyCatalogue(domain: string, collections: string[]): Promise<{ products: ShopifyProduct[]; currency: string; source: string }> {
   let base = `https://${domain}/products.json`;
@@ -298,7 +307,7 @@ async function shopifyCatalogue(domain: string, collections: string[]): Promise<
  * outside the browser; only the brand's products come back (by vendor, title or tags), and each
  * listed product's euro price where the shop's own currency isn't the euro.
  */
-async function inShopify(A: { collections: string[]; brands: string[] }): Promise<{ products: ShopifyProduct[]; currency: string; source: string; eur: Record<string, number> }> {
+async function inShopify(A: { collections: string[]; brands: string[]; compact?: boolean }): Promise<{ products: ShopifyProduct[]; currency: string; source: string; eur: Record<string, number> }> {
   const get = async (path: string): Promise<any> => {
     const res = await fetch(path, { credentials: "include" });
     if (!res.ok) throw new Error(`${res.status} from ${location.origin}${path}`);
@@ -321,6 +330,11 @@ async function inShopify(A: { collections: string[]; brands: string[] }): Promis
   for (let page = 1; page <= 100; page++) {
     const batch: any[] = page === 1 && first ? first : (await get(`${base}?limit=250&page=${page}`)).products;
     for (const p of batch) {
+      // For the profile, every product, with only what it counts
+      if (A.compact) {
+        products.push({ title: "", handle: p.handle, vendor: p.vendor, product_type: p.product_type, tags: [], body_html: null, published_at: "", images: [], variants: (p.variants ?? []).map((v: any) => ({ price: v.price, available: v.available, title: "" })) });
+        continue;
+      }
       const named = `${p.vendor} | ${p.title} | ${[p.tags].flat().join(" ")}`.toLowerCase();
       if (brands.some(b => named.includes(b))) products.push({ title: p.title, handle: p.handle, vendor: p.vendor, product_type: p.product_type, tags: p.tags, body_html: p.body_html, published_at: p.published_at, images: (p.images ?? []).slice(0, 1).map((i: any) => ({ src: i.src })), variants: (p.variants ?? []).map((v: any) => ({ price: v.price, available: v.available, title: v.title })) });
     }
@@ -329,7 +343,7 @@ async function inShopify(A: { collections: string[]; brands: string[] }): Promis
   }
   const currency = (await get("/cart.js").catch(() => ({})))?.currency ?? "EUR";
   const eur: Record<string, number> = {};
-  if (currency !== "EUR") {
+  if (currency !== "EUR" && !A.compact) {
     const inStock = products.filter(p => p.variants.some((v: any) => v.available)).map(p => p.handle);
     for (let i = 0; i < inStock.length; i += 8) {
       await Promise.all(inStock.slice(i, i + 8).map(async handle => {
@@ -351,10 +365,16 @@ async function shopify(domains: string[], brands: string[], match: RegExp | null
   const brandRes = brands.map(words);
   const searched: string[] = [];
   const candidates: Candidate[] = [];
-  const handles = full ? [] : [...new Set(brands.map(handleOf).filter(h => h.length > 2))];
+  // A known shop's in-stock catalogue, or its whole one when it has none; for another shop, its brand collection, if it has one
+  const brandHandles = [...new Set(brands.map(handleOf).filter(h => h.length > 2))];
+  const listsOf = (domain: string) => {
+    const shop = SHOPIFY[domain];
+    if (full || (shop && !shop.catalogue)) return [];
+    return shop?.catalogue ? [shop.catalogue] : brandHandles;
+  };
   type Result = { domain: string; products: ShopifyProduct[]; currency: string; source: string; eur?: Record<string, number> } | { domain: string; error: string };
   const results: Result[] = await Promise.all(
-    domains.map(domain => shopifyCatalogue(domain, handles).then(r => ({ domain, ...r }), (e: unknown) => ({ domain, error: String(e) }))),
+    domains.map(domain => shopifyCatalogue(domain, listsOf(domain)).then(r => ({ domain, ...r }), (e: unknown) => ({ domain, error: String(e) }))),
   );
   // Shops that refuse requests from outside the browser (403, often after many scans): read them in a tab, one after another
   for (const [i, r] of results.entries()) {
@@ -364,7 +384,7 @@ async function shopify(domains: string[], brands: string[], match: RegExp | null
       continue;
     }
     try {
-      results[i] = { domain: r.domain, ...(await inTab(tag, `https://${r.domain}`, inShopify, { collections: handles, brands }, true)) };
+      results[i] = { domain: r.domain, ...(await inTab(tag, `https://${r.domain}`, inShopify, { collections: listsOf(r.domain), brands }, true)) };
     } catch (e) {
       results[i] = { domain: r.domain, error: `${r.error}, and in the browser: ${e}` };
     }
@@ -423,8 +443,19 @@ async function shopify(domains: string[], brands: string[], match: RegExp | null
   return { shop: "shopify", scanned_at: new Date().toISOString(), searched, candidates };
 }
 
-async function shopifyProfile(domains: string[]): Promise<void> {
-  const results = await Promise.all(domains.map(d => shopifyCatalogue(d, []).then(r => ({ d, ...r }), (e: unknown) => ({ d, error: String(e) }))));
+async function shopifyProfile(domains: string[], tag: string | undefined, full: boolean): Promise<void> {
+  const lists = (d: string) => (!full && SHOPIFY[d]?.catalogue ? [SHOPIFY[d]!.catalogue!] : []);
+  type Profile = { d: string; products: ShopifyProduct[]; currency: string; source: string } | { d: string; error: string };
+  const results: Profile[] = await Promise.all(domains.map(d => shopifyCatalogue(d, lists(d)).then(r => ({ d, ...r }), (e: unknown) => ({ d, error: String(e) }))));
+  // A shop that refuses requests from outside the browser, read in a tab as the scan does
+  for (const [i, r] of results.entries()) {
+    if (!("error" in r) || !/\b403\b/.test(r.error) || !tag) continue;
+    try {
+      results[i] = { d: r.d, ...(await inTab(tag, `https://${r.d}`, inShopify, { collections: lists(r.d), brands: [], compact: true }, true)) };
+    } catch (e) {
+      results[i] = { d: r.d, error: `${r.error}, and in the browser: ${e}` };
+    }
+  }
   for (const r of results) {
     const name = SHOPIFY[r.d]?.name ?? r.d;
     if ("error" in r) {
@@ -437,7 +468,7 @@ async function shopifyProfile(domains: string[]): Promise<void> {
       for (const p of inStock) counts.set(key(p) || "(none)", (counts.get(key(p) || "(none)") ?? 0) + 1);
       return [...counts].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${k} ${v}`).join(", ");
     };
-    console.log(`${name} (${r.d}, ${r.currency}): ${r.products.length} products, ${inStock.length} in stock`);
+    console.log(`${name} (${r.d}, ${r.currency}, ${r.source}): ${r.products.length} products, ${inStock.length} in stock`);
     console.log(`  vendors: ${top(p => p.vendor.trim(), 25)}`);
     console.log(`  types: ${top(p => p.product_type.trim(), 12)}`);
   }
@@ -1595,7 +1626,7 @@ async function main(): Promise<number> {
   if (shop === "shopify") {
     const domains = values.shops ? values.shops.split(",").map(d => d.trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "")) : Object.keys(SHOPIFY);
     if (values.profile) {
-      await shopifyProfile(domains);
+      await shopifyProfile(domains, values.tag, Boolean(values.full));
       return 0;
     }
     if (!brands.length) die("give the brand with --brand");
