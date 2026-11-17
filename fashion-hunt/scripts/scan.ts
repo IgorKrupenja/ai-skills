@@ -22,6 +22,7 @@ const USAGE = `Scan a shop's catalogue for a fashion-hunt search and list the ca
     scan.ts yaga       --brand <name> [--query <text>] [--match <regex>] [--out <file>]
     scan.ts vinted     --tag <tab tag> [--query <text>]... [--filters <query string>] [--brand <name>]...
                        [--match <regex>] [--pause <ms>] [--out <file>]
+    scan.ts collectorsquare --query <text>... [--brand <name>]... [--match <regex>] [--out <file>]
     scan.ts aretrotale --brand <name>... [--query <text>] [--match <regex>] [--out <file>]
     scan.ts resee      --brand <name>... [--query <text>] [--match <regex>] [--out <file>]
     scan.ts farfetch   --tag <tab tag> (--category <path>... | --query <text>...) [--brand <name>]...
@@ -58,6 +59,10 @@ vinted      vinted.ee's catalogue pages for each --query (search text), with --f
             their URL as is, such as 'brand_ids[]=417' (Louis Vuitton), one page a --pause apart
             (default 1500 ms); --brand keeps cards whose brand label is that brand. Each card's
             label gives title, brand, Vinted's model field, size, condition and price.
+collectorsquare
+            Collector Square's search pages for each --query, from the data its cards carry:
+            name, price, its model id, material and condition, 120 cards a page; --brand keeps
+            cards whose name starts with the brand.
 aretrotale  A Retro Tale's search service (Searchspring) for the brand, 100 items a call, with
             price, condition, colour and description; prices include delivery to Estonia.
 resee       ReSee's search service (Algolia) for the brand's name (and text), with Estonia's
@@ -1221,6 +1226,68 @@ async function resee(brands: string[], query: string | null, match: RegExp | nul
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+// --- Collector Square (its search pages) --------------------------------------------------------
+
+/** Collector Square's condition codes, such as 3vgod, by their letters. */
+const CS_CONDITIONS: Record<string, string> = { new: "New", likn: "Like new", exce: "Excellent", vgod: "Very good", good: "Good", used: "Used", fair: "Fair" };
+
+/**
+ * Collector Square's search for each --query, read from the data each card carries (name, price,
+ * model, material, condition), 120 cards a page; --brand keeps the cards whose name starts with it.
+ */
+async function collectorsquare(queries: string[], brands: string[], match: RegExp | null): Promise<ScanFile> {
+  const site = "https://www.collectorsquare.com";
+  const searched: string[] = [];
+  const cards = new Map<string, Record<string, string>>();
+  for (const q of queries) {
+    let read = 0;
+    let page = 1;
+    for (; page <= 30; page++) {
+      await pace(1000);
+      const url = `${site}/en/search?search%5Bkeywords%5D=${encodeURIComponent(q)}&limit=120&page=${page}`;
+      const res = await Bun.$`curl -sSL --compressed --max-time 30 -A ${UA} ${url}`.quiet().nothrow();
+      if (res.exitCode !== 0) {
+        searched.push(`"${q}": page ${page} didn't load, so the rest wasn't read`);
+        break;
+      }
+      const html = res.stdout.toString();
+      let fresh = 0;
+      for (const card of html.split('<li class="product ').slice(1)) {
+        const data = Object.fromEntries([...card.slice(0, 3000).matchAll(/data-product-([a-z]+)="([^"]*)"/g)].map(m => [m[1]!, m[2]!]));
+        if (!data.code || cards.has(data.code)) continue;
+        data.url = card.match(/<meta itemprop="url" content="([^"]+)"/)?.[1] ?? "";
+        data.photo = card.match(/<meta itemprop="image" content="([^"]+)"/)?.[1] ?? "";
+        cards.set(data.code, data);
+        fresh++;
+      }
+      read += fresh;
+      if (!fresh) break;
+    }
+    searched.push(`"${q}": ${read} cards`);
+  }
+  const html = (s: string) => s.replace(/&#039;|&#39;/g, "'").replace(/&amp;/g, "&").replace(/&quot;/g, '"');
+  const candidates: Candidate[] = [];
+  for (const d of cards.values()) {
+    const name = html(d.name ?? "").replace(/\s+/g, " ").trim();
+    if (brands.length && !brands.some(b => norm(name).startsWith(norm(b)))) continue;
+    if (match && !match.test(`${name} ${d.model ?? ""}`)) continue;
+    candidates.push({
+      id: d.code!,
+      shop: "Collector Square",
+      url: d.url || `${site}/en/search?search%5Bkeywords%5D=${d.code}`,
+      title: name,
+      ...(Number(d.price) ? { price_eur: Number(d.price) } : {}),
+      ...(d.condition ? { condition: CS_CONDITIONS[d.condition.replace(/^\d/, "")] ?? d.condition } : {}),
+      ...(d.material ? { material: d.material } : {}),
+      ships_from: "France",
+      ...(d.photo ? { photo: d.photo } : {}),
+      ...(d.model ? { description: `model ${d.model}` } : {}),
+    });
+  }
+  searched.push(`${candidates.length} cards${brands.length ? ` by ${brands.join(" or ")}` : ""}${match ? ` matching ${match}` : ""}; Collector Square checks authenticity itself`);
+  return { shop: "collectorsquare", scanned_at: new Date().toISOString(), searched, candidates };
+}
+
 // --- Model codes --------------------------------------------------------------------------------
 
 /**
@@ -1344,7 +1411,7 @@ async function main(): Promise<number> {
   }
   const brands = values.brand;
   // One --query, except for eBay, Farfetch and Vinted, which take several
-  if (!["ebay", "farfetch", "vinted"].includes(shop!) && values.query.length > 1) die(`${shop} takes one --query`);
+  if (!["ebay", "farfetch", "vinted", "collectorsquare"].includes(shop!) && values.query.length > 1) die(`${shop} takes one --query`);
   const pause = Number(values.pause ?? (shop === "ebay" ? 2000 : 1500));
   if (!Number.isFinite(pause) || pause < 0) die("--pause takes milliseconds");
   const query = values.query[0] ?? null;
@@ -1375,6 +1442,9 @@ async function main(): Promise<number> {
     result = await yaga(brands, query, match);
   } else if (shop === "vinted") {
     result = await vinted(needTag(), values.query, values.filters ?? null, brands, match, pause);
+  } else if (shop === "collectorsquare") {
+    if (!values.query.length) die("give a --query");
+    result = await collectorsquare(values.query, brands, match);
   } else if (shop === "aretrotale" || shop === "resee") {
     if (!brands.length) die("give the brand with --brand");
     result = await (shop === "aretrotale" ? aretrotale : resee)(brands, query, match);
@@ -1386,7 +1456,7 @@ async function main(): Promise<number> {
     if (!values.query.length && !ids.length) die("give a --query or --ids");
     result = await ebay(needTag(), values.query, ids, match, !!values.details, pause);
   } else {
-    die(`no scanner for ${shop}: the shops are shopify, vestiaire, jolicloset, yaga, vinted, aretrotale, resee, farfetch and ebay`);
+    die(`no scanner for ${shop}: the shops are shopify, vestiaire, jolicloset, yaga, vinted, collectorsquare, aretrotale, resee, farfetch and ebay`);
   }
   await markCodes(result.candidates);
   markTraits(result.candidates);

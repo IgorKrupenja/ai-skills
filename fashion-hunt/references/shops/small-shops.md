@@ -11,8 +11,12 @@
 - **Care of Carl (careofcarl.com):** pick Estonia in the delivery-country dialog first. Besides new
   items it has a pre-owned section, with Louis Vuitton at `/en/louis-vuitton-pre-owned`. It refuses
   scripts outside the browser.
-- **Collector Square (collectorsquare.com):** search with
-  `/en/search?search%5Bkeywords%5D=<query>`; "belt" also finds clutch and belt bags.
+- **Collector Square (collectorsquare.com):** scan it: `bun <skill dir>/scripts/scan.ts
+  collectorsquare --query "louis vuitton marelle" --brand "Louis Vuitton" --match marel --out
+  <run dir>/scan/collectorsquare.json` reads its search pages, 120 cards a page, from the data
+  each card carries (name, price, model id, material, condition). In the browser, search with
+  `/en/search?search%5Bkeywords%5D=<query>`; "belt" also finds clutch and belt bags, and its
+  search is fuzzy ("marelle" also finds Malle trunks). It checks authenticity itself.
 - **Eppli (eppli.com, Stuttgart):** an auction house with an online shop: search only the shop, not
   auction lots. A brand's bags are at `/en/brands/<brand>/bags/`, and text search is
   `/index.php?lang=1&cl=search&searchparam=<query>`; item names are often German (Tasche,

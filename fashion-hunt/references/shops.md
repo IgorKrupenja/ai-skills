@@ -15,7 +15,7 @@ give it to an agent with the small shops, and add it here afterwards.
 | The 9 Shopify shops below | `scan.ts shopify` | shopify.md | designer bags and accessories, see below |
 | A Retro Tale | `scan.ts aretrotale` | small-shops.md | pre-owned designer bags and accessories |
 | Care of Carl | browser | small-shops.md | new men's clothing and accessories, plus pre-owned designer bags and accessories |
-| Collector Square | browser | small-shops.md | pre-owned designer bags, accessories, watches and jewellery |
+| Collector Square | `scan.ts collectorsquare` | small-shops.md | pre-owned designer bags, accessories, watches and jewellery |
 | Eppli | browser | small-shops.md | pre-owned designer bags, accessories, watches and jewellery |
 | Farfetch | `scan.ts farfetch` | farfetch.md | new designer clothing, shoes, bags and accessories from boutiques, plus pre-owned from resellers (Louis Vuitton only as "Louis Vuitton Pre-Owned") |
 | Relove | browser | small-shops.md | about 50 products, mostly designer bags |
