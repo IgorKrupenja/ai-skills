@@ -112,7 +112,6 @@ function pillsFor(R: Report, S: Setup, f: Filters): Pill[] {
   const better = S.better.find(b => b.conds.length === f.conds.size && b.conds.every(c => f.conds.has(c)));
   const hiding = [S.has.risk && f.norisk ? T.hideRisk : null, S.has.dup && f.norepeat ? T.hideRepeats : null].filter(name => name !== null);
   const pills: (Pill & { shown: boolean })[] = [
-    { id: "color", shown: S.has.color, name: T.color, on: f.colors.size > 0, label: `${T.color}: ${one(f.colors, c => R.colorNames[c] ?? c)}` },
     { id: "shop", shown: S.has.shop, name: T.shop, on: f.shops.size > 0, label: `${T.shop}: ${one(f.shops, s => s)}` },
     {
       id: "cond",
@@ -122,6 +121,7 @@ function pillsFor(R: Report, S: Setup, f: Filters): Pill[] {
       label: better ? T.orBetter(R.conditionNames[better.grade] ?? better.grade) : `${T.cond}: ${one(f.conds, c => R.conditionNames[c] ?? c)}`,
     },
     { id: "size", shown: S.has.size, name: T.size, on: f.sizes.size > 0, label: `${T.size}: ${one(f.sizes, sizeName)}` },
+    { id: "color", shown: S.has.color, name: T.color, on: f.colors.size > 0, label: `${T.color}: ${one(f.colors, c => R.colorNames[c] ?? c)}` },
     { id: "price", shown: S.has.price, name: cols[4]!, on: !isOpen(f.price), label: `${cols[4]}: ${range(f.price, n => wholeMoney.format(n))}` },
     { id: "new", shown: S.has.newPrice, name: cols[5]!, on: !isOpen(f.newPrice), label: `${cols[5]}: ${range(f.newPrice, n => wholeMoney.format(n))}` },
     { id: "diff", shown: S.has.diff, name: cols[6]!, on: f.below !== "any", label: T.belowPill[f.below] },
