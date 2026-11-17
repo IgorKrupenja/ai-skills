@@ -1,0 +1,128 @@
+/* The fashion-hunt report page's styles, which scripts/report.ts puts in the page before the run's own css.
+   Layout: one column. Summary boxes, a sticky filter bar, then the listings table, which turns into cards on phones. */
+:root {
+  --bg: #f1f4f6; --surface: #ffffff; --fg: #15212c; --muted: #5a6774; --line: #d7dee4;
+  --accent: #94643a; --accent-soft: #f2e8dc; --link: #1d4e86; --warn: #ad4a17; --warn-soft: #fae7db; --chip: #e5ebef;
+  --display: "Unbounded", "Golos Text", system-ui, sans-serif;
+  --body: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141b; --surface: #142029; --fg: #e5ebf0; --muted: #93a1ae; --line: #253441;
+    --accent: #d6a571; --accent-soft: #2b2218; --link: #8fb9ea; --warn: #f39260; --warn-soft: #36221a; --chip: #1c2a36;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141b; --surface: #142029; --fg: #e5ebf0; --muted: #93a1ae; --line: #253441;
+  --accent: #d6a571; --accent-soft: #2b2218; --link: #8fb9ea; --warn: #f39260; --warn-soft: #36221a; --chip: #1c2a36;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+/* What the script hides stays hidden, also where a rule below gives the element a display */
+[hidden] { display: none !important; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap { max-width: 1200px; margin: 0 auto; padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+a { color: var(--link); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1 { font-family: var(--display); font-weight: 600; font-size: clamp(22px, 4.2vw, 34px); letter-spacing: -0.01em; line-height: 1.15; margin: 0; text-wrap: balance; }
+h2 { font-size: 17px; font-weight: 600; margin: 8px 0 0; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 70ch; margin: 8px 0 0; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 14px; min-width: 0; }
+.fact .k { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); font-weight: 600; margin-bottom: 4px; }
+.fact p { margin: 0; }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs button, .chips button { font: inherit; font-size: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.tabs .n { font-variant-numeric: tabular-nums; opacity: .7; margin-left: 4px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.chips button { padding: 3px 10px; background: var(--chip); border-color: transparent; }
+.chips button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.row label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; max-width: 100%; }
+/* A menu with long options, such as the sort menu, narrows to fit a small phone */
+.row label select { min-width: 0; }
+select { font: inherit; font-size: 14px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); }
+.hint { color: var(--muted); font-size: 14px; margin: 0; }
+.count { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.tablebox { overflow-x: auto; min-width: 0; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td.price, td.new, td.diff { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+th.r { text-align: right; }
+th .sorth { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+th .sorth:hover { color: var(--fg); }
+th .sorth:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+th .arr { font-size: 11px; opacity: .35; }
+th[aria-sort="ascending"] .arr, th[aria-sort="descending"] .arr { opacity: 1; color: var(--accent); }
+/* The column headings stay in view under the filter bar, while the table fits without scrolling sideways */
+.tablebox.fits { overflow: visible; }
+.tablebox.fits th { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--bar-h, 0px)); z-index: 3; background: var(--surface); }
+.tablebox.fits th:first-child { border-top-left-radius: 9px; }
+.tablebox.fits th:last-child { border-top-right-radius: 9px; }
+/* The sort menu stands in for the column headings, which phones don't show */
+@media (min-width: 761px) { label[for="sort"] { display: none; } }
+td.price { font-weight: 600; }
+td.price .sub { font-weight: 400; }
+/* Notes under a price wrap, so a long one doesn't stretch its column */
+td.price .sub, td.new .sub { white-space: normal; max-width: 22ch; margin-left: auto; }
+td.shop a { font-weight: 500; }
+td.item { min-width: 200px; }
+.iwrap { display: flex; gap: 10px; align-items: flex-start; }
+.thumb { flex: none; display: block; width: 64px; height: 64px; border-radius: 8px; background: var(--chip); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 8px; }
+/* A larger copy of the photo on hover, fixed to the window so the table's scroll box can't cut it off */
+.preview { position: fixed; z-index: 20; width: 205px; height: 205px; border-radius: 10px; overflow: hidden; pointer-events: none; background: var(--chip); box-shadow: 0 10px 28px rgba(0, 0, 0, .3); }
+.preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* What a filter with a short label does, shown on hover, keyboard focus or a tap; fixed to the window like the preview */
+.tip { position: fixed; z-index: 21; box-sizing: border-box; width: max-content; padding: 8px 11px; border-radius: 8px; background: var(--fg); color: var(--bg); font-size: 13px; line-height: 1.4; box-shadow: 0 6px 18px rgba(0, 0, 0, .25); }
+#l-norisk, #l-norepeat { text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
+.above { color: var(--warn); font-weight: 600; }
+.nonEU { font-weight: 700; }
+.sub { display: block; color: var(--muted); font-size: 12px; }
+.risk { display: inline-block; background: var(--warn-soft); color: var(--warn); border-radius: 4px; padding: 0 5px; font-size: 13px; }
+/* Listings with the same photo, on a line of their own above the note */
+.same { display: block; margin-block: 2px 4px; color: var(--fg); font-size: 13px; }
+.chg { display: inline-block; background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 0 5px; font-size: 12px; font-weight: 500; }
+.grp { display: inline-block; background: var(--chip); color: var(--muted); border-radius: 4px; padding: 0 5px; font-size: 12px; font-weight: 500; }
+.note { color: var(--muted); font-size: 13px; min-width: 180px; }
+.empty { padding: 24px; text-align: center; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+summary { cursor: pointer; font-weight: 600; }
+details .hint { margin-top: 8px; }
+.ulist { columns: 2 280px; column-gap: 24px; margin: 10px 0 0; padding-left: 18px; font-size: 14px; }
+.ulist li { break-inside: avoid; margin-bottom: 4px; }
+.notes { display: grid; gap: 6px; font-size: 14px; color: var(--muted); max-width: 80ch; }
+.notes h2 { color: var(--fg); }
+.notes p { margin: 0; }
+.eyebrow { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.hero { margin-top: 14px; }
+.variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.variant { font: inherit; color: inherit; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; display: grid; gap: 4px; align-content: start; min-width: 0; }
+.variant:hover, .variant[aria-pressed="true"] { border-color: var(--accent); }
+.variant[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
+.variant .vname { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; margin-bottom: 2px; }
+.variant .sw { flex: none; width: 26px; height: 26px; border-radius: 6px; overflow: hidden; display: inline-flex; }
+.variant .sw svg { width: 100%; height: 100%; display: block; }
+.variant .vstat { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.variant .vstat b { color: var(--fg); font-weight: 600; }
+@media (max-width: 760px) {
+  .tablebox { overflow: visible; }
+  table, tbody { display: block; background: none; border: 0; }
+  thead { display: none; }
+  tbody { display: grid; gap: 10px; }
+  tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  td { display: block; padding: 0; border: 0; min-width: 0; }
+  td.item { grid-column: 1; grid-row: 1; font-weight: 600; min-width: 0; }
+  td.price { grid-column: 2; grid-row: 1; }
+  td.shop, td.cond, td.size, td.new, td.diff, td.ships, td.note { grid-column: 1 / -1; text-align: left; font-size: 13px; white-space: normal; }
+  td[data-l]::before { content: attr(data-l) ": "; color: var(--muted); }
+  td.new .sub { margin-left: 0; max-width: none; }
+  .thumb { width: 72px; height: 72px; }
+  td.new:empty, td.diff:empty, td.note:empty, td.cond:empty { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

@@ -16,5 +16,5 @@
     "types": ["bun"]
   },
   "include": ["**/*.ts"],
-  "exclude": ["node_modules", "events-*", "playwright-cli", "synced", ".trash", "fashion-hunt/scripts/tab.ts"]
+  "exclude": ["node_modules", "events-*", "playwright-cli", "synced", ".trash", "fashion-hunt/scripts/tab.ts", "fashion-hunt/page"]
 }

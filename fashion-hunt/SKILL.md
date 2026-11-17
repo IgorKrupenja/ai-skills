@@ -252,15 +252,15 @@ page's link in the run file as `page_url` before recording the run.
 
 ### Its look
 
-The template keeps what every report needs: the listings table, a tab per group plus the one with
+The page keeps what every report needs: the listings table, a tab per group plus the one with
 every listing, the filters, and conditions on one scale in the page's language. Design the rest
 for this search, so each report looks like what was searched for:
 
 - **Palette and type** (`page.css`, `page.fonts`): colors and fonts that suit the item, such as
   browns and caramel for a brown Louis Vuitton bag, or Canada Goose red for its jackets. Set the
-  template's tokens (`--bg`, `--surface`, `--fg`, `--muted`, `--line`, `--accent`, `--accent-soft`,
+  page's tokens (`--bg`, `--surface`, `--fg`, `--muted`, `--line`, `--accent`, `--accent-soft`,
   `--link`, `--warn`, `--warn-soft`, `--chip`, `--display`, `--body`) for light and dark alike, with
-  the three selectors the template uses (`:root`, `:root:not([data-theme="light"])` inside
+  the three selectors the page uses (`:root`, `:root:not([data-theme="light"])` inside
   `@media (prefers-color-scheme: dark)`, and `:root[data-theme="dark"]`), and restyle anything
   else you like. Keep text at least 4.5:1 against its background. Fonts come only from Google
   Fonts, through the css2 URL in `page.fonts`.

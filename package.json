@@ -3,13 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "bun check --no-script && bun lint"
+    "check": "bun check --no-script && bun check --no-script -p fashion-hunt/page && bun lint"
   },
   "trustedDependencies": ["@googleworkspace/cli"],
   "devDependencies": {
-    "@types/bun": "^1.4.4"
+    "@types/bun": "^1.4.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0"
   },
   "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "skills-kit": "github:IgorKrupenja/skills-kit"
   }
 }

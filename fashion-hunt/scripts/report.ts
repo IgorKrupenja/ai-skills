@@ -10,6 +10,7 @@
  */
 
 import { parseArgs } from "node:util";
+import type { Report } from "../page/types.ts";
 import { countryCode, countryName, isCountry, outsideEU } from "./common.ts";
 
 const USAGE = `Build the fashion-hunt report page from a run file.
@@ -70,7 +71,7 @@ and the run has one page object:
 
 All of it is optional: title falls back to the request. lang is "en" (the default) or "ru" and
 sets the language of the page's controls; write the rest in the same language. new_label renames
-the new-price column. eyebrow is a short line above the title. css comes after the template's
+the new-price column. eyebrow is a short line above the title. css comes after the page's
 own styles, so it can set the color and font tokens (--bg, --surface, --fg, --muted, --line,
 --accent, --accent-soft, --link, --warn, --warn-soft, --chip, --display, --body) for light and
 dark and restyle anything else; fonts is the Google Fonts stylesheet it needs. variants orders
@@ -259,6 +260,26 @@ async function inlinePhotos(paths: string[], folder: string, room: number): Prom
   return result;
 }
 
+/**
+ * The page's source: index.html around the styles in style.css and a React app from main.tsx,
+ * which pageScript() bundles, React included, into one script that the page carries itself.
+ */
+const PAGE = `${import.meta.dir}/../page`;
+
+async function pageScript(): Promise<string> {
+  const build = await Bun.build({
+    entrypoints: [`${PAGE}/main.tsx`],
+    target: "browser",
+    format: "iife",
+    minify: true,
+    define: { "process.env.NODE_ENV": JSON.stringify("production") },
+  });
+  const [script] = build.outputs;
+  if (!build.success || !script) die(`the page's script didn't build:\n${build.logs.join("\n")}`);
+  // A script can't hold "</script", so it becomes "<\/script", which means the same in a string or a regex
+  return (await script.text()).replace(/<\/script/gi, "<\\/script");
+}
+
 async function main(argv: string[]): Promise<number> {
   const { values, positionals: args } = parseArgs({ args: argv, options: { inline: { type: "boolean" } }, allowPositionals: true });
   const [source, out] = args;
@@ -366,7 +387,7 @@ async function main(argv: string[]): Promise<number> {
     }
   }
 
-  const data = {
+  const data: Report = {
     lang,
     title,
     eyebrow: text(page.eyebrow),
@@ -383,15 +404,21 @@ async function main(argv: string[]): Promise<number> {
     conditionOrder: CONDITION_ORDER.filter(key => rows.some(row => row.cond === key)),
     conditionNames: CONDITION_NAMES[lang],
   };
-  const template = await Bun.file(`${import.meta.dir}/../assets/report.html`).text();
+  const [shell, style, script] = await Promise.all([Bun.file(`${PAGE}/index.html`).text(), Bun.file(`${PAGE}/style.css`).text(), pageScript()]);
   const fontLink = fonts ? `<link rel="stylesheet" href="${escapeHtml(fonts)}">` : "";
-  const render = () =>
-    template
-      .replace("{{TITLE}}", () => escapeHtml(title))
-      .replace("{{FONTS}}", () => fontLink)
-      .replace("/*THEME*/", () => css)
+  // In one pass, so nothing put in the page is read again as a placeholder
+  const render = () => {
+    const parts: Record<string, string> = {
+      TITLE: escapeHtml(title),
+      FONTS: fontLink,
+      STYLE: style,
+      THEME: css,
       // "<" escaped, so no listing text can close the script tag
-      .replace("/*REPORT*/", () => JSON.stringify(data).replace(/</g, "\\u003c"));
+      REPORT: JSON.stringify(data).replace(/</g, "\\u003c"),
+      SCRIPT: script,
+    };
+    return shell.replace(/\{\{(\w+)\}\}/g, (placeholder, name: string) => parts[name] ?? placeholder);
+  };
 
   if (values.inline) {
     const paths = [...new Set(rows.map(row => row.image).filter(image => image && !image.startsWith("data:")))];
