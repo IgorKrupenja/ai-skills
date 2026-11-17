@@ -13,7 +13,11 @@ without buyer protection. A specific search has few results (two Marelle listing
 2026); a whole brand stops at about 960 cards, so search by model name and add filters rather than
 reading a brand whole. The brands API (`/api/v2/brands`) answers 403 now: find a brand's ids with the filter
 search that shops.md gives for Vinted (Louis Vuitton is 417; one brand can have several) and give
-them with `--filters`, or give `--brand` to keep only cards with that brand label. Judge from the lines, and open the item page
+them with `--filters`, or give `--brand` to keep only cards with that brand label. A brand Vinted
+has no entry for can only be searched as text, and the text search is fuzzy: `--query pasotti`
+filled the 960-card cap with Paciotti, Passi Italiani and the like and missed every Pasotti
+umbrella, while the same query inside the umbrella categories (`--filters
+'catalog[]=1851&catalog[]=2981'`) with `--match pasott` found all 5. Judge from the lines, and open the item page
 or photo only for a candidate they can't settle: don't sweep through photos of unlabelled bags.
 
 Without the scan, search the catalogue in your tab as below.

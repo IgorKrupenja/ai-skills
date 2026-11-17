@@ -9,7 +9,11 @@ bun <skill dir>/scripts/scan.ts vestiaire --tag <tag> --brand "Louis Vuitton" --
 ```
 
 - `--brand` is the designer as Vestiaire names it. Boss, Hugo Boss and Boss Orange are separate
-  designers, so scan each.
+  designers, so scan each. A brand that isn't a designer there, such as Pasotti, stops the scan
+  ("no designer named"); its items sit under Non Signé / Unsigned or another designer, so search
+  the text instead from a vestiairecollective.com tab: POST the search service the scan uses
+  (`search.vestiairecollective.com/v1/product/search`) with `q` set to the brand and
+  `filters: {sold: ["0"]}`, 200 a page, and keep the items whose name or description names it.
 - `--model` is the model filter, found by name; a name can stand for several models (Marelle has
   two ids), and the scan takes them all. It also runs the shop's text search for each model name
   and merges the results, since sellers often set no model (titling the bag just "Leather
