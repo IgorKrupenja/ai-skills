@@ -25,6 +25,11 @@ add to a cart, wishlist or newsletter. On a cookie banner, pick the most privacy
   link.
 - If the brand doesn't sell the item now, say so; don't estimate a price. Older models that the
   resale listings may carry (a past collaboration or season) count as not currently listed.
+- For a bag, give its size chart: every size the model comes or came in (PM, MM and GM, or
+  Speedy 25 to 40) with its width in cm from the product page's dimensions (the first number of
+  "36.5 x 27.5 x 6 cm"), a model in one size included. The report sorts resale listings into
+  those sizes by their measurements. For a size the brand no longer sells, take its width from
+  your notes on the older model or a listing that names it.
 - Search through the brand site's own search and category filters, not a search engine.
 
 ## Brand notes
@@ -71,6 +76,7 @@ Reply with this and nothing else:
 BRAND: <name>
 STORE: <store used, currency> <link>
 SAVED: <n> items, <m> of them near equivalents
+SIZES: for a bag, each size with its width, such as PM 36.5 cm, GM 41 cm; else none
 NOT LISTED: <requested variants the brand doesn't sell now>
 NOTES: anything left unverified
 ```

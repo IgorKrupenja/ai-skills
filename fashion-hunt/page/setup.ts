@@ -79,7 +79,6 @@ export function setup(R: Report) {
     scales: {
       price: R.rows.map(r => r.price).filter(v => v !== null),
       newPrice: R.rows.map(r => r.newPrice).filter(v => v !== null),
-      width: R.rows.map(r => r.dims?.w ?? null).filter(v => v !== null),
     },
     /** The first group, whose listings match; the All tab tags the others with their group */
     match: R.groups[0]!.id,
@@ -90,7 +89,7 @@ export function setup(R: Report) {
     has: {
       shop: new Set(R.rows.map(r => r.shop)).size > 1,
       cond: R.conditionOrder.length > 1,
-      size: R.sizeMode === "width" ? distinct(R.rows.map(r => r.dims?.w ?? null)) > 1 : R.sizeOrder.length > 1,
+      size: R.sizeOrder.length > 1,
       price: distinct(R.rows.map(r => r.price)) > 1,
       newPrice: distinct(R.rows.map(r => r.newPrice)) > 1,
       diff: R.rows.some(r => r.price !== null && r.newPrice !== null),

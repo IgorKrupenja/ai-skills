@@ -105,7 +105,7 @@ type Pill = { id: Facet; name: string; on: boolean; label: string };
 
 /** The pills the page needs, each with its name, or its value while it filters */
 function pillsFor(R: Report, S: Setup, f: Filters): Pill[] {
-  const { T, cols, wholeMoney, cm } = S;
+  const { T, cols, wholeMoney } = S;
   const one = (picked: Set<string>, name: (id: string) => string) => (picked.size === 1 ? name([...picked][0]!) : String(picked.size));
   const range = (r: Range, format: (n: number) => string) => T.range(r.lo === null ? null : format(r.lo), r.hi === null ? null : format(r.hi));
   const sizeName = (id: string) => (id === "other" || id === "none" ? (R.sizeLabels[id] ?? id) : id);
@@ -120,9 +120,7 @@ function pillsFor(R: Report, S: Setup, f: Filters): Pill[] {
       on: f.conds.size > 0,
       label: better ? T.orBetter(R.conditionNames[better.grade] ?? better.grade) : `${T.cond}: ${one(f.conds, c => R.conditionNames[c] ?? c)}`,
     },
-    R.sizeMode === "width"
-      ? { id: "size", shown: S.has.size, name: T.width, on: !isOpen(f.width), label: `${T.width}: ${range(f.width, n => `${cm.format(n)} ${T.cm}`)}` }
-      : { id: "size", shown: S.has.size, name: T.size, on: f.sizes.size > 0, label: `${T.size}: ${one(f.sizes, sizeName)}` },
+    { id: "size", shown: S.has.size, name: T.size, on: f.sizes.size > 0, label: `${T.size}: ${one(f.sizes, sizeName)}` },
     { id: "price", shown: S.has.price, name: cols[4]!, on: !isOpen(f.price), label: `${cols[4]}: ${range(f.price, n => wholeMoney.format(n))}` },
     { id: "new", shown: S.has.newPrice, name: cols[5]!, on: !isOpen(f.newPrice), label: `${cols[5]}: ${range(f.newPrice, n => wholeMoney.format(n))}` },
     { id: "diff", shown: S.has.diff, name: cols[6]!, on: f.below !== "any", label: T.belowPill[f.below] },
@@ -185,15 +183,6 @@ function FacetBody({ facet, R, S, f, set, rows }: BodyProps) {
       );
     }
     case "size": {
-      if (R.sizeMode === "width") {
-        const widths = rows.map(r => r.dims?.w ?? null).filter(v => v !== null);
-        return (
-          <>
-            <RangeFilter T={T} values={widths} scale={S.scales.width} range={f.width} onChange={width => set({ width })} format={n => S.cm.format(n)} unit={T.cm} minStep={0.5} />
-            {rows.length > widths.length ? <p className="hint">{T.noWidth(rows.length - widths.length)}</p> : null}
-          </>
-        );
-      }
       const n = tally(r => r.sizes);
       return <CheckList T={T} options={R.sizeOrder.map(z => ({ id: z, text: R.sizeLabels[z] ?? z, count: n.get(z) ?? 0 }))} picked={f.sizes} onChange={sizes => set({ sizes })} />;
     }

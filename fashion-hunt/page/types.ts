@@ -68,8 +68,9 @@ export type Report = {
   /** Listings found but not checked, with a hint in HTML */
   unverified: { title?: string; hint?: string; items: { url: string; label?: string }[] } | null;
   rows: Row[];
-  /** How the size filter works: by the buckets in sizeOrder, or by a bag's width */
-  sizeMode: "buckets" | "width";
+  /** Whether the listings are bags, sized by their measurements: named sizes or ranges of widths, sorted by width */
+  bags: boolean;
+  /** The size filter's buckets in order */
   sizeOrder: string[];
   /** Names for buckets that need one, such as a bag's named sizes with their widths */
   sizeLabels: Record<string, string>;

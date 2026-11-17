@@ -40,7 +40,7 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
                     such as ["M"], overrides them. A bag's measurements, such as "Width 40 cm,
                     Height 30 cm", "40 x 31 x 6 cm" or "Ш24 × В12 × Г3 см", show in one format,
                     longest side first, since sellers swap width and height, and the size filter
-                    goes by that width: as a range, or by the named sizes in page.sizes
+                    goes by that width: under the named sizes in page.sizes, or else in ranges
     price_note      shown under the price, such as "approx., from 950 PLN"
     ships_from      a country, "not stated" or "in store, <city>". The page names a country in
                     its own language whatever language it's given in, bolds one outside the EU and
@@ -68,7 +68,7 @@ and the run has one page object:
     {"lang": "ru", "title": "...", "eyebrow": "...", "lede": "...", "hero": "...",
      "new_label": "...", "css": "...", "fonts": "https://fonts.googleapis.com/css2?family=...",
      "variants": [{"name": "Damier Ebene", "swatch": "<svg ...>", "hint": "..."}],
-     "sizes": [{"name": "PM", "width": [35, 38]}, {"name": "GM", "width": [39, 43]}],
+     "sizes": [{"name": "PM", "width": 36.5}, {"name": "GM", "width": 41}],
      "facts": [{"title": "...", "html": "..."}],
      "groups": [{"id": "match", "label": "...", "hint": "..."}],
      "notes": [{"title": "...", "html": "..."}],
@@ -81,8 +81,10 @@ own styles, so it can set the color and font tokens (--bg, --surface, --fg, --mu
 --accent, --accent-soft, --link, --warn, --warn-soft, --chip, --display, --body) for light and
 dark and restyle anything else; fonts is the Google Fonts stylesheet it needs. variants orders
 the variant cards and gives each a swatch and a hint. sizes is a bag model's size chart, each
-size with the widths in cm that count as it: the size filter then offers those sizes, a size
+size with its width in cm as the brand gives it, which counts up to halfway to the next size and
+2 cm past the outer ones, or as a [from, to] range: the size filter then offers those sizes, a size
 named in a listing's size or its width placing it, and "other" and "not stated" for the rest.
+Without it, a run of bags gets ranges of widths instead.
 lede, hero, the swatches, the facts and
 notes html, and the unverified hint are HTML you write; listing fields are plain text and get
 escaped.
@@ -120,7 +122,7 @@ type Page = {
   css?: string;
   fonts?: string;
   variants?: { name: string; swatch?: string; hint?: string }[];
-  sizes?: { name: string; width: [number, number] }[];
+  sizes?: { name: string; width: number | [number, number] }[];
   new_label?: string;
   facts?: { title: string; html: string }[];
   groups?: Group[];
@@ -233,6 +235,18 @@ function dimensions(text: string): Dims | null {
 function measurements(size: string): Dims | null {
   const head = size.split(";")[0]!;
   return dimensions(head.split("(")[0]!) ?? dimensions(head);
+}
+
+/**
+ * Ranges of bags' widths, for a run without a size chart: the smallest round step that makes at
+ * most six over all but the farthest few widths, which, with mismeasured ones, go under "other".
+ */
+function widthBands(widths: number[]): { step: number; lo: number; hi: number } {
+  const sorted = [...widths].sort((a, b) => a - b);
+  const at = (p: number) => sorted[Math.round(p * (sorted.length - 1))] ?? 0;
+  const [lo, hi] = [at(0.02), at(0.98)];
+  const step = [1, 2, 3, 5, 10, 20, 50].find(s => Math.floor(hi / s) - Math.floor(lo / s) < 6) ?? 100;
+  return { step, lo: Math.floor(lo / step) * step, hi: (Math.floor(hi / step) + 1) * step };
 }
 
 /** Letter sizes in order, then numbers from small to large, then anything else. */
@@ -404,38 +418,57 @@ async function main(argv: string[]): Promise<number> {
   });
 
   // The size filter. Bags give measurements: with the model's size chart (page.sizes) each goes
-  // under a named size, by a name in its size or by its width, and without one the page filters
-  // them by width. Anything else goes in letter or number buckets, unless the listing gives its own
+  // under a named size, by a name in its size or by its width, and without one under a range of
+  // widths. Anything else goes in letter or number buckets, unless the listing gives its own
   const listings = run.listings as Listing[];
-  const chart = (Array.isArray(page.sizes) ? page.sizes : [])
-    .filter(size => typeof size?.name === "string" && size.name !== "" && Array.isArray(size.width) && size.width.length === 2 && size.width.every(n => typeof n === "number"))
-    .sort((a, b) => a.width[0] - b.width[0]);
+  const given = (Array.isArray(page.sizes) ? page.sizes : [])
+    .filter(size => typeof size?.name === "string" && size.name !== "")
+    .filter(size => typeof size.width === "number" || (Array.isArray(size.width) && size.width.length === 2 && size.width.every(n => typeof n === "number")))
+    .map(size => ({ name: size.name, width: size.width, mid: typeof size.width === "number" ? size.width : (size.width[0] + size.width[1]) / 2 }))
+    .sort((a, b) => a.mid - b.mid);
+  // A size given by the brand's width counts up to halfway to the next one, and 2 cm past the outer ones
+  const cmText = (n: number) => n.toLocaleString(ru ? "ru-RU" : "en-IE");
+  const chart = given.map(({ name, width, mid }, i) => {
+    if (Array.isArray(width)) return { name, from: width[0], to: width[1], label: `${name}, ${ru ? `от ${cmText(width[0])} до ${cmText(width[1])} см` : `${cmText(width[0])} to ${cmText(width[1])} cm`}` };
+    const before = given[i - 1], after = given[i + 1];
+    return { name, from: before ? (before.mid + mid) / 2 : mid - 2, to: after ? (mid + after.mid) / 2 : mid + 2, label: `${name}, ${cmText(mid)} ${ru ? "см" : "cm"}` };
+  });
   // An empty list of sizes only keeps that listing out of the buckets
   const explicit = listings.some(listing => Array.isArray(listing.sizes) && listing.sizes.length > 0);
   const measured = rows.filter(row => row.dims).length;
-  const sizeMode = !chart.length && !explicit && measured > 0 && measured >= rows.filter(row => row.size).length / 2 ? "width" : "buckets";
+  const bags = chart.length > 0 || (!explicit && measured > 0 && measured >= rows.filter(row => row.size).length / 2);
+  const bands = bags && !chart.length ? widthBands(rows.flatMap(row => (row.dims ? [row.dims.w] : []))) : null;
+  const band = (w: number) => {
+    if (!bands || w < bands.lo || w >= bands.hi) return "other";
+    const from = Math.floor(w / bands.step) * bands.step, to = from + bands.step - 1;
+    if (bands.step === 1) return ru ? `${from} см` : `${from} cm`;
+    return ru ? `от ${from} до ${to} см` : `${from} to ${to} cm`;
+  };
   const named = (row: (typeof rows)[number]) => {
     const word = (name: string) => new RegExp(`(^|[^\\p{L}])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{L}])`, "iu");
     // Only a name with a letter in it, since a number such as Speedy's 30 can be any measurement
     const byName = chart.find(size => /\p{L}/u.test(size.name) && word(size.name).test(row.size));
     if (byName) return byName.name;
-    if (row.dims) return chart.find(size => row.dims!.w >= size.width[0] && row.dims!.w <= size.width[1])?.name ?? "other";
+    if (row.dims) return chart.find(size => row.dims!.w >= size.from && row.dims!.w <= size.to)?.name ?? "other";
     return row.size ? "other" : "none";
   };
   for (const [index, row] of rows.entries()) {
     const own = listings[index]!.sizes;
     if (Array.isArray(own) && own.length) row.sizes = own.filter(size => typeof size === "string");
     else if (chart.length) row.sizes = [named(row)];
-    else if (sizeMode === "buckets" && !Array.isArray(own)) row.sizes = sizeBuckets(row.size);
+    else if (bands) row.sizes = [row.dims ? band(row.dims.w) : row.size ? "other" : "none"];
+    else if (!Array.isArray(own)) row.sizes = sizeBuckets(row.size);
   }
   const presentSizes = new Set(rows.flatMap(row => row.sizes));
   const chartNames = chart.map(size => size.name);
-  const sizeIds = chart.length
-    ? [...chartNames, ...sizeOrder(new Set([...presentSizes].filter(id => !chartNames.includes(id) && id !== "other" && id !== "none"))), "other", "none"].filter(id => presentSizes.has(id))
-    : sizeOrder(presentSizes);
+  const rest = [...presentSizes].filter(id => !chartNames.includes(id) && id !== "other" && id !== "none");
+  const firstNumber = (id: string) => Number(id.match(/\d+/)?.[0] ?? 0);
+  const sizeIds = !bags
+    ? sizeOrder(presentSizes)
+    : [...chartNames, ...(chart.length ? sizeOrder(new Set(rest)) : rest.sort((a, b) => firstNumber(a) - firstNumber(b))), "other", "none"].filter(id => presentSizes.has(id));
   const sizeLabels: Record<string, string> = {};
-  for (const { name, width: [from, to] } of chart) sizeLabels[name] = `${name}, ${ru ? `от ${from} до ${to} см` : `${from} to ${to} cm`}`;
-  if (chart.length) Object.assign(sizeLabels, ru ? { other: "Другой размер", none: "Не указан" } : { other: "Other size", none: "Not stated" });
+  for (const { name, label } of chart) sizeLabels[name] = label;
+  if (bags) Object.assign(sizeLabels, ru ? { other: "Другой размер", none: "Не указан" } : { other: "Other size", none: "Not stated" });
 
   // Listings whose photos are the same file, often one item listed by several shops or a seller
   // using someone else's photos: each links the others, and a group shipping from different
@@ -474,7 +507,7 @@ async function main(argv: string[]): Promise<number> {
     unverified: page.unverified?.items?.length ? page.unverified : null,
     rows,
     sizeOrder: sizeIds,
-    sizeMode,
+    bags,
     sizeLabels,
     conditionOrder: CONDITION_ORDER.filter(key => rows.some(row => row.cond === key)),
     conditionNames: CONDITION_NAMES[lang],
@@ -528,8 +561,8 @@ async function main(argv: string[]): Promise<number> {
     const bare = [...variantCounts.keys()].filter(name => !variants.some(variant => variant.name === name && variant.swatch));
     if (bare.length) console.warn(`variants without a swatch: ${bare.join(", ")}`);
   }
-  if (sizeMode === "width") console.log(`sizes: by width, from the measurements of ${measured} of ${rows.length} listings`);
-  else if (sizeIds.length) {
+  if (bands) console.warn(`no page.sizes, so bags go under ranges of ${bands.step} cm of width; give the model's size chart to name them`);
+  if (sizeIds.length) {
     const counts = sizeIds.map(id => `${id} ${rows.filter(row => row.sizes.includes(id)).length}`);
     console.log(`sizes: ${counts.join(", ")}`);
   }

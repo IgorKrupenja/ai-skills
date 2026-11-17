@@ -248,10 +248,11 @@ Each listing's fields:
   (scratched hardware, darkened vachetta) goes in the note, which the page shows in full.
 - **Size:** as the shop gives it. A bag's measurements, such as "Width 40 cm, Height 30 cm" or
   "40 x 31 x 6 cm", show in one format, longest side first, and the size filter goes by that
-  width. When the model comes in named sizes (PM and GM, Speedy 25 to 40), add the brand's size
-  chart as `page.sizes`, each size with the widths in cm that count as it, such as
-  `[{"name": "PM", "width": [35, 38]}, {"name": "GM", "width": [39, 43]}]`, so the filter offers
-  those names.
+  width. For every bag search, give `page.sizes`, the size chart from the brand agent's SIZES
+  line, each size with the brand's width in cm, a model in one size included, such as
+  `[{"name": "PM", "width": 36.5}, {"name": "GM", "width": 41}]`: the filter then offers those
+  names, with Other size for listings measured outside them and Not stated. Without it, the page
+  falls back to ranges of widths, and `report.ts` says so.
 - **Price:** in EUR. Prefer the shop's own EUR price; otherwise convert at a current verified rate
   and give the original amount and currency in `price_note`, marked approximate. Keep duties,
   shipping and buyer fees out of it, so prices stay comparable.

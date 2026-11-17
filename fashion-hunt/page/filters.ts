@@ -47,10 +47,8 @@ export type Filters = {
   variants: Set<string>;
   shops: Set<string>;
   conds: Set<string>;
-  /** Size buckets, or a bag's named sizes */
+  /** Size buckets: letter or number sizes, or a bag's named size or range of widths */
   sizes: Set<string>;
-  /** A bag's width in cm, when the page filters bags by width */
-  width: Range;
   price: Range;
   newPrice: Range;
   below: Below;
@@ -70,7 +68,6 @@ export function defaults(group: string): Filters {
     shops: new Set(),
     conds: new Set(),
     sizes: new Set(),
-    width: OPEN,
     price: OPEN,
     newPrice: OPEN,
     below: "below",
@@ -94,10 +91,7 @@ export function passes(r: Row, f: Filters, anyGroup: boolean, skip?: Facet | "va
   if (skip !== "variant" && f.variants.size && !f.variants.has(r.variant)) return false;
   if (skip !== "shop" && f.shops.size && !f.shops.has(r.shop)) return false;
   if (skip !== "cond" && f.conds.size && !f.conds.has(r.cond)) return false;
-  if (skip !== "size") {
-    if (f.sizes.size && !r.sizes.some(z => f.sizes.has(z))) return false;
-    if (!inRange(r.dims?.w ?? null, f.width)) return false;
-  }
+  if (skip !== "size" && f.sizes.size && !r.sizes.some(z => f.sizes.has(z))) return false;
   if (skip !== "price" && !inRange(r.price, f.price)) return false;
   if (skip !== "new" && !inRange(r.newPrice, f.newPrice)) return false;
   if (skip !== "diff" && !cheapEnough(r, f.below)) return false;
@@ -131,7 +125,7 @@ export function sortsFor(report: Report): Record<SortKey, Sort> {
   return {
     shop: { col: 0, kind: "text", value: r => r.shop || null },
     cond: { col: 2, kind: "cond", value: r => COND_RANK[r.cond] ?? null },
-    size: { col: 3, kind: "size", value: report.sizeMode === "width" ? r => r.dims?.w ?? null : sizeRank },
+    size: { col: 3, kind: "size", value: report.bags ? r => r.dims?.w ?? null : sizeRank },
     price: { col: 4, kind: "money", value: r => r.price },
     new: { col: 5, kind: "money", value: r => r.newPrice },
     diff: { col: 6, kind: "diff", value: r => (r.newPrice !== null && r.price !== null ? r.price - r.newPrice : null) },
@@ -191,7 +185,6 @@ export function loadFilters(key: string, base: Filters, choices: Choices): Filte
     f.ships = new Set(list(saved.ships).filter(among(choices.ships)));
     // Pages from before the countries could be picked had a switch that hid listings from outside the EU, as eu
     if (saved.eu === true && !f.ships.size) f.ships = new Set(choices.inside);
-    f.width = range(saved.width);
     f.price = range(saved.price);
     f.newPrice = range(saved.newPrice);
     // Pages from before the difference filter had a switch for listings below the new price, as cheap
