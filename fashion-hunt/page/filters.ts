@@ -75,10 +75,13 @@ export function defaults(group: string): Filters {
 /** Every filter off, the variant cards included; the tab and the order stay */
 export const cleared = (f: Filters): Filters => ({ ...defaults(f.group), below: "any", norepeat: false, sortKey: f.sortKey, sortDir: f.sortDir });
 
-/** Whether a listing passes the filters; anyGroup leaves the tab out, and skip one pill, for counts */
-export function passes(r: Row, f: Filters, anyGroup: boolean, skip?: Facet): boolean {
+/**
+ * Whether a listing passes the filters. anyGroup leaves the tab out, and skip one pill or the
+ * variant cards, for the counts each shows: what it would leave, given everything else.
+ */
+export function passes(r: Row, f: Filters, anyGroup: boolean, skip?: Facet | "variant"): boolean {
   if (!anyGroup && f.group !== ALL && r.group !== f.group) return false;
-  if (f.variants.size && !f.variants.has(r.variant)) return false;
+  if (skip !== "variant" && f.variants.size && !f.variants.has(r.variant)) return false;
   if (skip !== "shop" && f.shops.size && !f.shops.has(r.shop)) return false;
   if (skip !== "cond" && f.conds.size && !f.conds.has(r.cond)) return false;
   if (skip !== "size") {

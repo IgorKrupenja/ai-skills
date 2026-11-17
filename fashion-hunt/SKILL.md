@@ -275,8 +275,8 @@ for this search, so each report looks like what was searched for:
   variants worth comparing (canvases, colors, models), name each listing's variant and give every
   variant a `swatch`, a small inline SVG that draws its pattern or color (a Damier check, a
   flower print, a color chip), with ids of its own if it defines patterns. The page draws a card
-  per variant with its count, lowest and median price, and clicking cards filters the table to
-  those variants, one or several at once.
+  per variant with the count, lowest and median price of its listings in the open tab under the
+  other filters, and clicking cards filters the table to those variants, one or several at once.
 - **Eyebrow and hero** (`page.eyebrow`, `page.hero`): a short line above the title, such as
   "Fashion hunt · Louis Vuitton · checked 16 Nov 2026", and optional HTML under the lede, such as
   an inline SVG of the item. No scripts, external images or brand logos.

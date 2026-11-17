@@ -51,7 +51,9 @@ export function App({ report: R }: { report: Report }) {
     }),
     [R, S, f, list],
   );
-  const rowsFor = useCallback((skip: Facet) => dedupe(R.rows.filter(r => passes(r, f, false, skip)), f), [R, f]);
+  const rowsFor = useCallback((skip: Facet | "variant") => dedupe(R.rows.filter(r => passes(r, f, false, skip)), f), [R, f]);
+  // The variant cards count what the open tab and the other filters leave, so a card's number is what clicking it shows
+  const variantRows = useMemo(() => rowsFor("variant"), [rowsFor]);
 
   // Sticky headings need the table out of its sideways-scrolling box, so it only comes out when it fits
   const bar = useRef<HTMLElement>(null);
@@ -83,7 +85,7 @@ export function App({ report: R }: { report: Report }) {
         {R.hero ? <div className="hero" dangerouslySetInnerHTML={{ __html: R.hero }} /> : null}
       </header>
 
-      <Variants R={R} S={S} picked={f.variants} onToggle={toggleVariant} />
+      <Variants S={S} rows={variantRows} picked={f.variants} onToggle={toggleVariant} />
 
       {R.facts.length ? (
         <section className="facts" aria-label={T.summary}>
