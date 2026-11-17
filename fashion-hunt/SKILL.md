@@ -92,7 +92,9 @@ so don't use it here.
 4. Then run the scans yourself, each as a background command of its own, so that a slow or
    blocked scan holds up only its own shop. The table in `references/shops.md` says which shops
    have one, and each shop's notes give its command: fill in the request's brand, models and a
-   loose `--match`, and add `--known <slug>`, `--tag <run id>-scan-<shop slug>` where the scan
+   loose `--match`, plus `--side` with the range of the item's longer side in cm where its size
+   tells it apart (9-10 for a MagSafe card holder), which keeps a listing that `--match` misses
+   but whose measurements fit, and add `--known <slug>`, `--tag <run id>-scan-<shop slug>` where the scan
    uses a tab, and `--out <run dir>/scan/<shop slug>.json`, printing to
    `<run dir>/scan/<shop slug>.txt`. Most finish within a minute. As each finishes, read only its
    summary lines (`grep -h '^#' <its .txt>`): how many new candidates it found, and anything that

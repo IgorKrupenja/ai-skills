@@ -139,7 +139,8 @@ async function add(runDir: string, shop: string, scanPath: string | undefined, s
   }
   const given = (Array.isArray(data) ? data : [data]) as Record<string, unknown>[];
   const scan = scanPath ? ((await Bun.file(scanPath).json()) as ScanFile) : null;
-  const byId = new Map<string, Candidate>((scan?.candidates ?? []).map(c => [String(c.id), c]));
+  // By id, also what --match left out, listed apart to skim
+  const byId = new Map<string, Candidate>([...(scan?.candidates ?? []), ...(scan?.loose ?? [])].map(c => [String(c.id), c]));
   // A model code, the traits of alike candidates or a where rule stands for every candidate it picks
   // that isn't given by id or picked by an earlier entry
   const taken = new Set(given.filter(e => e.id !== undefined).map(e => String(e.id)));
@@ -194,7 +195,7 @@ async function add(runDir: string, shop: string, scanPath: string | undefined, s
   // The rest of the scan's new candidates don't match
   let rest = 0;
   if (restOut) {
-    for (const c of scan?.candidates ?? []) {
+    for (const c of [...(scan?.candidates ?? []), ...(scan?.loose ?? [])]) {
       if (c.known || saved.has(key(c.url))) continue;
       saved.set(key(c.url), { url: c.url, shop: c.shop, item: c.title, kind: "out" });
       rest++;
@@ -235,7 +236,7 @@ async function carriedOver(runDir: string, search: string, savedKeys: Set<string
   const folder = `${runDir.replace(/\/$/, "")}/scan`;
   for await (const name of new Bun.Glob("*.json").scan({ cwd: folder })) {
     const scan = (await Bun.file(`${folder}/${name}`).json()) as ScanFile;
-    for (const c of scan.candidates ?? []) {
+    for (const c of [...(scan.candidates ?? []), ...(scan.loose ?? [])]) {
       const k = key(c.url);
       const verdict = verdicts.get(k);
       if (!verdict || savedKeys.has(k) || carried.has(k)) continue;

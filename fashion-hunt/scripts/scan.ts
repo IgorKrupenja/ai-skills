@@ -33,7 +33,11 @@ const USAGE = `Scan a shop's catalogue for a fashion-hunt search and list the ca
 
 --brand        a brand as the shop names it; repeat it for aliases (--brand "Louis Vuitton" --brand LV)
 --match        keep only items whose title (and description, where the list has one) matches this
-               case-insensitive regex, such as "marel" for Marelle, Marellini and misspellings
+               case-insensitive regex, such as "marel" for Marelle, Marellini and misspellings.
+               Vestiaire, JoliCloset and Vinted list what their searches found but --match left
+               out at the end, apart, to skim for the item under another name (at most 300)
+--side         with --match: keep what it left out after all when the longer side of its
+               measurements is in this range of cm, such as 9-10.5 (Vestiaire gives measurements)
 --out          where to save every candidate as JSON (default: a file in $TMPDIR, printed at the end)
 --tag          the tab tag of the agent running the scan, as for tab.ts: the scan opens the tab if
                it isn't open, and leaves it open
@@ -88,7 +92,7 @@ ebay        eBay.de's search cards for each --query, Buy It Now only and up to t
             so read item pages for a few cards only.
 
 Prints one line per candidate: id | price | condition | ships from | title | details | model
-code. A model code is a token of letters and digits in the title or description, such as Louis
+code, then the same for what --match left out. A model code is a token of letters and digits in the title or description, such as Louis
 Vuitton's M80689 or a style number, that several candidates share or an earlier search saved; the
 lines start with one per code: how many candidates have it, what an earlier search saved it as
 and two of their titles. Agents save their picks by id, or a whole code at once, with
@@ -145,7 +149,8 @@ export type Candidate = {
   traits?: string;
 };
 
-export type ScanFile = { shop: string; scanned_at: string; searched: string[]; candidates: Candidate[] };
+/** loose: what the shop's searches found but --match left out, listed apart to skim */
+export type ScanFile = { shop: string; scanned_at: string; searched: string[]; candidates: Candidate[]; loose?: Candidate[] };
 
 function die(message: string): never {
   console.error(message);
@@ -451,7 +456,7 @@ type VestiaireItem = {
   /** The seller: an official store, a professional (else an individual), sales so far and badge, such as "expert seller" */
   official?: boolean; pro?: boolean; sales?: number; badge?: string;
 };
-type VestiaireResult = { error?: string; searched: string[]; items: VestiaireItem[] };
+type VestiaireResult = { error?: string; searched: string[]; items: VestiaireItem[]; loose?: VestiaireItem[] };
 
 async function inVestiaire(A: VestiaireArgs): Promise<VestiaireResult> {
   const searched: string[] = [];
@@ -528,10 +533,14 @@ async function inVestiaire(A: VestiaireArgs): Promise<VestiaireResult> {
   }
   const re = A.match ? new RegExp(A.match, "i") : null;
   const kept = re ? items.filter(i => re.test(`${i.title} ${i.model} ${i.description}`)) : items;
+  const keptIds = new Set(kept.map(i => i.id));
+  const loose = re ? items.filter(i => !keptIds.has(i.id)) : [];
   if (re) searched.push(`${kept.length} matching /${A.match}/`);
-  // The product API: what the listing page shows, 20 at a time
-  for (let i = 0; i < kept.length; i += 20) {
-    await Promise.all(kept.slice(i, i + 20).map(async item => {
+  // The product API: what the listing page shows, 20 at a time, for the candidates and for what
+  // --match left out when there are few enough to skim
+  const checked = [...kept, ...(loose.length <= 600 ? loose : [])];
+  for (let i = 0; i < checked.length; i += 20) {
+    await Promise.all(checked.slice(i, i + 20).map(async item => {
       try {
         const res = await fetch(`https://apiv2.vestiairecollective.com/products/${item.id}?isoCountry=EE&x-siteid=13&x-language=en&x-currency=EUR`, { headers: { accept: "application/json" } });
         const d = ((await res.json()) as any).data;
@@ -557,7 +566,7 @@ async function inVestiaire(A: VestiaireArgs): Promise<VestiaireResult> {
       } catch { /* keep what the search gave */ }
     }));
   }
-  return { searched, items: kept };
+  return { searched, items: kept, loose };
 }
 
 async function vestiaire(tag: string, args: VestiaireArgs): Promise<ScanFile> {
@@ -565,13 +574,13 @@ async function vestiaire(tag: string, args: VestiaireArgs): Promise<ScanFile> {
   const re = args.match ? new RegExp(args.match, "i") : args.models.length ? new RegExp(args.models.map(m => m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i") : null;
   const r = await inTab(tag, "https://www.vestiairecollective.com", inVestiaire, args);
   if (r.error) die(r.error);
-  const candidates: Candidate[] = [];
   let gone = 0;
-  for (const i of r.items) {
-    if (i.available === false || i.vacation) {
-      gone++;
-      continue;
-    }
+  const forSale = (items: VestiaireItem[]) => items.filter(i => {
+    const out = i.available === false || !!i.vacation;
+    if (out) gone++;
+    return !out;
+  });
+  const candidate = (i: VestiaireItem): Candidate => {
     const notes = [
       i.reserved ? "reserved" : "",
       i.was ? `was €${i.was}` : "",
@@ -585,7 +594,7 @@ async function vestiaire(tag: string, args: VestiaireArgs): Promise<ScanFile> {
       i.sales === 0 ? "no sales yet" : i.sales ? `${i.sales} sales` : "",
       i.badge ?? "",
     ].filter(Boolean);
-    candidates.push({
+    return {
       id: i.id,
       shop: "Vestiaire Collective",
       url: i.url,
@@ -602,10 +611,12 @@ async function vestiaire(tag: string, args: VestiaireArgs): Promise<ScanFile> {
       seller: seller.length ? `${i.seller} (${seller.join(", ")})` : i.seller,
       listed: i.listed,
       ...(notes.length ? { note: notes.join("; ") } : {}),
-    });
-  }
+    };
+  };
+  const candidates = forSale(r.items).map(candidate);
+  const loose = forSale(r.loose ?? []).map(candidate);
   if (gone) r.searched.push(`${gone} not for sale now (sold, reserved for checkout or the seller is away), left out`);
-  return { shop: "vestiaire", scanned_at: new Date().toISOString(), searched: r.searched, candidates };
+  return { shop: "vestiaire", scanned_at: new Date().toISOString(), searched: r.searched, candidates, loose };
 }
 
 // --- JoliCloset (runs in the page) -------------------------------------------------------------
@@ -615,7 +626,7 @@ type JoliItem = {
   id: string; url: string; title: string; brand: string; price: number; currency: string; inStock: boolean; photo: string;
   condition?: string; chars?: Record<string, string>; seller?: string; description?: string; delivery?: string;
 };
-type JoliResult = { searched: string[]; items: JoliItem[] };
+type JoliResult = { searched: string[]; items: JoliItem[]; loose?: JoliItem[] };
 
 async function inJoli(A: JoliArgs): Promise<JoliResult> {
   const searched: string[] = [];
@@ -658,6 +669,8 @@ async function inJoli(A: JoliArgs): Promise<JoliResult> {
   }
   const re = A.match ? new RegExp(A.match, "i") : null;
   const kept = [...all.values()].filter(i => i.inStock && (!re || re.test(i.title)));
+  // What --match left out, with only what the list gives, to skim
+  const loose = re ? [...all.values()].filter(i => i.inStock && !re.test(i.title)) : [];
   if (re) searched.push(`${kept.length} in stock and matching /${A.match}/`);
   // Each candidate's product page, 8 at a time
   const text = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&#39;|&#x27;/g, "'").replace(/&quot;/g, "\"").replace(/\s+/g, " ").trim();
@@ -683,7 +696,7 @@ async function inJoli(A: JoliArgs): Promise<JoliResult> {
       } catch { /* keep what the list gave */ }
     }));
   }
-  return { searched, items: kept };
+  return { searched, items: kept, loose };
 }
 
 async function jolicloset(tag: string, categories: string[], query: string | null, match: string | null): Promise<ScanFile> {
@@ -692,7 +705,7 @@ async function jolicloset(tag: string, categories: string[], query: string | nul
     ? categories.map(c => `${site}/en/${c.replace(/^\/?(en\/)?/, "")}`)
     : ["fashion-women", "fashion-men"].map(s => `${site}/en/${s}?query=${encodeURIComponent(query ?? "")}`);
   const r = await inTab(tag, site, inJoli, { pages, match });
-  const candidates: Candidate[] = r.items.filter(i => i.inStock).map(i => {
+  const candidate = (i: JoliItem): Candidate => {
     const chars = i.chars ?? {};
     return {
       id: i.id,
@@ -711,8 +724,10 @@ async function jolicloset(tag: string, categories: string[], query: string | nul
       ...(i.seller ? { seller: i.seller } : {}),
       ...(i.delivery ? { note: `average delivery ${i.delivery}` } : {}),
     };
-  });
-  return { shop: "jolicloset", scanned_at: new Date().toISOString(), searched: r.searched, candidates };
+  };
+  const candidates = r.items.filter(i => i.inStock).map(candidate);
+  const loose = (r.loose ?? []).map(candidate);
+  return { shop: "jolicloset", scanned_at: new Date().toISOString(), searched: r.searched, candidates, loose };
 }
 
 // --- Farfetch (runs in the page) ---------------------------------------------------------------
@@ -1200,6 +1215,7 @@ async function vinted(tag: string, queries: string[], filters: string | null, br
   // A label reads "<title>, Kaubamärk: Louis Vuitton, Mudel: Marelle, Seisukord: Väga hea, 1620.63 €, 1702.36 €"
   const LABELS: Record<string, string> = { kaubamärk: "brand", brand: "brand", mudel: "model", model: "model", suurus: "size", size: "size", seisukord: "condition", condition: "condition" };
   const candidates: Candidate[] = [];
+  const loose: Candidate[] = [];
   for (const card of r.cards) {
     const parts = card.label.split(", ");
     const prices = parts.filter(p => /^[\d.]+\s*€$/.test(p)).map(p => Number(p.replace(/[^\d.]/g, "")));
@@ -1213,8 +1229,7 @@ async function vinted(tag: string, queries: string[], filters: string | null, br
     }
     if (brands.length && !brands.some(b => norm(fields.brand ?? "") === norm(b))) continue;
     const text = `${title.join(", ")} ${fields.model ?? ""}`;
-    if (match && !match.test(text)) continue;
-    candidates.push({
+    (match && !match.test(text) ? loose : candidates).push({
       id: card.id,
       shop: "Vinted",
       url: card.url,
@@ -1229,7 +1244,7 @@ async function vinted(tag: string, queries: string[], filters: string | null, br
     });
   }
   const searched = [...r.searched, `${candidates.length} cards${brands.length ? ` by ${brands.join(" or ")}` : ""}${match ? ` matching ${match}` : ""}`];
-  return { shop: "vinted", scanned_at: new Date().toISOString(), searched, candidates };
+  return { shop: "vinted", scanned_at: new Date().toISOString(), searched, candidates, loose };
 }
 
 // --- A Retro Tale (Searchspring) and ReSee (Algolia) -------------------------------------------
@@ -1461,6 +1476,9 @@ export function codeSummary(candidates: Candidate[]): string[] {
 
 // --- Output -------------------------------------------------------------------------------------
 
+/** The most that --match may leave out and still be listed to skim */
+const LOOSE_MAX = 300;
+
 function line(c: Candidate): string {
   const price = c.price_eur !== undefined ? `€${c.price_eur}` : c.price !== undefined ? `${c.price} ${c.currency}` : "price?";
   const ships = c.ships_from === "not stated" ? "?" : (c.ships_from ?? "?").replace(/ \(.*\)$/, "");
@@ -1482,6 +1500,7 @@ async function main(): Promise<number> {
       pause: { type: "string" },
       known: { type: "string" },
       match: { type: "string" },
+      side: { type: "string" },
       filters: { type: "string" },
       shops: { type: "string" },
       tag: { type: "string" },
@@ -1552,19 +1571,42 @@ async function main(): Promise<number> {
   } else {
     die(`no scanner for ${shop}: the shops are shopify, vestiaire, jolicloset, yaga, vinted, collectorsquare, aretrotale, resee, farfetch and ebay`);
   }
-  await markCodes(result.candidates);
+  // What --match left out: a candidate after all when --side says its size fits, else listed
+  // apart to skim
+  let loose = result.loose ?? [];
+  if (values.side) {
+    const m = values.side.match(/^(\d+(?:[.,]\d+)?)\s*[-,]\s*(\d+(?:[.,]\d+)?)$/);
+    if (!m) die(`--side takes a range of the longer side in cm, such as 9-10.5: ${values.side}`);
+    const [lo, hi] = [Number(m[1]!.replace(",", ".")), Number(m[2]!.replace(",", "."))];
+    const fits = loose.filter(c => {
+      const side = longSide(c.size);
+      return side !== undefined && side >= lo && side <= hi;
+    });
+    for (const c of fits) c.note = [c.note, "--match left it out, kept by its size"].filter(Boolean).join("; ");
+    result.candidates.push(...fits);
+    loose = loose.filter(c => !fits.includes(c));
+    result.searched.push(`${fits.length} that --match left out kept by their size, ${lo} to ${hi} cm`);
+  }
+  await markCodes([...result.candidates, ...loose]);
   markTraits(result.candidates);
   // A repeat run lists only the candidates the last run didn't judge; merge carries over the rest
   let shown = result.candidates;
   if (values.known) {
     const verdicts = await lastVerdicts(values.known);
-    for (const c of result.candidates) c.known = verdicts.get(key(c.url))?.kind;
+    for (const c of [...result.candidates, ...loose]) c.known = verdicts.get(key(c.url))?.kind;
     shown = result.candidates.filter(c => !c.known);
     const n = (kind: string) => result.candidates.filter(c => c.known === kind).length;
     result.searched.push(verdicts.size
       ? `${result.candidates.length - shown.length} judged in the last run of ${values.known} (${n("match")} matches, ${n("near")} near, ${n("out")} out), which listings.ts merge --known carries over: only the ${shown.length} new ones are listed`
       : `no verdicts saved for ${values.known} yet, so every candidate is listed`);
   }
+  let skim = loose.filter(c => !c.known);
+  if (skim.length > LOOSE_MAX) {
+    result.searched.push(`--match left out ${skim.length} more, too many to skim: loosen --match or narrow the search to see them`);
+    loose = skim = [];
+  }
+  if (loose.length) result.loose = loose;
+  else delete result.loose;
   const out = values.out ?? `${(Bun.env.TMPDIR ?? "/tmp").replace(/\/$/, "")}/fashion-hunt/scan-${shop}-${Date.now()}.json`;
   await Bun.write(out, JSON.stringify(result, null, 1));
   for (const s of result.searched) console.log(`# ${s}`);
@@ -1573,6 +1615,10 @@ async function main(): Promise<number> {
   console.log(`# ${shown.length} candidates below, sorted by price; all ${result.candidates.length}, with every field, saved in ${out}`);
   const price = (c: Candidate) => c.price_eur ?? c.price ?? Infinity;
   for (const c of [...shown].sort((a, b) => price(a) - price(b))) console.log(line(c));
+  if (skim.length) {
+    console.log(`# ${skim.length} more below that the searches found but --match left out: skim them for the item under another name, and save a match by id (sheet.ts --ids shows their photos); --rest out marks the rest`);
+    for (const c of [...skim].sort((a, b) => price(a) - price(b))) console.log(line(c));
+  }
   return 0;
 }
 

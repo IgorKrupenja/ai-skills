@@ -10,9 +10,10 @@ import type { Candidate, ScanFile } from "./scan.ts";
 
 const USAGE = `Put the photos of a scan's candidates on numbered contact sheets.
 
-    sheet.ts <scan file> [--ids <id>,...] [--code <code>] [--traits <traits>] [--out <folder>]
+    sheet.ts <scan file> [--ids <id>,...] [--loose] [--code <code>] [--traits <traits>] [--out <folder>]
 
-Takes the candidates the options pick (by default every one the last run didn't judge), fetches
+Takes the candidates the options pick (by default every one the last run didn't judge; with
+--loose, those --match left out instead, and --ids finds those too), fetches
 their photos, and puts them 24 to a sheet, each numbered, with ImageMagick's montage. Prints the
 sheets' paths, to read as images, and a legend: number | id | price | title. Photos from shops that
 refuse scripts are fetched in the ai-skills browser, so it must be open. Sheets go to --out, by
@@ -30,7 +31,7 @@ function die(message: string): never {
 async function main(): Promise<number> {
   const { values, positionals } = parseArgs({
     args: Bun.argv.slice(2),
-    options: { ids: { type: "string" }, code: { type: "string" }, traits: { type: "string" }, out: { type: "string" }, help: { type: "boolean", short: "h" } },
+    options: { ids: { type: "string" }, loose: { type: "boolean" }, code: { type: "string" }, traits: { type: "string" }, out: { type: "string" }, help: { type: "boolean", short: "h" } },
     allowPositionals: true,
   });
   const [scanPath] = positionals;
@@ -41,7 +42,8 @@ async function main(): Promise<number> {
   if (!Bun.which("magick")) die("sheet.ts needs ImageMagick (brew install imagemagick); without it, read the photos one by one");
   const scan = (await Bun.file(scanPath).json()) as ScanFile;
   const ids = new Set((values.ids ?? "").split(/[\s,]+/).filter(Boolean));
-  const picked = scan.candidates.filter(c =>
+  const pool = values.loose ? (scan.loose ?? []) : ids.size ? [...scan.candidates, ...(scan.loose ?? [])] : scan.candidates;
+  const picked = pool.filter(c =>
     ids.size ? ids.has(String(c.id)) : values.code ? c.code === values.code.toUpperCase() : values.traits ? c.traits === values.traits.toUpperCase() : !c.known,
   );
   if (!picked.length) die("no candidates picked");

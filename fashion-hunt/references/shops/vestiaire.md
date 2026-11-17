@@ -19,6 +19,9 @@ bun <skill dir>/scripts/scan.ts vestiaire --tag <tag> --brand "Louis Vuitton" --
 - The scan includes the designer's collaborations, which Vestiaire files as designers of their
   own ("Louis Vuitton x Yayoi Kusama").
 - Without a model, add `--query` (the shop's text search) or `--match`.
+- What the searches found but `--match` left out is listed after the candidates, with its
+  measurements, to skim, and `--side 9-10` keeps those whose longer side fits (a MagSafe card
+  holder titled "Coin Card Holder", say).
 - `--filters` adds filters as JSON: `color.id` (White 1, Beige 2, Red 6, Brown 8, Blue 9, Black 14,
   Multicolour 17), `universe.id` (Women 1, Men 2), `categoryLvl0.id` (Bags 5 and Accessories 6
   for women, Bags 141 and Accessories 14 for men), `condition.id` (1 never worn with tag, 2 never

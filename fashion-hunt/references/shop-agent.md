@@ -42,6 +42,10 @@ minute, and saves every field to the `--out` file. Save scans in `<run dir>/scan
 - Add `--known <search slug>` from your brief to every scan. When the search ran before, the scan
   lists only the candidates that run didn't judge; the main chat carries over the rest, with the
   verdicts they had then, so judge only the new ones.
+- After the candidates, a scan may list what its searches found but `--match` left out. Skim
+  those lines for the item under another name, such as a MagSafe card holder titled "Coin Card
+  Holder" with the right measurements, check the likely ones on a photo sheet (`sheet.ts --ids`),
+  and save a match by id like any other. `--rest out` records the rest as not matching.
 
 ## Save as you go
 
