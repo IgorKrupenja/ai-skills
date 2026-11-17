@@ -303,7 +303,7 @@ const tabs = [...R.groups];
 if (new Set(R.rows.map(r => r.group)).size > 1) tabs.push({ id: ALL, label: T.allTab, hint: T.allHint });
 
 // The columns the table sorts by, each with the value it sorts on; a missing value always goes last
-const COND_RANK = Object.fromEntries(["newTags", "new", "likeNew", "veryGood", "good", "fair", "other"].map((k, i) => [k, i]));
+const COND_RANK = Object.fromEntries(["newTags", "new", "likeNew", "veryGood", "good", "fair", "used", "other"].map((k, i) => [k, i]));
 const SORTS = {
   shop: { col: 0, kind: "text", value: r => r.shop || null },
   cond: { col: 2, kind: "cond", value: r => COND_RANK[r.cond] ?? null },

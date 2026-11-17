@@ -26,11 +26,14 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
 
     group           its tab: an id from page.groups ("match" for matches and "near" for the
                     rest when page.groups is left out)
-    condition       the shop's own label; the page puts the usual Vinted, Vestiaire, Yaga, eBay.de,
-                    Care of Carl and Collector's Cage labels, and its own Russian names, on one
-                    scale in its language (new with tags, new, like new, very good, good, fair),
-                    filters by it and shows the shop's label on hover. Map any other label onto
-                    that scale yourself, or translate it; the condition filter lists it as other
+    condition       the shop's own label. The page puts the usual Vinted, Vestiaire, Yaga, eBay.de,
+                    JoliCloset, Care of Carl and Collector's Cage labels, French ones and its own
+                    names on one scale (new with tags, new, like new, very good, good, fair, and
+                    used for eBay's ungraded "Gebraucht"), shows only the scale's name, in its
+                    language, with the shop's label on hover, and filters by it. A note in
+                    brackets doesn't count, so put any other label on the scale yourself as its
+                    name with the shop's words in brackets, such as "Fair (Correct condition)":
+                    the build lists the labels it can't place, which show as other
     size            as listed; the size filter works out buckets from it (XS to XL+ from letter,
                     FR, IT, UK and US sizes, or a bare number such as a belt's 90), and sizes,
                     such as ["M"], overrides them
@@ -125,7 +128,7 @@ const CHARTS: Record<string, number[]> = {
   US: [0, 2, 6, 10, 14],
 };
 
-/** The condition labels of Vinted (in Estonian and English), Vestiaire Collective, Yaga, eBay.de and other shops, on one scale. */
+/** The condition labels of Vinted (in Estonian and English), Vestiaire Collective, Yaga, eBay.de, JoliCloset, French shops and others, on one scale. */
 const CONDITIONS: Record<string, string> = {
   "uus koos hinnasildiga": "newTags", "new with tags": "newTags", "new with tag": "newTags", "never worn, with tag": "newTags",
   "uus ilma hinnasildita": "new", "new without tags": "new", "never worn": "new", "uus": "new", new: "new",
@@ -135,31 +138,39 @@ const CONDITIONS: Record<string, string> = {
   rahuldav: "fair", satisfactory: "fair", fair: "fair", "fair condition": "fair",
   // Pre-owned shops such as Care of Carl and Collector's Cage
   excellent: "likeNew", "excellent condition": "likeNew", pristine: "likeNew", "very nice": "veryGood",
-  // eBay.de's grades
+  // eBay.de's grades, and the bare "Gebraucht" its search cards show, which has no grade
   "neu mit etikett": "newTags", "neu ohne etikett": "new", neu: "new", neuwertig: "likeNew",
   "gebraucht - hervorragend": "likeNew", "gebraucht - sehr gut": "veryGood", "gebraucht - gut": "good",
-  "gebraucht - akzeptabel": "fair",
+  "gebraucht - akzeptabel": "fair", gebraucht: "used",
+  hervorragend: "likeNew", "sehr gut": "veryGood", gut: "good", akzeptabel: "fair",
+  // French labels, and JoliCloset's English ones ("Correct condition" is état correct)
+  "neuf avec étiquette": "newTags", "neuf avec étiquettes": "newTags", neuf: "new", "jamais porté": "new",
+  "excellent état": "likeNew", "très bon état": "veryGood", "bon état": "good", "état correct": "fair",
+  "correct condition": "fair", correct: "fair",
+  "never worn with tags": "newTags", "never worn no tags": "new", "never worn without tags": "new",
+  // Used with no grade
+  used: "used", "pre-owned": "used",
   // The page's own Russian names, for labels already translated
   "новое с биркой": "newTags", "новое": "new", "как новое": "likeNew", "очень хорошее": "veryGood", "хорошее": "good",
-  "удовлетворительное": "fair",
+  "удовлетворительное": "fair", "б/у": "used", "б/у, без оценки": "used",
 };
-/** The scale from best to worst, then labels it doesn't know and listings without one. */
-const CONDITION_ORDER = ["newTags", "new", "likeNew", "veryGood", "good", "fair", "other", "none"];
+/** The scale from best to worst, then used with no grade, labels it doesn't know and listings without one. */
+const CONDITION_ORDER = ["newTags", "new", "likeNew", "veryGood", "good", "fair", "used", "other", "none"];
 const CONDITION_NAMES: Record<"en" | "ru", Record<string, string>> = {
-  en: { newTags: "New with tags", new: "New", likeNew: "Like new", veryGood: "Very good", good: "Good", fair: "Fair", other: "Other", none: "Not stated" },
-  ru: { newTags: "Новое с биркой", new: "Новое", likeNew: "Как новое", veryGood: "Очень хорошее", good: "Хорошее", fair: "Удовлетворительное", other: "Другое", none: "Не указано" },
+  en: { newTags: "New with tags", new: "New", likeNew: "Like new", veryGood: "Very good", good: "Good", fair: "Fair", used: "Used", other: "Other", none: "Not stated" },
+  ru: { newTags: "Новое с биркой", new: "Новое", likeNew: "Как новое", veryGood: "Очень хорошее", good: "Хорошее", fair: "Удовлетворительное", used: "Б/у", other: "Другое", none: "Не указано" },
 };
 
 /**
- * A shop's condition label on the scale: the key the condition filter uses, and the label in the
- * page's language with any note in brackets kept. A label the scale doesn't know stays as it is.
+ * A shop's condition label on the scale: the key the condition filter uses, and the scale's name
+ * for it in the page's language. The page shows only that name, so the column never mixes
+ * languages, and the shop's own label on hover. A note in brackets and eBay's explanation after a
+ * colon ("Gebraucht - Gut: Dieser Artikel ...") don't count. A label the scale doesn't know is other.
  */
 function condition(label: string, lang: "en" | "ru"): { key: string; text: string } {
-  // A note in brackets is kept; eBay's explanation after a colon ("Gebraucht - Gut: Dieser Artikel ...") isn't
-  const [, head = "", rest = ""] = label.match(/^([^(:]*?)\s*([(:].*)?$/) ?? [];
-  const key = CONDITIONS[head.trim().toLowerCase().replace(/\s*[-–—]\s*/g, " - ")];
-  if (key) return { key, text: [CONDITION_NAMES[lang][key], rest.startsWith(":") ? "" : rest].filter(Boolean).join(" ") };
-  return { key: label.trim() ? "other" : "none", text: label };
+  const head = label.split(/[(:]/)[0]!.trim().toLowerCase().replace(/\s*[-\u2013\u2014]\s*/g, " - ").replace(/\s+/g, " ");
+  const key = CONDITIONS[head] ?? (label.trim() ? "other" : "none");
+  return { key, text: key === "none" ? "" : (CONDITION_NAMES[lang][key] ?? label) };
 }
 
 function die(message: string): never {
@@ -289,6 +300,8 @@ async function main(argv: string[]): Promise<number> {
   };
   if (!Array.isArray(run.listings)) die("the run needs a 'listings' list");
   const seen = new Set<string>();
+  // Condition labels the scale doesn't know, with their shops, for a warning after the build
+  const offScale = new Map<string, number>();
   const rows = (run.listings as Listing[]).map((listing, index) => {
     if (typeof listing?.url !== "string" || !listing.url || (listing.kind !== "match" && listing.kind !== "near")) {
       die(`listing ${index + 1} needs a url and kind 'match' or 'near': ${JSON.stringify(listing)}`);
@@ -299,9 +312,12 @@ async function main(argv: string[]): Promise<number> {
     if (!groupIds.has(group)) die(`listing ${index + 1} is in group '${group}', which page.groups doesn't have`);
     const sizes = Array.isArray(listing.sizes) ? listing.sizes.filter(size => typeof size === "string") : sizeBuckets(text(listing.size));
     const state = condition(text(listing.condition), lang);
+    const shop = text(listing.shop) || new URL(listing.url).hostname.replace(/^www\./, "");
+    const offKey = `${shop} "${text(listing.condition)}"`;
+    if (state.key === "other") offScale.set(offKey, (offScale.get(offKey) ?? 0) + 1);
     return {
       url: listing.url,
-      shop: text(listing.shop) || new URL(listing.url).hostname.replace(/^www\./, ""),
+      shop,
       item: text(listing.item),
       condition: state.text,
       shopCondition: text(listing.condition),
@@ -392,6 +408,9 @@ async function main(argv: string[]): Promise<number> {
   if (shared.length) console.log(`same photo: ${shared.flat().length} listings in ${shared.length} groups, marked on the page`);
   if (unplaced.size) {
     console.warn(`ships_from names no country, so the EU filter keeps these unless non_eu is set: ${[...unplaced].map(([from, n]) => `"${from}" (${n})`).join(", ")}`);
+  }
+  if (offScale.size) {
+    console.warn(`conditions off the scale, shown as ${CONDITION_NAMES[lang].other}: ${[...offScale].map(([label, n]) => `${label} (${n})`).join(", ")}. Give each the scale's name with the shop's words in brackets, such as "Fair (Correct condition)"`);
   }
 
   for (const group of groups) {

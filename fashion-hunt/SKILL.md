@@ -223,10 +223,11 @@ Each listing's fields:
   own store like "Louis Vuitton (official, new)"; third-party retailers aren't labelled (call them
   retailers when useful).
 - **Condition:** the shop's own label. The page puts the usual Vinted, Vestiaire, Yaga, eBay.de,
-  Care of Carl and Collector's Cage labels on one scale in its language, so the column doesn't mix
-  Estonian, German and English. Put any other label on that scale yourself, as its name in the page's
-  language with the shop's own words in brackets (such as "Очень хорошее (minimal marks)"), so
-  the condition filter sorts it too.
+  JoliCloset, Care of Carl and Collector's Cage labels on one scale and shows only the scale's
+  name in the page's language, with the shop's label on hover, so the column never mixes
+  languages. When `report.ts` lists labels it can't place, give those listings the scale's name
+  with the shop's words in brackets, such as "Fair (Correct condition)". Wear worth knowing
+  (scratched hardware, darkened vachetta) goes in the note, which the page shows in full.
 - **Price:** in EUR. Prefer the shop's own EUR price; otherwise convert at a current verified rate
   and give the original amount and currency in `price_note`, marked approximate. Keep duties,
   shipping and buyer fees out of it, so prices stay comparable.
