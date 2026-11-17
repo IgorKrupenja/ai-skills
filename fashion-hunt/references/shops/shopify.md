@@ -5,8 +5,11 @@ Curated by NOAR (Tallinn), Affordable Luxury, Queen Station, ReLuxe Room (Sofia)
 (Copenhagen) all run on Shopify, so one scan covers them in about 20 seconds:
 
 ```bash
-bun <skill dir>/scripts/scan.ts shopify --brand "Louis Vuitton" --brand LV --match marel --out <run dir>/scan/shopify.json
+bun <skill dir>/scripts/scan.ts shopify --brand "Louis Vuitton" --brand LV --match marel --tag <tag> --out <run dir>/scan/shopify.json
 ```
+
+After a day of scans, all nine shops answered 403 to requests from outside the browser, while the
+same JSON loaded in a tab: with `--tag`, the scan reads any shop that answers 403 in a tab instead.
 
 It reads each shop's brand collection (such as `/collections/louis-vuitton`, which holds the
 brand's products in stock), or the whole catalogue where there's none, keeps products in stock

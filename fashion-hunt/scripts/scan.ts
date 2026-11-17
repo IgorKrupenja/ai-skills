@@ -9,11 +9,12 @@
  */
 
 import { parseArgs } from "node:util";
-import { EU, budgetLeft, codeTokens, countryCode, key, lastVerdicts, learnedCodes, spendBudget } from "./common.ts";
+import { EU, budgetLeft, codeTokens, countryCode, key, lastVerdicts, learnedCodes, longSide, spendBudget } from "./common.ts";
 
 const USAGE = `Scan a shop's catalogue for a fashion-hunt search and list the candidates.
 
-    scan.ts shopify    --brand <name> [--shops <domain>,...] [--match <regex>] [--full] [--out <file>]
+    scan.ts shopify    --brand <name> [--shops <domain>,...] [--match <regex>] [--full] [--tag <tab tag>]
+                       [--out <file>]
     scan.ts shopify    --profile [--shops <domain>,...]
     scan.ts vestiaire  --tag <tab tag> --brand <name> [--model <name>]... [--query <text>]
                        [--filters <json>] [--match <regex>] [--out <file>]
@@ -41,7 +42,9 @@ shopify     the products of the brand's collection (such as /collections/louis-v
             holds the brand's products in stock, where the shop has one, or else of the whole
             catalogue (also with --full), kept when the vendor, title or tags name the brand.
             Prices are the shop's own euro prices. --shops takes domains (default: the
-            bookmarked Shopify shops, listed in SHOPIFY below). --profile prints what each shop
+            bookmarked Shopify shops, listed in SHOPIFY below). A shop that answers 403 from
+            outside the browser, as all nine did after a day of scans, is read in a tab instead
+            when --tag gives one. --profile prints what each shop
             carries instead: products in stock, vendors and product types.
 vestiaire   the search the catalog page loads, unsold items only, 200 a call: --brand picks the
             designer and its collaborations ("Louis Vuitton x Yayoi Kusama"), --model the model
@@ -198,8 +201,15 @@ async function getJson(url: string, gap = 500): Promise<unknown> {
   }
 }
 
-/** Run fn(args) inside the page of a tab of the ai-skills browser that is on origin. */
-async function inTab<A, R>(tag: string, origin: string, fn: (args: A) => Promise<R>, args: A): Promise<R> {
+/**
+ * Run fn(args) inside the page of a tab of the ai-skills browser that is on origin. A failure ends
+ * the scan, or with throws set, throws for the caller to report.
+ */
+async function inTab<A, R>(tag: string, origin: string, fn: (args: A) => Promise<R>, args: A, throws = false): Promise<R> {
+  const fail = (message: string): never => {
+    if (throws) throw new Error(message);
+    return die(message);
+  };
   const code = `async (p) => {
     if (!p.url().startsWith(${JSON.stringify(origin)})) await p.goto(${JSON.stringify(`${origin}/`)}, { waitUntil: "domcontentloaded" });
     return JSON.stringify(await p.evaluate(${fn.toString()}, ${JSON.stringify(args)}));
@@ -208,10 +218,10 @@ async function inTab<A, R>(tag: string, origin: string, fn: (args: A) => Promise
   let ran = await run();
   if (ran.exitCode !== 0 && /no tab for tag|is gone/.test(ran.stderr.toString())) {
     const opened = await Bun.$`bun ${TAB} open ${tag} ${`${origin}/`}`.quiet().nothrow();
-    if (opened.exitCode !== 0) die(`couldn't open a tab for ${origin}: ${opened.stderr.toString().trim()}`);
+    if (opened.exitCode !== 0) fail(`couldn't open a tab for ${origin}: ${opened.stderr.toString().trim()}`);
     ran = await run();
   }
-  if (ran.exitCode !== 0) die(`the scan failed in the browser: ${ran.stderr.toString().trim().slice(0, 1500)}`);
+  if (ran.exitCode !== 0) fail(`the scan failed in the browser: ${ran.stderr.toString().trim().slice(0, 1500)}`);
   return JSON.parse(ran.stdout.toString()) as R;
 }
 
@@ -273,19 +283,83 @@ async function shopifyCatalogue(domain: string, collections: string[]): Promise<
   return { products, currency: cart.currency ?? "EUR", source };
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- the shops' own JSON, read in their pages */
+/**
+ * The same catalogue, read inside a tab on the shop, for a shop that answers 403 to requests from
+ * outside the browser; only the brand's products come back (by vendor, title or tags), and each
+ * listed product's euro price where the shop's own currency isn't the euro.
+ */
+async function inShopify(A: { collections: string[]; brands: string[] }): Promise<{ products: ShopifyProduct[]; currency: string; source: string; eur: Record<string, number> }> {
+  const get = async (path: string): Promise<any> => {
+    const res = await fetch(path, { credentials: "include" });
+    if (!res.ok) throw new Error(`${res.status} from ${location.origin}${path}`);
+    return res.json();
+  };
+  let base = "/products.json";
+  let source = "whole catalogue, read in the browser";
+  let first: any[] | null = null;
+  for (const handle of A.collections) {
+    const data = await get(`/collections/${handle}/products.json?limit=250&page=1`).catch(() => null);
+    if (data?.products?.length) {
+      base = `/collections/${handle}/products.json`;
+      source = `collection ${handle}, read in the browser`;
+      first = data.products;
+      break;
+    }
+  }
+  const brands = A.brands.map(b => b.toLowerCase());
+  const products: any[] = [];
+  for (let page = 1; page <= 100; page++) {
+    const batch: any[] = page === 1 && first ? first : (await get(`${base}?limit=250&page=${page}`)).products;
+    for (const p of batch) {
+      const named = `${p.vendor} | ${p.title} | ${[p.tags].flat().join(" ")}`.toLowerCase();
+      if (brands.some(b => named.includes(b))) products.push({ title: p.title, handle: p.handle, vendor: p.vendor, product_type: p.product_type, tags: p.tags, body_html: p.body_html, published_at: p.published_at, images: (p.images ?? []).slice(0, 1).map((i: any) => ({ src: i.src })), variants: (p.variants ?? []).map((v: any) => ({ price: v.price, available: v.available, title: v.title })) });
+    }
+    if (batch.length < 250) break;
+    if (page === 100) source += ", only its first 25,000 products (Shopify serves no more)";
+  }
+  const currency = (await get("/cart.js").catch(() => ({})))?.currency ?? "EUR";
+  const eur: Record<string, number> = {};
+  if (currency !== "EUR") {
+    const inStock = products.filter(p => p.variants.some((v: any) => v.available)).map(p => p.handle);
+    for (let i = 0; i < inStock.length; i += 8) {
+      await Promise.all(inStock.slice(i, i + 8).map(async handle => {
+        const shown = await get(`/products/${handle}.js?currency=EUR`).catch(() => null);
+        if (shown?.price) eur[handle] = shown.price / 100;
+      }));
+    }
+  }
+  return { products, currency, source, eur };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 /** The handle Shopify gives a collection named after the brand, such as louis-vuitton. */
 const handleOf = (brand: string) => norm(brand).replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 const tagList = (p: ShopifyProduct) => (Array.isArray(p.tags) ? p.tags : p.tags.split(/,\s*/));
 
-async function shopify(domains: string[], brands: string[], match: RegExp | null, full: boolean): Promise<ScanFile> {
+async function shopify(domains: string[], brands: string[], match: RegExp | null, full: boolean, tag: string | undefined): Promise<ScanFile> {
   const brandRes = brands.map(words);
   const searched: string[] = [];
   const candidates: Candidate[] = [];
   const handles = full ? [] : [...new Set(brands.map(handleOf).filter(h => h.length > 2))];
-  const results = await Promise.all(
+  type Result = { domain: string; products: ShopifyProduct[]; currency: string; source: string; eur?: Record<string, number> } | { domain: string; error: string };
+  const results: Result[] = await Promise.all(
     domains.map(domain => shopifyCatalogue(domain, handles).then(r => ({ domain, ...r }), (e: unknown) => ({ domain, error: String(e) }))),
   );
+  // Shops that refuse requests from outside the browser (403, often after many scans): read them in a tab, one after another
+  for (const [i, r] of results.entries()) {
+    if (!("error" in r) || !/\b403\b/.test(r.error)) continue;
+    if (!tag) {
+      results[i] = { domain: r.domain, error: `${r.error}; give --tag to read it in the browser instead` };
+      continue;
+    }
+    try {
+      results[i] = { domain: r.domain, ...(await inTab(tag, `https://${r.domain}`, inShopify, { collections: handles, brands }, true)) };
+    } catch (e) {
+      results[i] = { domain: r.domain, error: `${r.error}, and in the browser: ${e}` };
+    }
+  }
   for (const r of results) {
     const info = SHOPIFY[r.domain] ?? { name: r.domain, country: "not stated" };
     if ("error" in r) {
@@ -305,7 +379,10 @@ async function shopify(domains: string[], brands: string[], match: RegExp | null
       kept++;
       let price = Math.min(...available.map(v => Number(v.price)));
       let currency = r.currency;
-      if (currency !== "EUR") {
+      if (r.eur?.[p.handle]) {
+        price = r.eur[p.handle]!;
+        currency = "EUR";
+      } else if (currency !== "EUR" && !r.eur) {
         // The catalogue gives the shop's own currency; the product's .js gives the price the shop
         // shows in euros, when it sells in euros at all
         const shown = (await getJson(`https://${r.domain}/products/${p.handle}.js?currency=EUR`).catch(() => null)) as { price?: number } | null;
@@ -1317,17 +1394,8 @@ export async function markCodes(candidates: Candidate[]): Promise<void> {
   });
 }
 
-/** The width in a size, in whole centimetres: "Width 25 cm, Height 15 cm" or the largest of "18x26x12 cm". */
-function widthCm(size: string | undefined): number | undefined {
-  const s = (size ?? "").replace(/(\d),(\d)/g, "$1.$2");
-  const labelled = s.match(/\b(?:width|breite|w)\s*:?\s*(\d+(?:\.\d+)?)/i);
-  if (labelled) return Math.round(Number(labelled[1]));
-  const dims = s.match(/(\d+(?:\.\d+)?)\s*(?:cm)?\s*[x×]\s*(\d+(?:\.\d+)?)\s*(?:cm)?(?:\s*[x×]\s*(\d+(?:\.\d+)?))?/i);
-  return dims ? Math.round(Math.max(...dims.slice(1).filter(Boolean).map(Number))) : undefined;
-}
-
 /**
- * Group the candidates without a code by their material, colour and width, such as
+ * Group the candidates without a code by their material, colour and longer side, such as
  * LEATHER/WHITE/25CM, where the scan gives them, so an agent can judge alike ones at once too.
  */
 export function markTraits(candidates: Candidate[]): void {
@@ -1335,8 +1403,8 @@ export function markTraits(candidates: Candidate[]): void {
   const byTraits = new Map<string, Candidate[]>();
   for (const c of candidates) {
     if (c.code) continue;
-    // Without a width, material and colour alone lump wallets with bags
-    const width = widthCm(c.size);
+    // Without a size, material and colour alone lump wallets with bags
+    const width = longSide(c.size);
     const parts = [first(c.material), first(c.color), width ? `${width}CM` : ""];
     if (!width || parts.filter(Boolean).length < 2) continue;
     const traits = parts.map(p => p || "?").join("/");
@@ -1424,7 +1492,7 @@ async function main(): Promise<number> {
       return 0;
     }
     if (!brands.length) die("give the brand with --brand");
-    result = await shopify(domains, brands, match, !!values.full);
+    result = await shopify(domains, brands, match, !!values.full, values.tag);
   } else if (shop === "vestiaire") {
     if (brands.length !== 1) die("give exactly one --brand, as Vestiaire names the designer (scan each brand separately)");
     let filters: Record<string, string[]> = {};

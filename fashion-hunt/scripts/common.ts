@@ -127,11 +127,28 @@ export async function learnCodes(codes: Record<string, LearnedCode>): Promise<vo
 /**
  * The tokens in a text that may be a brand's model code: 5 to 12 letters and digits with at least
  * one digit, such as Louis Vuitton's M80689 or a style number like 400249, but not a measurement
- * such as W25cm, 25x15x8cm or 100ml, or a decade such as 2010s.
+ * such as W25cm, 25x15x8cm or 100ml, a decade such as 2010s, or a seller's own stock number: one
+ * after "Auth", "#", "No." or "SKU", or nine digits and more, as in "LV Auth 163399" or
+ * "154742399 [U]", which a seller repeats across different bags.
  */
 export function codeTokens(text: string): string[] {
-  const tokens = text.toUpperCase().match(/\b(?=[A-Z0-9]*\d)[A-Z0-9]{5,12}\b/g) ?? [];
-  return [...new Set(tokens.filter(t => !/^[A-Z]?\d{1,3}(CM|MM|IN|ML|OZ|G|KG|X\d+)?$|^\d+(X\d+)+(CM|MM|IN)?$|^(19|20)\d\dS$/.test(t)))];
+  const own = text.replace(/\b(?:auth(?:entic)?|sku|stock|ref|item|art|id|no|nr)\.?\s*[:#.]?\s*[A-Z0-9-]+|#\s*[A-Z0-9-]+/gi, " ");
+  const tokens = own.toUpperCase().match(/\b(?=[A-Z0-9]*\d)[A-Z0-9]{5,12}\b/g) ?? [];
+  return [...new Set(tokens.filter(t => !/^[A-Z]?\d{1,3}(CM|MM|IN|ML|OZ|G|KG|X\d+)?$|^\d+(X\d+)+(CM|MM|IN)?$|^(19|20)\d\dS$|^\d{9,}$/.test(t)))];
+}
+
+/**
+ * A bag's longer side in whole centimetres, from a size such as "Width 41 cm, Height 30 cm",
+ * "W 40 x H 30 cm" or "18x26x12 cm": sellers swap width and height, so the longer of the two
+ * (or of the first two numbers) is what tells a large size from a small one.
+ */
+export function longSide(size: unknown): number | undefined {
+  const s = String(size ?? "").replace(/(\d),(\d)/g, "$1.$2");
+  const w = s.match(/\b(?:width|breite|w)\s*:?\s*(\d+(?:\.\d+)?)/i)?.[1];
+  const h = s.match(/\b(?:height|höhe|h)\s*:?\s*(\d+(?:\.\d+)?)/i)?.[1];
+  if (w || h) return Math.round(Math.max(Number(w ?? 0), Number(h ?? 0)));
+  const dims = s.match(/(\d+(?:\.\d+)?)\s*(?:cm)?\s*[x×]\s*(\d+(?:\.\d+)?)/i);
+  return dims ? Math.round(Math.max(Number(dims[1]), Number(dims[2]))) : undefined;
 }
 
 /**

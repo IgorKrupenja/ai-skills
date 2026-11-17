@@ -5,7 +5,7 @@
  */
 
 import { parseArgs } from "node:util";
-import { type LearnedCode, key, lastVerdicts, learnCodes, learnedCodes, outsideEU } from "./common.ts";
+import { type LearnedCode, key, lastVerdicts, learnCodes, learnedCodes, longSide, outsideEU } from "./common.ts";
 import type { Candidate, ScanFile } from "./scan.ts";
 
 const USAGE = `Save a shop agent's listings as it verifies them, and merge them into the run file.
@@ -28,7 +28,13 @@ add    saves listings (a JSON object or list, from file or stdin) in <run dir>/l
        {"code": "M80689", "kind": "match", "item": "Marelle, Epi Noir"}: it stands for every
        candidate the scan marked with that code, except those given by id, and the next scan
        shows the code as saved as that item; {"traits": "LEATHER/WHITE/25CM", ...} does the same
-       for a group of alike candidates without a code. A country in ships_from sets non_eu, whatever it
+       for a group of alike candidates without a code. {"where": {...}, ...} saves every candidate
+       a rule picks: a regex for title, description, text (all of those), material, color,
+       condition, ships_from or code, and a [min, max] for side (the longer of width and height,
+       in cm) or price, such as {"where": {"title": "^Porte Documents Voyage", "side": [39, 45]},
+       "kind": "match", "item": "Porte-Documents Voyage GM, {material} {color}"}, where {material},
+       {color}, {size}, {title} and {code} take each candidate's own. An entry by id wins over a
+       group or rule, and an earlier group or rule over a later one. A country in ships_from sets non_eu, whatever it
        said. Kind "out" records a candidate judged not to match, so a repeat run doesn't judge
        it again: it needs only an id or url. --rest out saves every candidate of the scan that
        isn't saved yet (and that the last run didn't judge) as out, once the agent has saved
@@ -80,6 +86,46 @@ function check(listing: Record<string, unknown>, at: string): Listing {
   return listing as Listing;
 }
 
+/** The text fields a where rule can test with a regex, and the number fields it can test with a range. */
+const WHERE_TEXT = ["title", "description", "text", "material", "color", "condition", "ships_from", "code"];
+const WHERE_RANGE = ["side", "price"];
+
+/**
+ * A where rule's test, such as {"title": "^Porte Documents Voyage", "side": [39, 45]}: each text
+ * field must match its case-insensitive regex (text is the title, description, material and colour
+ * together), and side (the longer of width and height, in cm) and price (EUR) must fall in their
+ * [min, max] range.
+ */
+function whereTest(where: unknown, at: string): (c: Candidate) => boolean {
+  if (!where || typeof where !== "object" || Array.isArray(where)) die(`${at}: where takes an object, such as {"title": "^Porte Documents Voyage", "side": [39, 45]}`);
+  const tests: ((c: Candidate) => boolean)[] = [];
+  for (const [field, value] of Object.entries(where)) {
+    if (WHERE_TEXT.includes(field)) {
+      let re: RegExp;
+      try {
+        re = new RegExp(String(value), "i");
+      } catch (e) {
+        die(`${at}: where.${field} isn't a valid regex: ${e}`);
+      }
+      tests.push(c => re.test(field === "text" ? `${c.title} ${c.description ?? ""} ${c.material ?? ""} ${c.color ?? ""}` : String(c[field as keyof Candidate] ?? "")));
+    } else if (WHERE_RANGE.includes(field)) {
+      if (!Array.isArray(value) || value.length !== 2) die(`${at}: where.${field} takes [min, max], with null for no bound`);
+      const [min, max] = value.map(v => (v === null ? null : Number(v)));
+      tests.push(c => {
+        const v = field === "side" ? longSide(c.size) : c.price_eur;
+        return v !== undefined && (min === null || min === undefined || v >= min) && (max === null || max === undefined || v <= max);
+      });
+    } else {
+      die(`${at}: where takes ${[...WHERE_TEXT, ...WHERE_RANGE].join(", ")}, not ${field}`);
+    }
+  }
+  return c => tests.every(test => test(c));
+}
+
+/** An item text with a candidate's fields filled in, such as "Porte-Documents Voyage GM, {material} {color}". */
+const fill = (item: string, c: Candidate) =>
+  item.replace(/\{(material|color|size|title|code)\}/g, (_, field: keyof Candidate) => String(c[field] ?? "")).replace(/\s+/g, " ").replace(/\s+,/g, ",").replace(/[\s,]+$/, "").trim();
+
 async function add(runDir: string, shop: string, scanPath: string | undefined, source: string, restOut: boolean): Promise<void> {
   if (!SLUG_RE.test(shop)) die("the shop slug may only use lowercase letters, digits and hyphens");
   if (restOut && !scanPath) die("--rest out needs the scan file, with --scan");
@@ -94,18 +140,29 @@ async function add(runDir: string, shop: string, scanPath: string | undefined, s
   const given = (Array.isArray(data) ? data : [data]) as Record<string, unknown>[];
   const scan = scanPath ? ((await Bun.file(scanPath).json()) as ScanFile) : null;
   const byId = new Map<string, Candidate>((scan?.candidates ?? []).map(c => [String(c.id), c]));
-  // A model code, or the traits of alike candidates, stands for every candidate marked with it that
-  // isn't given by id
-  const explicit = new Set(given.filter(e => e.id !== undefined).map(e => String(e.id)));
+  // A model code, the traits of alike candidates or a where rule stands for every candidate it picks
+  // that isn't given by id or picked by an earlier entry
+  const taken = new Set(given.filter(e => e.id !== undefined).map(e => String(e.id)));
   const entries = given.flatMap((entry, i) => {
-    const field = entry.code !== undefined ? "code" : entry.traits !== undefined ? "traits" : null;
-    if (!field || entry.id !== undefined || entry.url !== undefined) return [entry];
-    const value = String(entry[field]).toUpperCase();
+    if (entry.id !== undefined || entry.url !== undefined) return [entry];
+    const at = `listing ${i + 1}`;
+    let picks: (c: Candidate) => boolean;
+    let what: string;
+    if (entry.code !== undefined) {
+      const code = String(entry.code).toUpperCase();
+      [picks, what] = [c => c.code === code, `code ${code}`];
+    } else if (entry.traits !== undefined) {
+      const traits = String(entry.traits).toUpperCase();
+      [picks, what] = [c => c.traits === traits, `traits ${traits}`];
+    } else if (entry.where !== undefined) {
+      [picks, what] = [whereTest(entry.where, at), `where ${JSON.stringify(entry.where)}`];
+    } else return [entry];
     // Candidates the last run judged are carried over at merge, so a group leaves them alone
-    const matching = (scan?.candidates ?? []).filter(c => c[field] === value && !c.known && !explicit.has(String(c.id)));
-    if (!matching.length) die(`listing ${i + 1}: no candidate with ${field} ${value} in ${scanPath ?? "a scan file (give it with --scan)"}`);
-    const { code: _code, traits: _traits, ...rest } = entry;
-    return matching.map(c => ({ ...rest, id: c.id }));
+    const matching = (scan?.candidates ?? []).filter(c => !c.known && !taken.has(String(c.id)) && picks(c));
+    if (!matching.length) die(`${at}: no candidate with ${what} in ${scanPath ?? "a scan file (give it with --scan)"}`);
+    for (const c of matching) taken.add(String(c.id));
+    const { code: _code, traits: _traits, where: _where, ...rest } = entry;
+    return matching.map(c => ({ ...rest, id: c.id, ...(typeof rest.item === "string" ? { item: fill(rest.item, c) } : {}) }));
   });
   const listings = entries.map((entry, i) => {
     let listing = entry;

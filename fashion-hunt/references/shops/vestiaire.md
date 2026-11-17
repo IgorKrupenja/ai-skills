@@ -25,6 +25,10 @@ bun <skill dir>/scripts/scan.ts vestiaire --tag <tag> --brand "Louis Vuitton" --
   worn, 3 very good, 4 good, 5 fair), `materialLvl0.id` (Leather 3, Cloth 16, Patent leather 14)
   and `country` (an ISO code, such as `GB`).
 - A search reads at most 10,000 listings: narrow it with a model or filters when it says so.
+- A title starts with the model the seller set ("Porte Documents Voyage leather bag"), so a
+  `where` rule on the title and size settles most of a model at once. Sellers often swap width
+  and height (30 x 40 cm for a 40 cm bag), and some set another model or none, which the
+  description then names.
 
 The scan keeps only listings for sale now (not sold, not held at checkout, seller not on
 vacation), and gives the price in EUR, condition, material, colour, measurements, the country it

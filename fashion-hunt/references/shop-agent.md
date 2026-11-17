@@ -64,6 +64,22 @@ and width where the shop gives them, such as `LEATHER/WHITE/25CM`, and save the 
 before you save it whole, and save the odd ones out by id in the same call. Where a group's titles
 disagree, look at a photo or two. Then go through the candidates in neither.
 
+When one rule settles many candidates, save them with it rather than one by one: a `where` entry
+picks every candidate whose title, description, `text` (both), material, color, condition or
+ships_from matches a regex, and whose `side` (the longer of width and height, in cm, since sellers
+swap the two) or `price` falls in a range, and fills `{material}` and `{color}` into the item for
+each. In a Porte-Documents Voyage search, one entry settled 294 Vestiaire listings whose seller
+set the model and that measure 39 to 45 cm:
+
+```json
+[{"id": "73367019", "kind": "match", "item": "Porte-Documents Voyage GM, Damier Ebene"},
+ {"where": {"title": "^Porte Documents Voyage", "side": [39, 45]}, "kind": "match", "item": "Porte-Documents Voyage GM, {material} {color}"}]
+```
+
+An entry by id wins over a group or rule, so give the exceptions by id in the same call. Make the
+rule from what the lines show, check a few of the candidates it picks, and save it early: an agent
+that judged 335 candidates one by one was stopped after 18 minutes with nothing saved.
+
 A scan candidate needs only its id, kind (`match` or `near`), the item (model, material and colour,
 specific enough to compare with the brand's range) and, for a near match, what it misses; add
 `risk` (an authenticity flag with its reason) and `note` when there's something to say. A listing
