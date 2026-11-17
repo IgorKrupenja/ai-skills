@@ -20,6 +20,8 @@ const USAGE = `Scan a shop's catalogue for a fashion-hunt search and list the ca
     scan.ts jolicloset --tag <tab tag> (--category <path>... | --query <text>) [--match <regex>]
                        [--out <file>]
     scan.ts yaga       --brand <name> [--query <text>] [--match <regex>] [--out <file>]
+    scan.ts aretrotale --brand <name>... [--query <text>] [--match <regex>] [--out <file>]
+    scan.ts resee      --brand <name>... [--query <text>] [--match <regex>] [--out <file>]
     scan.ts farfetch   --tag <tab tag> (--category <path>... | --query <text>...) [--brand <name>]...
                        [--match <regex>] [--pause <ms>] [--out <file>]
     scan.ts ebay       --tag <tab tag> [--query <text>]... [--match <regex>] [--details]
@@ -50,6 +52,10 @@ jolicloset  the result pages of a designer category (such as
             men's sections, read from the list data each page embeds, 60 a page; then each
             candidate's product page: condition, fabric, colours, dimensions and seller.
 yaga        the search API for the brand (and text), then each product's details.
+aretrotale  A Retro Tale's search service (Searchspring) for the brand, 100 items a call, with
+            price, condition, colour and description; prices include delivery to Estonia.
+resee       ReSee's search service (Algolia) for the brand's name (and text), with Estonia's
+            price, condition, colour, material and size, for sale and not on hold.
 farfetch    the result pages of each text search in the women's and men's sections, or of a
             designer listing (such as women/louis-vuitton-pre-owned, 20 pages and more for a big
             brand), from the item list each page embeds, 96 a page; --brand keeps that designer's
@@ -1025,6 +1031,103 @@ async function yaga(brands: string[], query: string | null, match: RegExp | null
   return { shop: "yaga", scanned_at: new Date().toISOString(), searched, candidates };
 }
 
+// --- A Retro Tale (Searchspring) and ReSee (Algolia) -------------------------------------------
+
+/** A Retro Tale's site id on Searchspring, the search service its pages call. */
+const ARETROTALE_SITE = "ws4kxb";
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- the search services' own JSON */
+async function aretrotale(brands: string[], query: string | null, match: RegExp | null): Promise<ScanFile> {
+  const searched: string[] = [];
+  const all = new Map<string, any>();
+  for (const brand of brands.length ? brands : [""]) {
+    for (let page = 1; page <= 100; page++) {
+      const params = new URLSearchParams({ siteId: ARETROTALE_SITE, resultsFormat: "native", resultsPerPage: "100", page: String(page) });
+      if (query) params.set("q", query);
+      if (brand) params.set("filter.brand", brand);
+      const d = (await getJson(`https://${ARETROTALE_SITE}.a.searchspring.io/api/search/search.json?${params}`)) as any;
+      for (const r of d.results ?? []) all.set(String(r.uid ?? r.id), r);
+      if (page === 1) searched.push(`${brand || "the whole shop"}${query ? `, "${query}"` : ""}: ${d.pagination?.totalResults ?? 0} items`);
+      if (page >= (d.pagination?.totalPages ?? 1)) break;
+    }
+  }
+  const items = [...all.values()].filter(r => Number(r.stock ?? 1) > 0 && (!match || match.test(`${r.name} ${r.description ?? ""}`)));
+  if (match) searched.push(`${items.length} in stock matching ${match}`);
+  const candidates: Candidate[] = items.map(r => ({
+    id: String(r.uid ?? r.id),
+    shop: "A Retro Tale",
+    url: `https://aretrotale.com/en/product/${r.url}`,
+    title: r.name,
+    brand: r.brand,
+    price_eur: Number(r.price),
+    ...(r.general_condition ? { condition: r.general_condition } : {}),
+    ...(r.color_label_hex ? { color: String(r.color_label_hex).split(":")[1] } : {}),
+    ships_from: "Sweden",
+    photo: r.imageUrl,
+    description: snippet(r.description, match),
+  }));
+  searched.push("prices are in euros with delivery and duties to Estonia included; A Retro Tale checks authenticity itself");
+  return { shop: "aretrotale", scanned_at: new Date().toISOString(), searched, candidates };
+}
+
+/**
+ * ReSee's product index on Algolia, with the search-only key its own pages use, read from its
+ * script bundle so that a new key doesn't break the scan.
+ */
+async function reseeIndex(): Promise<{ url: string; headers: Record<string, string> }> {
+  const site = "https://www.resee.com";
+  const page = await fetch(`${site}/en/`, { headers: { "user-agent": UA } }).then(r => r.text());
+  const bundle = page.match(/https:\/\/media\.resee\.com\/build\/shop\/app\.[0-9a-f]+\.js/)?.[0];
+  const env = page.match(/data-search-env="([^"]+)"/)?.[1];
+  if (!bundle || !env) die("ReSee's page no longer names its search bundle: search it in the browser");
+  const js = await fetch(bundle, { headers: { "user-agent": UA } }).then(r => r.text());
+  const keys = js.match(/dataset\.searchEnv,[^}]*?"([A-Z0-9]{10})",\w="([0-9a-f]{32})"/);
+  if (!keys) die("ReSee's bundle no longer holds its search key where the scan looks: search it in the browser");
+  return {
+    url: `https://${keys[1]}-dsn.algolia.net/1/indexes/${env}product/query`,
+    headers: { "x-algolia-application-id": keys[1]!, "x-algolia-api-key": keys[2]!, "content-type": "application/json" },
+  };
+}
+
+async function resee(brands: string[], query: string | null, match: RegExp | null): Promise<ScanFile> {
+  const index = await reseeIndex();
+  const searched: string[] = [];
+  const all = new Map<string, any>();
+  for (const brand of brands.length ? brands : [""]) {
+    const text = [brand, query].filter(Boolean).join(" ");
+    for (let page = 0; page < 50; page++) {
+      await pace(500);
+      const d = (await fetch(index.url, { method: "POST", headers: index.headers, body: JSON.stringify({ query: text, hitsPerPage: 1000, page }) }).then(r => r.json())) as any;
+      for (const h of d.hits ?? []) if (!brand || norm(h.brand_en ?? "") === norm(brand)) all.set(String(h.objectID), h);
+      if (page === 0) searched.push(`"${text}": ${d.nbHits ?? 0} items`);
+      if (page + 1 >= (d.nbPages ?? 1)) break;
+    }
+  }
+  const items = [...all.values()].filter(h => !h.sold && !h.on_hold && (!match || match.test(`${h.title_en} ${stripHtml(h.content_en ?? "")}`)));
+  searched.push(`${items.length} for sale${brands.length ? ` by ${brands.join(" or ")}` : ""}${match ? ` matching ${match}` : ""}`);
+  const candidates: Candidate[] = items.map(h => {
+    // Prices differ by zone: Estonia's, else the EU's
+    const zone = h.prices?.zee?.EUR?.en ?? h.prices?.UE?.EUR?.en ?? h.prices?.zfr?.EUR?.en;
+    return {
+      id: String(h.objectID),
+      shop: "ReSee",
+      url: `https://www.resee.com${h.url_en}`,
+      title: h.title_en,
+      brand: h.brand_en,
+      ...(zone ? { price_eur: zone.price_number / 100 } : {}),
+      ...(h.condition_en ? { condition: h.condition_en } : {}),
+      ...(h.sizes?.length ? { size: h.sizes.map((z: any) => (typeof z === "object" ? (z.label_en ?? z.label ?? z.name ?? z.value ?? Object.values(z).find(v => typeof v === "string")) : z)).filter(Boolean).join(", ") } : {}),
+      ...(h.color_en ? { color: [h.color_en].flat().join(", ") } : {}),
+      ...(h.material_en ? { material: [h.material_en].flat().join(", ") } : {}),
+      ...(h.location === "EU" ? { ships_from: "France" } : h.location ? { ships_from: h.location } : {}),
+      photo: h.image_urls?.[0],
+      description: snippet(stripHtml(h.content_en ?? ""), match),
+    };
+  });
+  return { shop: "resee", scanned_at: new Date().toISOString(), searched, candidates };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 // --- Model codes --------------------------------------------------------------------------------
 
 /**
@@ -1068,13 +1171,14 @@ function widthCm(size: string | undefined): number | undefined {
  * LEATHER/WHITE/25CM, where the scan gives them, so an agent can judge alike ones at once too.
  */
 export function markTraits(candidates: Candidate[]): void {
-  const first = (s: string | undefined) => (s ?? "").split(/[,;]/)[0]!.trim().toUpperCase();
+  const first = (s: unknown) => String((Array.isArray(s) ? s[0] : s) ?? "").split(/[,;]/)[0]!.trim().toUpperCase();
   const byTraits = new Map<string, Candidate[]>();
   for (const c of candidates) {
     if (c.code) continue;
+    // Without a width, material and colour alone lump wallets with bags
     const width = widthCm(c.size);
     const parts = [first(c.material), first(c.color), width ? `${width}CM` : ""];
-    if (parts.filter(Boolean).length < 2) continue;
+    if (!width || parts.filter(Boolean).length < 2) continue;
     const traits = parts.map(p => p || "?").join("/");
     byTraits.set(traits, [...(byTraits.get(traits) ?? []), c]);
   }
@@ -1176,6 +1280,9 @@ async function main(): Promise<number> {
   } else if (shop === "yaga") {
     if (!brands.length) die("give the brand with --brand");
     result = await yaga(brands, query, match);
+  } else if (shop === "aretrotale" || shop === "resee") {
+    if (!brands.length) die("give the brand with --brand");
+    result = await (shop === "aretrotale" ? aretrotale : resee)(brands, query, match);
   } else if (shop === "farfetch") {
     if (!values.category.length && !query) die("give a --category or a --query");
     result = await farfetch(needTag(), values.category, values.query, brands, values.match ?? null, pause);
@@ -1184,7 +1291,7 @@ async function main(): Promise<number> {
     if (!values.query.length && !ids.length) die("give a --query or --ids");
     result = await ebay(needTag(), values.query, ids, match, !!values.details, pause);
   } else {
-    die(`no scanner for ${shop}: the shops are shopify, vestiaire, jolicloset, yaga, farfetch and ebay`);
+    die(`no scanner for ${shop}: the shops are shopify, vestiaire, jolicloset, yaga, aretrotale, resee, farfetch and ebay`);
   }
   await markCodes(result.candidates);
   markTraits(result.candidates);

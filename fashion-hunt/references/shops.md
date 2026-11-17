@@ -13,13 +13,13 @@ give it to an agent with the small shops, and add it here afterwards.
 | eBay.de | `scan.ts ebay` | ebay.md | everything, new and used; only Buy It Now counts |
 | Yaga | `scan.ts yaga` | yaga.md | pre-owned, mostly high-street brands, sellers in Estonia |
 | The 9 Shopify shops below | `scan.ts shopify` | shopify.md | designer bags and accessories, see below |
-| A Retro Tale | browser | small-shops.md | pre-owned designer bags and accessories |
+| A Retro Tale | `scan.ts aretrotale` | small-shops.md | pre-owned designer bags and accessories |
 | Care of Carl | browser | small-shops.md | new men's clothing and accessories, plus pre-owned designer bags and accessories |
 | Collector Square | browser | small-shops.md | pre-owned designer bags, accessories, watches and jewellery |
 | Eppli | browser | small-shops.md | pre-owned designer bags, accessories, watches and jewellery |
 | Farfetch | `scan.ts farfetch` | farfetch.md | new designer clothing, shoes, bags and accessories from boutiques, plus pre-owned from resellers (Louis Vuitton only as "Louis Vuitton Pre-Owned") |
 | Relove | browser | small-shops.md | about 50 products, mostly designer bags |
-| ReSee | browser | small-shops.md | vintage designer women's clothing, bags and accessories |
+| ReSee | `scan.ts resee` | small-shops.md | vintage designer women's clothing, bags and accessories |
 | YOOX | browser | small-shops.md | new off-season designer clothing, shoes, bags and accessories; no Louis Vuitton |
 
 The Shopify shops, by what they had in stock on 17 November 2026 (`scan.ts shopify --profile`

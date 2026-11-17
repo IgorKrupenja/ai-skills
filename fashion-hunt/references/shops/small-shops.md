@@ -2,10 +2,12 @@
 
 - **A Retro Tale (aretrotale.com, Stockholm):** pick "Europe / EUR" in the first-visit popup. A
   brand's items are at `/en/category/<brand>/<category>` (such as `/en/category/louis-vuitton/bags`),
-  48 a page; text search is `/en/search?q=<query>`, which finds fewer than the category pages. The
-  site's search runs on a Searchspring API that answers JSON for the whole index, which is quicker
-  to read than the pages. Delivery to Estonia is free with duties included, it checks authenticity
-  itself (a third-party certificate costs €40 more), and a return costs €20.
+  48 a page; text search is `/en/search?q=<query>`, which finds fewer than the category pages.
+  Scan it instead, which reads the brand's whole stock from the site's search service
+  (Searchspring) in seconds: `bun <skill dir>/scripts/scan.ts aretrotale --brand "Louis Vuitton"
+  --match marel --out <run dir>/scan/aretrotale.json`. Delivery to Estonia is free with duties
+  included, it checks authenticity itself (a third-party certificate costs €40 more), and a
+  return costs €20.
 - **Care of Carl (careofcarl.com):** pick Estonia in the delivery-country dialog first. Besides new
   items it has a pre-owned section, with Louis Vuitton at `/en/louis-vuitton-pre-owned`. It refuses
   scripts outside the browser.
@@ -20,8 +22,11 @@
   `/category/2/online-store`; search with `/search?q=<query>`.
 - **ReSee (resee.com):** filter a designer page with
   `?refinementList[sub_categories_flat_en][0]=Accessories > Belts` (or the category you need). A
-  location dialog can cover the photos; read the description text for color instead. Its pages
-  load an Algolia product index, which answers text queries over the whole shop in one call.
+  location dialog can cover the photos; read the description text for color instead. Scan it
+  instead, which reads the brand's stock from the site's search service (Algolia) with
+  Estonia's prices: `bun <skill dir>/scripts/scan.ts resee --brand "Louis Vuitton" --match
+  <regex> --out <run dir>/scan/resee.json`. It sells mostly clothing; items not in Paris say
+  where they are.
 - **YOOX (yoox.com):** a text-search parameter is dropped, so use the category with the Designer
   filter (men's HUGO belts add `brand[0]=HUGO BOSS-202 > HUGO-22874`). Cards show no color; the
   item page title does, as in "HUGO Black Men's Leather Belt".
