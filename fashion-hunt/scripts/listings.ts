@@ -57,7 +57,7 @@ merge  adds every saved listing to the run file's listings: one already there by
 type Listing = Record<string, unknown> & { url: string; item: string; kind: "match" | "near" | "out" };
 
 /** What a shop agent sets; merge leaves the other fields of a run file's listing alone. */
-const AGENT_FIELDS = ["url", "shop", "item", "kind", "misses", "price_eur", "price", "currency", "condition", "size", "ships_from", "non_eu", "photo", "risk", "note"];
+const AGENT_FIELDS = ["url", "shop", "item", "kind", "misses", "price_eur", "price", "currency", "condition", "size", "color", "ships_from", "non_eu", "photo", "risk", "note"];
 
 function die(message: string): never {
   console.error(message);
@@ -174,7 +174,7 @@ async function add(runDir: string, shop: string, scanPath: string | undefined, s
     if (entry.id !== undefined && entry.url === undefined) {
       const c = byId.get(String(entry.id));
       if (!c) die(`listing ${i + 1}: no candidate with id ${entry.id} in ${scanPath ?? "a scan file (give it with --scan)"}`);
-      const { id: _id, title, description: _d, brand: _b, seller: _s, listed: _l, color: _c, material: _m, model: _model, traits: _t, known: _k, ...fields } = c;
+      const { id: _id, title, description: _d, brand: _b, seller: _s, listed: _l, material: _m, model: _model, traits: _t, known: _k, ...fields } = c;
       listing = { ...fields, item: title, ...entry };
       delete listing.id;
     }

@@ -111,6 +111,7 @@ type Listing = {
   change?: unknown;
   note?: unknown;
   variant?: unknown;
+  color?: unknown;
   image?: unknown;
 };
 type Group = { id: string; label: string; hint?: string };
@@ -181,6 +182,36 @@ const CONDITIONS: Record<string, string> = {
 };
 /** The scale from best to worst, then used with no grade, labels it doesn't know and listings without one. */
 const CONDITION_ORDER = ["newTags", "new", "likeNew", "veryGood", "good", "fair", "used", "other", "none"];
+
+/**
+ * Colour families for the colour filter, in its order, each found by words in a listing's item (and
+ * colour field), in the languages the agents and shops write: the page's English or Russian, and
+ * German, French, Italian, Spanish and Polish titles. Navy hides blue, so a navy coat isn't both.
+ */
+const COLORS: { key: string; en: string; ru: string; swatch: string; re: RegExp }[] = [
+  { key: "black", en: "Black", ru: "Чёрный", swatch: "#17181b", re: /\b(black|schwarz|noir|nero|negro|negra)\b|czarn|ч[её]рн/i },
+  { key: "white", en: "White", ru: "Белый", swatch: "#ffffff", re: /\b(white|wei(ß|ss)e?|blanc|blanche|bianco|blanco)\b|biał|бел(ый|ая|ое|ого|ой|ые|ых|о-)/i },
+  { key: "cream", en: "Cream and beige", ru: "Бежевый и кремовый", swatch: "#e8dcc4", re: /\b(beige|cream|cr[eè]me|ecru|ivory|off-?white|sand|nude|camel)\b|бежев|кремов|молочн|экрю|песочн|слонов/i },
+  { key: "gold", en: "Gold and bronze", ru: "Золотой и бронзовый", swatch: "linear-gradient(135deg, #f6d77a, #b8862d)", re: /\b(gold|golden|bronze|champagne|oro|dorato)\b|золот|бронз/i },
+  { key: "grey", en: "Grey", ru: "Серый", swatch: "#9aa0a6", re: /\b(gr[ae]y|grau|gris|grigio|graphite|silver|charcoal|anthracite)\b|szar|сер(ый|ая|ое|ого|ой|ые|ых|о-|ебр)|графит|антрацит/i },
+  { key: "brown", en: "Brown", ru: "Коричневый", swatch: "#7a4b2a", re: /\b(brown|braun|marron|brun|marrone|marr[oó]n|cognac|caramel|chocolate|tan|taupe|ebene|ébène)\b|brąz|коричн|шоколад|карамел|коньяч/i },
+  { key: "red", en: "Red", ru: "Красный", swatch: "#c8102e", re: /\b(red|rot|rouge|rosso|rojo|burgundy|bordeaux|wine|cherry|scarlet|crimson|vermill?ion)\b|czerw|красн|бордов|вишн|винн/i },
+  { key: "pink", en: "Pink", ru: "Розовый", swatch: "#e889aa", re: /\b(pink|rosa|ros[eé]|fuchsia|magenta|blush)\b|różow|розов|фукси|малинов|пудров/i },
+  { key: "orange", en: "Orange", ru: "Оранжевый", swatch: "#e8772e", re: /\b(orange|arancio|naranja|terracotta|rust|coral)\b|оранж|терракот|рыж|коралл/i },
+  { key: "yellow", en: "Yellow", ru: "Жёлтый", swatch: "#f2c230", re: /\b(yellow|gelb|jaune|giallo|amarillo|mustard|safran|saffron|lemon)\b|żółt|ж[её]лт|горчич|лимонн/i },
+  { key: "green", en: "Green", ru: "Зелёный", swatch: "#4f7a45", re: /\b(green|gr[üu]n|vert|verte|verde|khaki|kaki|olive|moss|sage|mint|emerald|military)\b|zielon|зел[её]н|хаки|олив|мятн|изумруд/i },
+  { key: "blue", en: "Blue", ru: "Синий и голубой", swatch: "#3f78c8", re: /\b(blue|blau|bleu|blu|azul|azur|denim|teal|turquoise)\b|niebiesk|голуб|син(ий|яя|ее|его|ей|ие|е-)|бирюз/i },
+  { key: "navy", en: "Navy", ru: "Тёмно-синий", swatch: "#1f2f52", re: /\b(navy|marine|midnight|indigo)\b|т[её]мно-?\s?син/i },
+  { key: "purple", en: "Purple", ru: "Фиолетовый", swatch: "#7b4fa8", re: /\b(purple|violet|viola|lila|lilac|lavender|plum|mauve)\b|фиолет|сирен|лилов|лаванд|сливов/i },
+  { key: "multi", en: "Multicolour and prints", ru: "Разноцветный и принты", swatch: "conic-gradient(#c8102e, #f2c230, #4f7a45, #3f78c8, #7b4fa8, #c8102e)", re: /\b(multi-?colou?red|multi-?colou?r|camo(uflage)?|print(ed)?|leopard|tartan|plaid|floral|flowers?|stripe[sd]?|polka|dots|chevron|jacquard|paisley|butterfl(y|ies)|peacock)\b|разноцвет|камуфляж|принт|леопард|клетк|цвет(ы|ами|ок|очн)|георгин|калл|подсолн|бабоч|горох|горош|полоск|шеврон|жаккард|павлин|пейсли/i },
+];
+/** A listing's colour families, or "none" when its words name no colour */
+function colorsOf(...texts: string[]): string[] {
+  const text = texts.join(" ");
+  const keys = COLORS.filter(c => c.re.test(text)).map(c => c.key);
+  const found = keys.includes("navy") ? keys.filter(k => k !== "blue") : keys;
+  return found.length ? found : ["none"];
+}
 const CONDITION_NAMES: Record<"en" | "ru", Record<string, string>> = {
   en: { newTags: "New with tags", new: "New", likeNew: "Like new", veryGood: "Very good", good: "Good", fair: "Fair", used: "Used", other: "Other", none: "Not stated" },
   ru: { newTags: "Новое с биркой", new: "Новое", likeNew: "Как новое", veryGood: "Очень хорошее", good: "Хорошее", fair: "Нормик", used: "Б/у", other: "Другое", none: "Не указано" },
@@ -425,6 +456,7 @@ async function main(argv: string[]): Promise<number> {
       change: text(listing.change),
       note: text(listing.note),
       variant: text(listing.variant),
+      colors: colorsOf(text(listing.item), text(listing.color)),
       image: text(listing.image),
       same: [] as { url: string; shop: string; price: number | null }[],
       // The same number on listings that share a photo, for the filter that hides repeats
@@ -555,6 +587,9 @@ async function main(argv: string[]): Promise<number> {
     sizeLabels,
     conditionOrder: CONDITION_ORDER.filter(key => rows.some(row => row.cond === key)),
     conditionNames: CONDITION_NAMES[lang],
+    colorOrder: [...COLORS.map(c => c.key), "none"].filter(key => rows.some(row => row.colors.includes(key))),
+    colorNames: Object.fromEntries([...COLORS.map(c => [c.key, c[lang]]), ["none", ru ? "Не указан" : "Not stated"]]),
+    colorSwatches: Object.fromEntries(COLORS.map(c => [c.key, c.swatch])),
   };
   const [shell, style, script] = await Promise.all([Bun.file(`${PAGE}/index.html`).text(), Bun.file(`${PAGE}/style.css`).text(), pageScript()]);
   const fontLink = fonts ? `<link rel="stylesheet" href="${escapeHtml(fonts)}">` : "";

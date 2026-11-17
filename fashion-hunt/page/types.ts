@@ -40,6 +40,8 @@ export type Row = {
   change: string;
   note: string;
   variant: string;
+  /** Its colour families, such as ["black"], or ["none"] when its words name no colour */
+  colors: string[];
   /** A photo published next to the page, or a data URI */
   image: string;
   /** The other listings with the same photo */
@@ -93,6 +95,10 @@ export type Report = {
   sizeLabels: Record<string, string>;
   conditionOrder: string[];
   conditionNames: Record<string, string>;
+  /** The colour filter's options in order, their names, and each one's swatch as a CSS background */
+  colorOrder: string[];
+  colorNames: Record<string, string>;
+  colorSwatches: Record<string, string>;
   /** Set while the search is still going, so the page shows how far it's got */
   progress: Progress | null;
 };

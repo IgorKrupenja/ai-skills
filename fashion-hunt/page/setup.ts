@@ -87,6 +87,7 @@ export function setup(R: Report) {
     keys: new Map<Row, number>(R.rows.map((r, i) => [r, i])),
     /** Which filters the page offers: each only when listings differ in what it filters */
     has: {
+      color: R.colorOrder.filter(c => c !== "none").length > 1,
       shop: new Set(R.rows.map(r => r.shop)).size > 1,
       cond: R.conditionOrder.length > 1,
       size: R.sizeOrder.length > 1,

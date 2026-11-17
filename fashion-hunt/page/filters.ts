@@ -40,11 +40,13 @@ const IN_STORE = /^(in store|в магазине)\b/i;
 export const shipKey = (r: Row) => r.country || (IN_STORE.test(r.ships) ? r.ships : r.nonEU ? OUTSIDE : NONE);
 
 /** The filter pills: one per filterable column, and More for the switches */
-export type Facet = "shop" | "cond" | "size" | "price" | "new" | "diff" | "ships" | "more";
+export type Facet = "color" | "shop" | "cond" | "size" | "price" | "new" | "diff" | "ships" | "more";
 
 export type Filters = {
   group: string;
   variants: Set<string>;
+  /** Colour families, as report.ts names them */
+  colors: Set<string>;
   shops: Set<string>;
   conds: Set<string>;
   /** Size buckets: letter or number sizes, or a bag's named size or range of widths */
@@ -65,6 +67,7 @@ export function defaults(group: string): Filters {
   return {
     group,
     variants: new Set(),
+    colors: new Set(),
     shops: new Set(),
     conds: new Set(),
     sizes: new Set(),
@@ -89,6 +92,7 @@ export const cleared = (f: Filters): Filters => ({ ...defaults(f.group), below: 
 export function passes(r: Row, f: Filters, anyGroup: boolean, skip?: Facet | "variant"): boolean {
   if (!anyGroup && f.group !== ALL && r.group !== f.group) return false;
   if (skip !== "variant" && f.variants.size && !f.variants.has(r.variant)) return false;
+  if (skip !== "color" && f.colors.size && !r.colors.some(c => f.colors.has(c))) return false;
   if (skip !== "shop" && f.shops.size && !f.shops.has(r.shop)) return false;
   if (skip !== "cond" && f.conds.size && !f.conds.has(r.cond)) return false;
   if (skip !== "size" && f.sizes.size && !r.sizes.some(z => f.sizes.has(z))) return false;
@@ -154,6 +158,7 @@ export const storageKey = (report: Report) => `${SHARED_KEY}:${report.title}`;
 export type Choices = {
   groups: string[];
   variants: string[];
+  colors: string[];
   shops: string[];
   conds: string[];
   sizes: string[];
@@ -179,6 +184,7 @@ export function loadFilters(key: string, base: Filters, choices: Choices): Filte
     if (among(choices.groups)(saved.group)) f.group = saved.group;
     // Pages from before several variants or shops could be picked saved one, as variant and shop
     f.variants = new Set([...list(saved.variants), saved.variant].filter(among(choices.variants)));
+    f.colors = new Set(list(saved.colors).filter(among(choices.colors)));
     f.shops = new Set([...list(saved.shops), saved.shop].filter(among(choices.shops)));
     f.conds = new Set(list(saved.conds).filter(among(choices.conds)));
     f.sizes = new Set(list(saved.sizes).filter(among(choices.sizes)));
@@ -203,7 +209,7 @@ export function loadFilters(key: string, base: Filters, choices: Choices): Filte
 
 export function saveFilters(key: string, f: Filters) {
   try {
-    const sets = { variants: [...f.variants], shops: [...f.shops], conds: [...f.conds], sizes: [...f.sizes], ships: [...f.ships] };
+    const sets = { variants: [...f.variants], colors: [...f.colors], shops: [...f.shops], conds: [...f.conds], sizes: [...f.sizes], ships: [...f.ships] };
     localStorage.setItem(key, JSON.stringify({ ...f, ...sets }));
   } catch {
     // No storage: the filters last only as long as the page

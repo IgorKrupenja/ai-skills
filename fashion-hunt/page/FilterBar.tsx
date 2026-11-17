@@ -112,6 +112,7 @@ function pillsFor(R: Report, S: Setup, f: Filters): Pill[] {
   const better = S.better.find(b => b.conds.length === f.conds.size && b.conds.every(c => f.conds.has(c)));
   const hiding = [S.has.risk && f.norisk ? T.hideRisk : null, S.has.dup && f.norepeat ? T.hideRepeats : null].filter(name => name !== null);
   const pills: (Pill & { shown: boolean })[] = [
+    { id: "color", shown: S.has.color, name: T.color, on: f.colors.size > 0, label: `${T.color}: ${one(f.colors, c => R.colorNames[c] ?? c)}` },
     { id: "shop", shown: S.has.shop, name: T.shop, on: f.shops.size > 0, label: `${T.shop}: ${one(f.shops, s => s)}` },
     {
       id: "cond",
@@ -153,6 +154,21 @@ function FacetBody({ facet, R, S, f, set, rows }: BodyProps) {
   };
   const euros = (n: number) => S.int.format(n);
   switch (facet) {
+    case "color": {
+      const n = tally(r => r.colors);
+      const option = (c: string) => ({
+        id: c,
+        text: R.colorNames[c] ?? c,
+        label: (
+          <>
+            <span className="cdot" style={{ background: R.colorSwatches[c] ?? "transparent" }} aria-hidden="true" />
+            {R.colorNames[c] ?? c}
+          </>
+        ),
+        count: n.get(c) ?? 0,
+      });
+      return <CheckList T={T} options={R.colorOrder.map(option)} picked={f.colors} onChange={colors => set({ colors })} />;
+    }
     case "shop": {
       const n = tally(r => [r.shop]);
       return <CheckList T={T} options={S.shops.map(s => ({ id: s, text: s, count: n.get(s) ?? 0 }))} picked={f.shops} onChange={shops => set({ shops })} />;

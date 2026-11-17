@@ -317,7 +317,8 @@ Each listing's fields:
   shipping and buyer fees out of it, so prices stay comparable.
 - **Item:** model, colour and material, specific enough to compare with the brand's range, and
   "white on one side only" for a reversible item. Put "new since <date>" or "price cut from €X"
-  from the history in `change`.
+  from the history in `change`. The page's colour filter reads the colour from the item (and the shop's
+  colour field), so name it in plain words, such as "чёрный", "navy", "gold" or "floral print".
 - **Risk:** an agent's authenticity flag, with its reason.
 - **New price:** set by `compare.ts` (above): the brand's closest item with its link, and in
   `new_note` what differs (colour, variant, edition); or only a `new_note` saying the brand
