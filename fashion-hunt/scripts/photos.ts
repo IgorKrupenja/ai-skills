@@ -239,6 +239,7 @@ async function main(args: string[]): Promise<number> {
     files.push({ path: listing.image, contentType: Object.keys(TYPES).find(type => TYPES[type] === ext) ?? "image/jpeg" });
   }
   for (const urls of byPhoto.values()) if (urls.length > 1) console.log(`same photo: ${urls.join(" ")}`);
+  if (files.length > 250) console.log(`${files.length} photos are more than one publish takes (255 files): build the page with report.ts --inline and publish it alone`);
   console.log(`files (${(bytes / 1024 / 1024).toFixed(1)} MB, publish with root ${folder}):`);
   console.log(JSON.stringify(files));
   return 0;

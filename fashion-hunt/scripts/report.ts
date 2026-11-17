@@ -8,9 +8,14 @@
  * fields.
  */
 
+import { parseArgs } from "node:util";
+
 const USAGE = `Build the fashion-hunt report page from a run file.
 
-    report.ts <run.json> <page.html>
+    report.ts [--inline] <run.json> <page.html>
+
+--inline puts a small copy of each photo into the page itself, so the page publishes as one
+file: use it when a run has more photos than one publish takes (255 files).
 
 The run file is the one scripts/history.ts takes, with more fields for the page. Each listing
 has url, shop, item, price_eur and kind as history.ts describes, plus any of:
@@ -185,7 +190,30 @@ function sizeOrder(buckets: Set<string>): string[] {
   return [...letters, ...numbers, ...others];
 }
 
-async function main(args: string[]): Promise<number> {
+/** The width of a photo the page carries itself with --inline: the thumbnail is 64 pixels, the hover preview 205. */
+const INLINE_WIDTH = 180;
+
+/** A small JPEG copy of each photo as a data URI, for a page that carries its photos itself. */
+async function inlinePhotos(paths: string[], folder: string): Promise<Map<string, string>> {
+  const tmp = `${(Bun.env.TMPDIR ?? "/tmp").replace(/\/$/, "")}/fashion-hunt-inline-${process.pid}`;
+  const out = new Map<string, string>();
+  let next = 0;
+  async function worker() {
+    while (next < paths.length) {
+      const path = paths[next++]!;
+      const small = `${tmp}/${Bun.hash(path).toString(36)}.jpg`;
+      const done = await Bun.$`mkdir -p ${tmp} && sips -s format jpeg -s formatOptions 55 -Z ${INLINE_WIDTH} ${`${folder}/${path}`} --out ${small}`.quiet().nothrow();
+      if (done.exitCode === 0) out.set(path, `data:image/jpeg;base64,${Buffer.from(await Bun.file(small).bytes()).toString("base64")}`);
+      else console.warn(`couldn't shrink ${path}, so the page shows no photo for it`);
+    }
+  }
+  await Promise.all(Array.from({ length: 8 }, worker));
+  await Bun.$`rm -rf ${tmp}`.quiet().nothrow();
+  return out;
+}
+
+async function main(argv: string[]): Promise<number> {
+  const { values, positionals: args } = parseArgs({ args: argv, options: { inline: { type: "boolean" } }, allowPositionals: true });
   const [source, out] = args;
   if (args.length !== 2 || !source || !out) {
     console.log(USAGE);
@@ -251,6 +279,14 @@ async function main(args: string[]): Promise<number> {
       group,
     };
   });
+
+  if (values.inline) {
+    const folder = source.includes("/") ? source.replace(/\/[^/]*$/, "") : ".";
+    const photos = await inlinePhotos([...new Set(rows.map(row => row.image).filter(image => image && !image.startsWith("data:")))], folder);
+    for (const row of rows) if (photos.has(row.image)) row.image = photos.get(row.image)!;
+    const bytes = [...photos.values()].reduce((sum, uri) => sum + uri.length, 0);
+    console.log(`inlined ${photos.size} photos, ${(bytes / 1024 / 1024).toFixed(1)} MB`);
+  }
 
   const data = {
     lang,
