@@ -4,7 +4,7 @@
  * how; photos come from the URL the shop agent reported, or else from the listing page's og:image.
  */
 
-import { budgetLeft, spendBudget } from "./common.ts";
+import { budgetLeft, photoGroups, spendBudget } from "./common.ts";
 
 const USAGE = `Give each listing in a run file a small photo for the report page.
 
@@ -17,8 +17,9 @@ that already have a saved image keep it. Shops that refuse scripts, such as Vest
 are read inside the ai-skills browser instead, so it must be open (browser.ts open).
 
 It then prints the files to publish with the page, as the JSON list the Artifact tool's files
-takes with root set to the run file's folder, and the listings that share a photo: often one bag
-listed twice, or a seller using someone else's photos. report.ts marks those on the page.
+takes with root set to the run file's folder, and the listings that share a photo, even where each
+shop saved it at another size or quality: often one bag listed twice or in several shops, or a
+seller using someone else's photos. report.ts marks those on the page.
 `;
 
 const WIDTH = 320;
@@ -247,22 +248,19 @@ async function main(args: string[]): Promise<number> {
   console.log(`photos: ${photos.size} new, ${listings.length - todo.length} kept, ${missing.length} missing`);
   for (const listing of missing) console.log(`  no photo: ${listing.url}`);
 
-  // Listings whose photos are the same file
-  const byPhoto = new Map<string, string[]>();
+  // The files to publish, and the listings with the same photo, as report.ts will mark them
   let bytes = 0;
   const files: { path: string; contentType: string }[] = [];
   for (const listing of listings) {
     if (typeof listing.image !== "string") continue;
     const file = Bun.file(`${folder}/${listing.image}`);
     if (!(await file.exists())) continue;
-    const data = await file.bytes();
-    bytes += data.length;
-    const hash = Bun.hash(data).toString(36);
-    byPhoto.set(hash, [...(byPhoto.get(hash) ?? []), listing.url]);
+    bytes += file.size;
     const ext = listing.image.split(".").pop();
     files.push({ path: listing.image, contentType: Object.keys(TYPES).find(type => TYPES[type] === ext) ?? "image/jpeg" });
   }
-  for (const urls of byPhoto.values()) if (urls.length > 1) console.log(`same photo: ${urls.join(" ")}`);
+  const groups = await photoGroups(listings.map(listing => (typeof listing.image === "string" ? `${folder}/${listing.image}` : null)));
+  for (const group of groups) console.log(`same photo: ${group.map(i => listings[i]!.url).join(" ")}`);
   if (files.length > 250) console.log(`${files.length} photos are more than one publish takes (255 files): build the page with report.ts --inline and publish it alone`);
   console.log(`files (${(bytes / 1024 / 1024).toFixed(1)} MB, publish with root ${folder}):`);
   console.log(JSON.stringify(files));

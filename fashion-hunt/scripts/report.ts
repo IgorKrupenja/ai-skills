@@ -11,7 +11,7 @@
 
 import { parseArgs } from "node:util";
 import type { Dims, Report } from "../page/types.ts";
-import { countryCode, countryName, isCountry, outsideEU } from "./common.ts";
+import { countryCode, countryName, isCountry, outsideEU, photoGroups } from "./common.ts";
 
 const USAGE = `Build the fashion-hunt report page from a run file.
 
@@ -59,8 +59,9 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
                     several at once
     image           a photo of the listing, as a path published next to the page such as
                     "img/123.jpg": the page shows it as a thumbnail that opens the listing.
-                    Listings whose photos are the same file get a note linking each other (often
-                    one item listed by several shops), a filter (on by default) that shows only
+                    Listings with the same photo, even saved by each shop at another size or
+                    quality, get a note linking each other (often one item listed by several
+                    shops), a filter (on by default) that shows only
                     the cheapest of them, and a risk when they ship from different countries
 
 and the run has one page object:
@@ -470,20 +471,17 @@ async function main(argv: string[]): Promise<number> {
   for (const { name, label } of chart) sizeLabels[name] = label;
   if (bags) Object.assign(sizeLabels, ru ? { other: "Другой размер", none: "Не указан" } : { other: "Other size", none: "Not stated" });
 
-  // Listings whose photos are the same file, often one item listed by several shops or a seller
-  // using someone else's photos: each links the others, and a group shipping from different
-  // countries gets a risk
+  // Listings with the same photo, even where each shop saved it at another size or quality: often
+  // one item listed by several shops, or a seller using someone else's photos. Each links the
+  // others, and a group shipping from different countries gets a risk
   const folder = source.includes("/") ? source.replace(/\/[^/]*$/, "") : ".";
-  const byPhoto = new Map<string, typeof rows>();
-  for (const row of rows) {
-    if (!row.image) continue;
-    const file = Bun.file(`${folder}/${row.image}`);
-    const photo = row.image.startsWith("data:") ? row.image : (await file.exists()) ? await file.bytes() : null;
-    if (!photo) continue;
-    const hash = Bun.hash(photo).toString(36);
-    byPhoto.set(hash, [...(byPhoto.get(hash) ?? []), row]);
-  }
-  const shared = [...byPhoto.values()].filter(group => group.length > 1);
+  const files = rows.map(row => (row.image && !row.image.startsWith("data:") ? `${folder}/${row.image}` : null));
+  const byData = new Map<string, typeof rows>();
+  for (const row of rows) if (row.image?.startsWith("data:")) byData.set(row.image, [...(byData.get(row.image) ?? []), row]);
+  const shared = [
+    ...(await photoGroups(files)).map(group => group.map(i => rows[i]!)),
+    ...[...byData.values()].filter(group => group.length > 1),
+  ];
   for (const [index, group] of shared.entries()) {
     for (const row of group) row.dup = index + 1;
     const countries = new Set(group.map(row => countryCode(row.ships)).filter(Boolean));

@@ -200,3 +200,75 @@ export async function spendBudget(site: string, n: number): Promise<void> {
   const recent = ((await file.exists()) ? ((await file.json()) as number[]) : []).filter(t => t > since);
   await Bun.write(budgetFile(site), JSON.stringify([...recent, ...Array.from({ length: n }, () => Date.now())]));
 }
+
+const POPCOUNT = Uint8Array.from({ length: 256 }, (_, n) => n.toString(2).replace(/0/g, "").length);
+
+/**
+ * Group the photo files that show the same picture: the same bytes, or a 256-bit difference hash
+ * (ImageMagick shrinks each photo to 17 by 16 greys) that differs in at most 12 bits, as when a
+ * shop saved the photo at another size or quality. So one item listed in several shops, or twice
+ * in one, groups even where each shop stores its own copy. Copies of one photo differed in at most
+ * 7 bits in November 2026, and photos of different items in 25 and more, even two colours of a
+ * card holder shot in one seller's studio. Without ImageMagick only the same bytes count. Returns
+ * the groups of two or more, as indexes into paths; a null path or a missing file is left out.
+ */
+export async function photoGroups(paths: (string | null)[]): Promise<number[][]> {
+  const parent = paths.map((_, i) => i);
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i]!)));
+  const join = (a: number, b: number) => {
+    parent[find(a)] = find(b);
+  };
+  const present: number[] = [];
+  const byBytes = new Map<string, number>();
+  for (const [i, path] of paths.entries()) {
+    const file = path ? Bun.file(path) : null;
+    if (!file || !(await file.exists())) continue;
+    present.push(i);
+    const hash = Bun.hash(await file.bytes()).toString(36);
+    const first = byBytes.get(hash);
+    if (first === undefined) byBytes.set(hash, i);
+    else join(i, first);
+  }
+  if (Bun.which("magick")) {
+    const [w, h] = [17, 16];
+    const size = `${w}x${h}!`;
+    const hashes = new Map<number, Uint8Array>();
+    const hashOf = (px: Uint8Array, at: number) => {
+      const bits = new Uint8Array(((w - 1) * h) / 8);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w - 1; x++) {
+          const n = y * (w - 1) + x;
+          if (px[at + y * w + x]! > px[at + y * w + x + 1]!) bits[n >> 3]! |= 1 << (n & 7);
+        }
+      }
+      return bits;
+    };
+    const greys = async (batch: number[]) =>
+      new Uint8Array(await Bun.$`magick ${batch.map(i => `${paths[i]}[0]`)} -resize ${size} -colorspace gray -depth 8 gray:-`.quiet().arrayBuffer());
+    for (let b = 0; b < present.length; b += 50) {
+      const batch = present.slice(b, b + 50);
+      const px = await greys(batch).catch(() => null);
+      if (px && px.length === batch.length * w * h) {
+        for (const [k, i] of batch.entries()) hashes.set(i, hashOf(px, k * w * h));
+        continue;
+      }
+      // A file ImageMagick can't read fails the whole call, so read the batch one by one
+      for (const i of batch) {
+        const one = await greys([i]).catch(() => null);
+        if (one && one.length === w * h) hashes.set(i, hashOf(one, 0));
+      }
+    }
+    const hashed = [...hashes.entries()];
+    for (let a = 0; a < hashed.length; a++) {
+      for (let b = a + 1; b < hashed.length; b++) {
+        const [x, y] = [hashed[a]![1], hashed[b]![1]];
+        let bits = 0;
+        for (let k = 0; k < x.length && bits <= 12; k++) bits += POPCOUNT[x[k]! ^ y[k]!]!;
+        if (bits <= 12) join(hashed[a]![0], hashed[b]![0]);
+      }
+    }
+  }
+  const groups = new Map<number, number[]>();
+  for (const i of present) groups.set(find(i), [...(groups.get(find(i)) ?? []), i]);
+  return [...groups.values()].filter(group => group.length > 1);
+}
