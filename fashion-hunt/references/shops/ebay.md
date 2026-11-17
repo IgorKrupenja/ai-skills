@@ -10,7 +10,14 @@ on eBay" ad cards (item id 123456). A card shows the condition, a "Gewerblich" (
 "Privat" seller, the EUR price, "oder Preisvorschlag" (best offer), shipping, "aus <Land>" when it
 ships from abroad (no such line means Germany), and "Mit Echtheitsprüfung" when eBay checks the
 bag's authenticity before delivery: report that as authentication included. Give the card's
-`i.ebayimg.com` image as the photo, since `scripts/photos.ts` can't open eBay item pages.
+`i.ebayimg.com` image as the photo, since `scripts/photos.ts` can't open eBay item pages. Titles
+often carry LV's model code (such as M80689), which names the model and colour more reliably than
+the words around it.
+
+A popular model can have hundreds of cards (Marelle had 414 in November 2026). Classify them from
+the card and save them with `listings.ts add` in batches of 20 to 50 as you go, with a note that
+they were checked from the card only, before spending time on photos or item pages: an agent that
+collected all 414 first and meant to save at the end was stopped with nothing saved.
 
 eBay blocks a burst of traffic: after a run of quick page loads it answers 403 ("Error Page") to
 the signed-in browser, and `curl` or Bun's `fetch` from outside the browser always gets 403. While

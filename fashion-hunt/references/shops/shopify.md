@@ -12,7 +12,11 @@ It reads each shop's brand collection (such as `/collections/louis-vuitton`, whi
 brand's products in stock), or the whole catalogue where there's none, keeps products in stock
 whose vendor, title or tags name a `--brand`, and prices them as the shop shows them in euros.
 Without `--match` it lists every in-stock product of the brand, so add one whenever the request
-names a model or type. Then check each candidate's page for what the scan lacks: condition,
+names a model or type. The scan covers these shops: don't repeat it with their text search or
+browse their other products, unless the request is wider than a brand. If it fails with 403 or
+429, Cloudflare is limiting this machine after many scans: wait a few minutes, or read
+`/collections/<brand>/products.json` with `fetch` from a page of the shop in your tab. Then check
+each candidate's page for what the scan lacks: condition,
 measurements, colour and material, and whether the title is right (Collector's Cage once listed a
 Pochette Florentine as a "Pochette Marelle", and Bam an Easy Pouch On Strap). A product's JSON is
 at `/products/<handle>.js`, and its page's description usually gives condition and measurements.

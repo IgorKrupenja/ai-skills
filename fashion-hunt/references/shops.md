@@ -17,7 +17,7 @@ give it to an agent with the small shops, and add it here afterwards.
 | Care of Carl | browser | small-shops.md | new men's clothing and accessories, plus pre-owned designer bags and accessories |
 | Collector Square | browser | small-shops.md | pre-owned designer bags, accessories, watches and jewellery |
 | Eppli | browser | small-shops.md | pre-owned designer bags, accessories, watches and jewellery |
-| Farfetch | browser | small-shops.md | new designer clothing, shoes, bags and accessories from boutiques |
+| Farfetch | browser | small-shops.md | new designer clothing, shoes, bags and accessories from boutiques, plus pre-owned from resellers (Louis Vuitton only as "Louis Vuitton Pre-Owned") |
 | Relove | browser | small-shops.md | about 50 products, mostly designer bags |
 | ReSee | browser | small-shops.md | vintage designer women's clothing, bags and accessories |
 | YOOX | browser | small-shops.md | new off-season designer clothing, shoes, bags and accessories; no Louis Vuitton |

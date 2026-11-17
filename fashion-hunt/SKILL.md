@@ -133,6 +133,8 @@ Search <shop names, each with its url> for <the request in one line>.
 Criteria: <item type>; brand <brands and aliases, or the one brand of a split agent>; <model and
 its spellings>; <audience>; <color>; <other constraints>.
 A near match misses exactly one criterion, such as cream instead of white (rules in your file).
+<How to tell look-alike models apart, when you know, such as by their measurements.>
+Write each listing's item, misses and note in <the user's language>.
 Today is <date>. Run folder: <run dir>. Your tab tag is <run id>-<agent slug>. Skill folder:
 <skill dir>.
 First read <skill dir>/references/shop-agent.md, then your shops' notes: <notes files under
@@ -176,7 +178,10 @@ bun scripts/report.ts <run file> <run file's folder>/<slug>.html
 on the listing's page when the agent gave none, and inside the `ai-skills` browser for shops such
 as Vestiaire that refuse scripts. It prints the files to publish with the page and the listings
 that share a photo: often one bag listed twice, or a seller using someone else's photos. Say so in
-`note` on both, and flag a `risk` when they ship from different countries.
+`note` on both, and flag a `risk` when they ship from different countries. A publish takes at most
+255 files, so when there are more photos than that (`photos.ts` says so), build the page with
+`report.ts --inline`, which puts a small copy of each photo into the page itself, and publish the
+page alone, without `files`.
 
 - **Rows:** one per live listing from every shop searched, merged from all the agents' reports; the
   page sorts them by EUR price. When the user adds a shop or URL later, rebuild the page with every

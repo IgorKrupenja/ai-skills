@@ -19,7 +19,9 @@ minute, and saves every field to the `--out` file. Save scans in `<run dir>/scan
   Marelle and Marellini), and judge each candidate yourself against the criteria.
 - Look further only where a line can't settle it: open the listing or its photo when the colour,
   material or model is unclear, or when the price looks too good.
-- Use the browser for what the scan doesn't cover, such as text queries for items without a brand.
+- Trust the scan for what it covers: don't repeat it with the shop's text search or a sweep in the
+  browser. Use the browser only for what it doesn't cover, such as text queries for items without
+  a brand.
 
 ## Save as you go
 
@@ -32,6 +34,9 @@ bun <skill dir>/scripts/listings.ts add <run dir> <shop slug> --scan <run dir>/s
  {"id": "73555132", "kind": "near", "misses": "Monogram canvas, not Epi", "item": "Marelle, Monogram canvas"}]
 JSON
 ```
+
+With many candidates, classify and save them in batches of 20 to 50 as you go: an agent that
+meant to save 400 listings at the end was stopped with none saved.
 
 A scan candidate needs only its id, kind (`match` or `near`), the item (model, material and colour,
 specific enough to compare with the brand's range) and, for a near match, what it misses; add
@@ -83,8 +88,12 @@ a human check yourself. If one stays, or the shop wants a sign-in, report the sh
 - Narrow first, with the shop's category, brand and colour filters, before opening listings. Once
   the filters and a few text queries cover the shop, stop: don't add more languages or spellings
   than the shop's listings use.
-- Look at photos only when the colour or model is unclear. If ImageMagick's `montage` is installed,
+- Look at photos only to settle a candidate whose colour or model is unclear, never to sweep
+  through hundreds of unlabelled listings in case one is the item: one agent spent a large share of
+  its tokens looking at 620 bags and found nothing more. If ImageMagick's `montage` is installed,
   combine several screenshots into one sheet and read that.
+- Aim to finish within about ten minutes. At fifteen, the agent that started you asks you to stop,
+  and three minutes later it stops you: whatever you saved is kept, the rest is lost.
 
 ## Search a shop without a scan
 
