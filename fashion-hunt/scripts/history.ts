@@ -2,9 +2,9 @@
 /**
  * Keep a history of fashion-hunt results, so each run can say what is new, gone or repriced.
  *
- * USAGE below lists the commands and the format of a run. History lives in
- * ~/.local/share/fashion-hunt (set FASHION_HUNT_HOME to change it), outside the skill's public
- * repo, and holds only listing links, titles and prices.
+ * USAGE below lists the commands and the format of a run. History lives in the skill's data/
+ * folder (set FASHION_HUNT_HOME to change it), which git ignores, next to each search's run
+ * folders, and holds only listing links, titles and prices.
  */
 
 const USAGE = `Keep a history of fashion-hunt results, so each run can say what is new, gone or repriced.
@@ -21,10 +21,10 @@ slug for the same request. A run looks like:
      "listings": [{"url": "...", "shop": "Vinted", "item": "...", "price_eur": 160.76,
                    "kind": "match"}]}
 
-where \`kind\` is "match" or "near". History lives in ~/.local/share/fashion-hunt (set
-FASHION_HUNT_HOME to change it), outside the skill's public repo, and holds only listing links,
-titles and prices. Other fields, such as the page ones scripts/report.ts reads, are left out
-when a run is saved, except \`page_url\`, the run's published report page: list shows the
+where \`kind\` is "match" or "near". History lives in the skill's data/ folder (set
+FASHION_HUNT_HOME to change it), which git ignores, and holds only listing links, titles and
+prices; each run's own folder, with every file, is data/<search>/runs/<date>-<run id>/. Other
+fields, such as the page ones scripts/report.ts reads, are left out when a run is saved, except \`page_url\`, the run's published report page: list shows the
 latest one of each search. record also keeps the last run's verdicts, every field of its
 listings and of the ones it judged not to match (the run's \`rejected\` list), in
 <search>/verdicts.json, for listings.ts merge --known to carry over.
@@ -99,6 +99,10 @@ async function list(): Promise<number> {
         break;
       }
     }
+    // Each run's own folder, with every file of it
+    const runsDir = `${HOME}/${search}/runs`;
+    const folders = (await isDirectory(runsDir)) ? [...new Bun.Glob("*").scanSync({ cwd: runsDir, onlyFiles: false })].sort() : [];
+    if (folders.length) console.log(`  run folders in ${runsDir}: ${folders.join(", ")}`);
   }
   return 0;
 }

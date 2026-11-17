@@ -111,8 +111,11 @@ export function outsideEU(shipsFrom: unknown, nonEU: unknown): boolean {
   return code ? !EU.has(code) : nonEU === true;
 }
 
-/** Where fashion-hunt keeps what it learns between runs (history, model codes), outside the skill's public repo. */
-export const DATA_HOME = Bun.env.FASHION_HUNT_HOME || `${Bun.env.HOME}/.local/share/fashion-hunt`;
+/**
+ * Where fashion-hunt keeps its runs and what it learns between them (history, model codes): data/
+ * in the skill's folder, which git ignores, so it stays out of the public repo.
+ */
+export const DATA_HOME = Bun.env.FASHION_HUNT_HOME || `${import.meta.dir.replace(/\/scripts$/, "")}/data`;
 
 /** What an agent saved listings with a model code as, such as {"M80689": {"item": "Marelle, Epi Noir"}}. */
 export type LearnedCode = { item: string; seen: string };

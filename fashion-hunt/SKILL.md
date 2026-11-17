@@ -77,10 +77,11 @@ so don't use it here.
 1. **The page first, open in the user's browser, before anything else.** The user watches the
    search on its page from the start, so as soon as you know the shops and the slug, and before
    the browser, the scans, reading shop notes or probing any site:
-   - pick a run id of four random lowercase letters, such as `qkzv`, and make a run folder for it
-     in the session's scratchpad folder or another temporary one, never in this skill's folder
-     (the repo is public), such as `<scratchpad>/<slug>/`. Scans and the agents' listings go
-     there. Each agent's tab tag is the run id plus its shop, group or brand, such as
+   - pick a run id of four random lowercase letters, such as `qkzv`, and make its run folder in
+     this skill's `data/` folder, which git ignores, so every run is kept but never pushed:
+     `<skill dir>/data/<slug>/runs/<YYYY-MM-DD>-<run id>/`. Scans, the agents' listings, the run
+     file, the page and its photos go there; keep your own helper scripts in the scratchpad. Each
+     agent's tab tag is the run id plus its shop, group or brand, such as
      `qkzv-vinted`, `qkzv-small` or `qkzv-lv`;
    - write the run file, `<run dir>/run.json`, with `listings: []`, the page fields that don't
      wait for results (the title, eyebrow, lede, css and fonts: see Report), and the plan as

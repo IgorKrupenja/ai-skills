@@ -1,3 +1,5 @@
 # Claude Code's Workflow tool runs these scripts as the body of a function, ending in a top-level
 # return, which isn't valid in a module
 fashion-hunt/workflow/
+# fashion-hunt's runs, helper scripts and all, kept out of git
+fashion-hunt/data/

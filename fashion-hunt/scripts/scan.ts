@@ -100,7 +100,7 @@ Vuitton's M80689 or a style number, that several candidates share or an earlier 
 lines start with one per code: how many candidates have it, what an earlier search saved it as
 and two of their titles. Agents save their picks by id, or a whole code at once, with
 scripts/listings.ts add --scan <out file>, which also remembers what each code was saved as (in
-~/.local/share/fashion-hunt/codes.json), so they don't retype fields.
+the skill's data/codes.json), so they don't retype fields.
 `;
 
 const TAB = `${import.meta.dir}/tab.ts`;
