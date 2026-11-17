@@ -107,8 +107,8 @@ const Listing = memo(function Listing({ r, S, showGroup }: { r: Row; S: Setup; s
       <td className="cond" data-l={cols[2]} title={r.shopCondition && r.shopCondition !== r.condition ? r.shopCondition : undefined}>
         {r.condition || null}
       </td>
-      <td className="size" data-l={cols[3]}>
-        {r.size || T.noSize}
+      <td className="size" data-l={cols[3]} title={r.dims && r.size ? r.size : undefined}>
+        {r.dims ? S.dims(r.dims) : r.size || T.noSize}
       </td>
       <td className="price">
         {r.price === null ? T.noPrice : money.format(r.price)}

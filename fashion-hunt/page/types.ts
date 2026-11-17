@@ -5,6 +5,9 @@
 
 export type Lang = "en" | "ru";
 
+/** A bag's measurements in cm, longest side first, since sellers swap width and height */
+export type Dims = { w: number; h: number | null; d: number | null };
+
 export type Row = {
   url: string;
   shop: string;
@@ -15,9 +18,12 @@ export type Row = {
   shopCondition: string;
   /** The condition's key on the scale, which the filter and sorting use */
   cond: string;
+  /** The size as listed */
   size: string;
-  /** The size filter's buckets */
+  /** The size filter's buckets: letter or number sizes, or a bag's named size, "other" or "none" */
   sizes: string[];
+  /** A bag's measurements, read from its size */
+  dims: Dims | null;
   price: number | null;
   priceNote: string;
   ships: string;
@@ -59,7 +65,11 @@ export type Report = {
   /** Listings found but not checked, with a hint in HTML */
   unverified: { title?: string; hint?: string; items: { url: string; label?: string }[] } | null;
   rows: Row[];
+  /** How the size filter works: by the buckets in sizeOrder, or by a bag's width */
+  sizeMode: "buckets" | "width";
   sizeOrder: string[];
+  /** Names for buckets that need one, such as a bag's named sizes with their widths */
+  sizeLabels: Record<string, string>;
   conditionOrder: string[];
   conditionNames: Record<string, string>;
 };

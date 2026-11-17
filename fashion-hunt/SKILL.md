@@ -228,6 +228,12 @@ Each listing's fields:
   languages. When `report.ts` lists labels it can't place, give those listings the scale's name
   with the shop's words in brackets, such as "Fair (Correct condition)". Wear worth knowing
   (scratched hardware, darkened vachetta) goes in the note, which the page shows in full.
+- **Size:** as the shop gives it. A bag's measurements, such as "Width 40 cm, Height 30 cm" or
+  "40 x 31 x 6 cm", show in one format, longest side first, and the size filter goes by that
+  width. When the model comes in named sizes (PM and GM, Speedy 25 to 40), add the brand's size
+  chart as `page.sizes`, each size with the widths in cm that count as it, such as
+  `[{"name": "PM", "width": [35, 38]}, {"name": "GM", "width": [39, 43]}]`, so the filter offers
+  those names.
 - **Price:** in EUR. Prefer the shop's own EUR price; otherwise convert at a current verified rate
   and give the original amount and currency in `price_note`, marked approximate. Keep duties,
   shipping and buyer fees out of it, so prices stay comparable.
@@ -253,7 +259,8 @@ page's link in the run file as `page_url` before recording the run.
 ### Its look
 
 The page keeps what every report needs: the listings table, a tab per group plus the one with
-every listing, the filters, and conditions on one scale in the page's language. Design the rest
+every listing, a filter pill per column (shop, condition, size, price, new price, the difference
+from it and ships from), and conditions on one scale in the page's language. Design the rest
 for this search, so each report looks like what was searched for:
 
 - **Palette and type** (`page.css`, `page.fonts`): colors and fonts that suit the item, such as

@@ -1,16 +1,16 @@
 #!/usr/bin/env bun
 /**
  * Build the fashion-hunt report page from a run file: one self-contained HTML page with every
- * listing, a tab for the matches, one per kind of near match and one with all of them, filters by
- * size, condition, shop, authenticity risk and EU, and the brand's new prices, with a filter (on by
- * default) that hides listings priced at or above them, another (on by default) that keeps only the
- * cheapest of listings that share a photo, and a table that sorts by its shop,
- * condition, size, price, new price, difference and ships-from columns. USAGE below lists the
+ * listing, a tab for the matches, one per kind of near match and one with all of them, a filter
+ * pill per column (shop, condition, size or a bag's width, price, new price, the difference from it
+ * and ships from) with counts and ranges, listings at or above the brand's new price and repeats of
+ * one photo hidden at first, and a table that sorts by its shop, condition, size, price, new price,
+ * difference and ships-from columns. The page is a React app in ../page. USAGE below lists the
  * fields.
  */
 
 import { parseArgs } from "node:util";
-import type { Report } from "../page/types.ts";
+import type { Dims, Report } from "../page/types.ts";
 import { countryCode, countryName, isCountry, outsideEU } from "./common.ts";
 
 const USAGE = `Build the fashion-hunt report page from a run file.
@@ -37,7 +37,10 @@ has url, shop, item, price_eur and kind as history.ts describes, plus any of:
                     the build lists the labels it can't place, which show as other
     size            as listed; the size filter works out buckets from it (XS to XL+ from letter,
                     FR, IT, UK and US sizes, or a bare number such as a belt's 90), and sizes,
-                    such as ["M"], overrides them
+                    such as ["M"], overrides them. A bag's measurements, such as "Width 40 cm,
+                    Height 30 cm", "40 x 31 x 6 cm" or "Ш24 × В12 × Г3 см", show in one format,
+                    longest side first, since sellers swap width and height, and the size filter
+                    goes by that width: as a range, or by the named sizes in page.sizes
     price_note      shown under the price, such as "approx., from 950 PLN"
     ships_from      a country, "not stated" or "in store, <city>". The page names a country in
                     its own language whatever language it's given in, bolds one outside the EU and
@@ -64,6 +67,7 @@ and the run has one page object:
     {"lang": "ru", "title": "...", "eyebrow": "...", "lede": "...", "hero": "...",
      "new_label": "...", "css": "...", "fonts": "https://fonts.googleapis.com/css2?family=...",
      "variants": [{"name": "Damier Ebene", "swatch": "<svg ...>", "hint": "..."}],
+     "sizes": [{"name": "PM", "width": [35, 38]}, {"name": "GM", "width": [39, 43]}],
      "facts": [{"title": "...", "html": "..."}],
      "groups": [{"id": "match", "label": "...", "hint": "..."}],
      "notes": [{"title": "...", "html": "..."}],
@@ -75,7 +79,10 @@ the new-price column. eyebrow is a short line above the title. css comes after t
 own styles, so it can set the color and font tokens (--bg, --surface, --fg, --muted, --line,
 --accent, --accent-soft, --link, --warn, --warn-soft, --chip, --display, --body) for light and
 dark and restyle anything else; fonts is the Google Fonts stylesheet it needs. variants orders
-the variant cards and gives each a swatch and a hint. lede, hero, the swatches, the facts and
+the variant cards and gives each a swatch and a hint. sizes is a bag model's size chart, each
+size with the widths in cm that count as it: the size filter then offers those sizes, a size
+named in a listing's size or its width placing it, and "other" and "not stated" for the rest.
+lede, hero, the swatches, the facts and
 notes html, and the unverified hint are HTML you write; listing fields are plain text and get
 escaped.
 `;
@@ -112,6 +119,7 @@ type Page = {
   css?: string;
   fonts?: string;
   variants?: { name: string; swatch?: string; hint?: string }[];
+  sizes?: { name: string; width: [number, number] }[];
   new_label?: string;
   facts?: { title: string; html: string }[];
   groups?: Group[];
@@ -201,6 +209,29 @@ function sizeBuckets(size: string): string[] {
   }
   const number = head.match(/\b\d{2,3}\b/);
   return number ? [number[0]] : [];
+}
+
+/** The numbers in a bag's measurements, if the text gives two or three of them in cm or as A x B */
+function dimensions(text: string): Dims | null {
+  const lower = text.toLowerCase();
+  // A range such as a belt's "85-90 cm" isn't a bag
+  if (/\d\s*[-\u2013]\s*\d/.test(lower) || !/cm|см|\d\s*[x×х]\s*[a-zа-я]?\s*\d|\b(width|height|depth)\b/.test(lower)) return null;
+  const numbers = [...lower.matchAll(/\d+(?:[.,]\d+)?/g)].map(match => Number(match[0].replace(",", ".")));
+  if (numbers.length < 2 || numbers.length > 3) return null;
+  const [w, h = null, d = null] = numbers.sort((a, b) => b - a);
+  return { w: w!, h, d };
+}
+
+/**
+ * A bag's measurements from its listed size, such as "Width 40 cm, Height 30 cm", "40 x 31 x 6 cm
+ * (W x H x D)" or "Ш24 × В12 × Г3 см", longest side first: sellers swap width and height, so the
+ * longest side counts as the width. A note in brackets or after ";" only counts when the size
+ * itself has no measurements, as in "Medium (30 x 20 cm)". Null for anything else, such as a
+ * clothes size or a belt's 90.
+ */
+function measurements(size: string): Dims | null {
+  const head = size.split(";")[0]!;
+  return dimensions(head.split("(")[0]!) ?? dimensions(head);
 }
 
 /** Letter sizes in order, then numbers from small to large, then anything else. */
@@ -331,7 +362,6 @@ async function main(argv: string[]): Promise<number> {
     seen.add(listing.url);
     const group = text(listing.group) || (listing.kind === "match" ? "match" : "near");
     if (!groupIds.has(group)) die(`listing ${index + 1} is in group '${group}', which page.groups doesn't have`);
-    const sizes = Array.isArray(listing.sizes) ? listing.sizes.filter(size => typeof size === "string") : sizeBuckets(text(listing.size));
     const state = condition(text(listing.condition), lang);
     const shop = text(listing.shop) || new URL(listing.url).hostname.replace(/^www\./, "");
     const offKey = `${shop} "${text(listing.condition)}"`;
@@ -344,7 +374,9 @@ async function main(argv: string[]): Promise<number> {
       shopCondition: text(listing.condition),
       cond: state.key,
       size: text(listing.size),
-      sizes,
+      // Worked out below, once it's clear whether the run is of bags
+      sizes: [] as string[],
+      dims: measurements(text(listing.size)),
       price: price(listing.price_eur),
       priceNote: text(listing.price_note),
       ships: ships(text(listing.ships_from)),
@@ -363,6 +395,40 @@ async function main(argv: string[]): Promise<number> {
       group,
     };
   });
+
+  // The size filter. Bags give measurements: with the model's size chart (page.sizes) each goes
+  // under a named size, by a name in its size or by its width, and without one the page filters
+  // them by width. Anything else goes in letter or number buckets, unless the listing gives its own
+  const listings = run.listings as Listing[];
+  const chart = (Array.isArray(page.sizes) ? page.sizes : [])
+    .filter(size => typeof size?.name === "string" && size.name !== "" && Array.isArray(size.width) && size.width.length === 2 && size.width.every(n => typeof n === "number"))
+    .sort((a, b) => a.width[0] - b.width[0]);
+  // An empty list of sizes only keeps that listing out of the buckets
+  const explicit = listings.some(listing => Array.isArray(listing.sizes) && listing.sizes.length > 0);
+  const measured = rows.filter(row => row.dims).length;
+  const sizeMode = !chart.length && !explicit && measured > 0 && measured >= rows.filter(row => row.size).length / 2 ? "width" : "buckets";
+  const named = (row: (typeof rows)[number]) => {
+    const word = (name: string) => new RegExp(`(^|[^\\p{L}])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{L}])`, "iu");
+    // Only a name with a letter in it, since a number such as Speedy's 30 can be any measurement
+    const byName = chart.find(size => /\p{L}/u.test(size.name) && word(size.name).test(row.size));
+    if (byName) return byName.name;
+    if (row.dims) return chart.find(size => row.dims!.w >= size.width[0] && row.dims!.w <= size.width[1])?.name ?? "other";
+    return row.size ? "other" : "none";
+  };
+  for (const [index, row] of rows.entries()) {
+    const own = listings[index]!.sizes;
+    if (Array.isArray(own) && own.length) row.sizes = own.filter(size => typeof size === "string");
+    else if (chart.length) row.sizes = [named(row)];
+    else if (sizeMode === "buckets" && !Array.isArray(own)) row.sizes = sizeBuckets(row.size);
+  }
+  const presentSizes = new Set(rows.flatMap(row => row.sizes));
+  const chartNames = chart.map(size => size.name);
+  const sizeIds = chart.length
+    ? [...chartNames, ...sizeOrder(new Set([...presentSizes].filter(id => !chartNames.includes(id) && id !== "other" && id !== "none"))), "other", "none"].filter(id => presentSizes.has(id))
+    : sizeOrder(presentSizes);
+  const sizeLabels: Record<string, string> = {};
+  for (const { name, width: [from, to] } of chart) sizeLabels[name] = `${name}, ${ru ? `от ${from} до ${to} см` : `${from} to ${to} cm`}`;
+  if (chart.length) Object.assign(sizeLabels, ru ? { other: "Другой размер", none: "Не указан" } : { other: "Other size", none: "Not stated" });
 
   // Listings whose photos are the same file, often one item listed by several shops or a seller
   // using someone else's photos: each links the others, and a group shipping from different
@@ -400,7 +466,9 @@ async function main(argv: string[]): Promise<number> {
     notes: page.notes ?? [],
     unverified: page.unverified?.items?.length ? page.unverified : null,
     rows,
-    sizeOrder: sizeOrder(new Set(rows.flatMap(row => row.sizes))),
+    sizeOrder: sizeIds,
+    sizeMode,
+    sizeLabels,
     conditionOrder: CONDITION_ORDER.filter(key => rows.some(row => row.cond === key)),
     conditionNames: CONDITION_NAMES[lang],
   };
@@ -452,6 +520,11 @@ async function main(argv: string[]): Promise<number> {
     console.log(`variants: ${[...variantCounts].map(([name, count]) => `${name} ${count}`).join(", ")}`);
     const bare = [...variantCounts.keys()].filter(name => !variants.some(variant => variant.name === name && variant.swatch));
     if (bare.length) console.warn(`variants without a swatch: ${bare.join(", ")}`);
+  }
+  if (sizeMode === "width") console.log(`sizes: by width, from the measurements of ${measured} of ${rows.length} listings`);
+  else if (sizeIds.length) {
+    const counts = sizeIds.map(id => `${id} ${rows.filter(row => row.sizes.includes(id)).length}`);
+    console.log(`sizes: ${counts.join(", ")}`);
   }
   console.log(`wrote ${out}`);
   return 0;

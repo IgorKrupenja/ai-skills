@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FilterBar } from "./FilterBar.tsx";
-import { ALL, comparer, dedupe, loadFilters, passes, saveFilters, type Filters, type SortKey } from "./filters.ts";
+import { ALL, cleared, comparer, dedupe, defaults, loadFilters, passes, saveFilters, storageKey, type Facet, type Filters, type SortKey } from "./filters.ts";
 import { Listings } from "./Listings.tsx";
 import { setup } from "./setup.ts";
 import type { Report } from "./types.ts";
@@ -10,21 +10,28 @@ import { Variants } from "./Variants.tsx";
 export function App({ report: R }: { report: Report }) {
   const S = useMemo(() => setup(R), [R]);
   const { T } = S;
+  const key = storageKey(R);
   const [f, setFilters] = useState<Filters>(() =>
-    loadFilters(
-      { group: S.match, variants: new Set(), sizes: new Set(), conds: new Set(), shop: "", norisk: false, eu: false, cheap: true, norepeat: true, sortKey: "price", sortDir: "asc" },
-      { groups: S.tabs.map(g => g.id), variants: S.variants, sizes: R.sizeOrder, conds: R.conditionOrder, shops: S.shops, sortKeys: S.sortKeys },
-    ),
+    loadFilters(key, defaults(S.match), {
+      groups: S.tabs.map(g => g.id),
+      variants: S.variants,
+      shops: S.shops,
+      conds: R.conditionOrder,
+      sizes: R.sizeOrder,
+      ships: S.ships.map(s => s.name),
+      sortKeys: S.sortKeys,
+    }),
   );
-  useEffect(() => saveFilters(f), [f]);
+  useEffect(() => saveFilters(key, f), [key, f]);
   const set = useCallback((change: Partial<Filters>) => setFilters(old => ({ ...old, ...change })), []);
-  const toggle = useCallback(
-    (key: "variants" | "sizes" | "conds", value: string) =>
+  const clear = useCallback(() => setFilters(cleared), []);
+  const toggleVariant = useCallback(
+    (name: string) =>
       setFilters(old => {
-        const next = new Set(old[key]);
-        if (next.has(value)) next.delete(value);
-        else next.add(value);
-        return { ...old, [key]: next };
+        const variants = new Set(old.variants);
+        if (variants.has(name)) variants.delete(name);
+        else variants.add(name);
+        return { ...old, variants };
       }),
     [],
   );
@@ -44,6 +51,7 @@ export function App({ report: R }: { report: Report }) {
     }),
     [R, S, f, list],
   );
+  const rowsFor = useCallback((skip: Facet) => dedupe(R.rows.filter(r => passes(r, f, false, skip)), f), [R, f]);
 
   // Sticky headings need the table out of its sideways-scrolling box, so it only comes out when it fits
   const bar = useRef<HTMLElement>(null);
@@ -75,7 +83,7 @@ export function App({ report: R }: { report: Report }) {
         {R.hero ? <div className="hero" dangerouslySetInnerHTML={{ __html: R.hero }} /> : null}
       </header>
 
-      <Variants R={R} S={S} picked={f.variants} onToggle={name => toggle("variants", name)} />
+      <Variants R={R} S={S} picked={f.variants} onToggle={toggleVariant} />
 
       {R.facts.length ? (
         <section className="facts" aria-label={T.summary}>
@@ -88,7 +96,7 @@ export function App({ report: R }: { report: Report }) {
         </section>
       ) : null}
 
-      <FilterBar R={R} S={S} f={f} counts={counts} set={set} toggle={toggle} barRef={bar} />
+      <FilterBar R={R} S={S} f={f} set={set} clear={clear} counts={counts} rowsFor={rowsFor} barRef={bar} />
 
       <Listings list={list} S={S} f={f} onSort={sortBy} boxRef={box} />
 
