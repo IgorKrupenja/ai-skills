@@ -576,6 +576,9 @@ async function main(argv: string[]): Promise<number> {
   const sizeIds = !bags
     ? sizeOrder(presentSizes)
     : [...chartNames, ...(chart.length ? sizeOrder(new Set(rest)) : rest.sort((a, b) => firstNumber(a) - firstNumber(b))), "other", "none"].filter(id => presentSizes.has(id));
+  // Bags show a size only when the listings span several of the model's named sizes, as when the
+  // search took any size: otherwise every listing passed the size check already, and widths are noise
+  const showSize = !bags || chartNames.filter(name => presentSizes.has(name)).length > 1;
   const sizeLabels: Record<string, string> = {};
   for (const { name, label } of chart) sizeLabels[name] = label;
   if (bags) Object.assign(sizeLabels, ru ? { other: "Другой размер", none: "Не указан" } : { other: "Other size", none: "Not stated" });
@@ -646,6 +649,7 @@ async function main(argv: string[]): Promise<number> {
     rows,
     sizeOrder: sizeIds,
     bags,
+    showSize,
     sizeLabels,
     conditionOrder: CONDITION_ORDER.filter(key => rows.some(row => row.cond === key)),
     conditionNames: CONDITION_NAMES[lang],
@@ -705,7 +709,7 @@ async function main(argv: string[]): Promise<number> {
     const bare = [...variantCounts.keys()].filter(name => !variants.some(variant => variant.name === name && variant.swatch));
     if (bare.length) console.warn(`variants without a swatch: ${bare.join(", ")}`);
   }
-  if (bands) console.warn(`no page.sizes, so bags go under ranges of ${bands.step} cm of width; give the model's size chart to name them`);
+  if (bands) console.warn("no page.sizes, so the page shows these bags' measurements in their notes, without a Size column; for a search that takes several sizes, give the model's size chart");
   if (sizeIds.length) {
     const counts = sizeIds.map(id => `${id} ${rows.filter(row => row.sizes.includes(id)).length}`);
     console.log(`sizes: ${counts.join(", ")}`);

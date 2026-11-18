@@ -313,8 +313,10 @@ Each listing's fields:
   width. For every bag search, give `page.sizes`, the size chart from the brand agent's SIZES
   line, each size with the brand's width in cm, a model in one size included, such as
   `[{"name": "PM", "width": 36.5}, {"name": "GM", "width": 41}]`: the filter then offers those
-  names, with Other size for listings measured outside them and Not stated. Without it, the page
-  falls back to ranges of widths, and `report.ts` says so.
+  names, with Other size for listings measured outside them and Not stated. The page shows a bag's
+  Size column and filter only when the listings span several of those named sizes, as for a
+  search of any size: otherwise every listing passed the size check already, so its measurements
+  go in its notes instead.
 - **Price:** in EUR. Prefer the shop's own EUR price; otherwise convert at a current verified rate
   and give the original amount and currency in `price_note`, marked approximate. Keep duties,
   shipping and buyer fees out of it, so prices stay comparable.

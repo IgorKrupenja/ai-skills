@@ -19,7 +19,8 @@ export function App({ report: R }: { report: Report }) {
       shops: S.shops,
       conds: R.conditionOrder,
       auths: R.authOrder,
-      sizes: R.sizeOrder,
+      // Without a Size column, a size picked on an earlier visit would hide listings unseen
+      sizes: R.showSize ? R.sizeOrder : [],
       colors: R.colorOrder,
       ships: [...S.ships.eu, ...S.ships.outside, ...S.ships.other],
       inside: [...S.ships.eu, ...S.ships.other],

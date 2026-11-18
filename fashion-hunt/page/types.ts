@@ -93,6 +93,8 @@ export type Report = {
   rows: Row[];
   /** Whether the listings are bags, sized by their measurements: named sizes or ranges of widths, sorted by width */
   bags: boolean;
+  /** Whether the table has a Size column and filter: for bags only when the listings span several of the model's named sizes */
+  showSize: boolean;
   /** The size filter's buckets in order */
   sizeOrder: string[];
   /** Names for buckets that need one, such as a bag's named sizes with their widths */

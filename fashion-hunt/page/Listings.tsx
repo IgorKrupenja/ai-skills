@@ -18,6 +18,7 @@ export function Listings({ list, S, f, onSort, boxRef }: Props) {
         <thead>
           <tr>
             {cols.map((c, i) => {
+              if (i === 3 && !S.showSize) return null;
               const cls = [4, 5, 6].includes(i) ? "r" : undefined;
               const k = S.sortKeys.find(k => S.sorts[k].col === i);
               if (!k) {
@@ -101,6 +102,8 @@ const Listing = memo(function Listing({ r, S, showGroup }: { r: Row; S: Setup; s
     );
   }
   if (r.note) notes.push(r.note);
+  // Without a Size column, a bag's measurements go with its notes
+  if (!S.showSize && (r.dims || r.size)) notes.push(`${cols[3]}: ${r.dims ? S.dims(r.dims) : r.size}`);
   return (
     <tr>
       <td className="shop" data-l={cols[0]}>
@@ -123,9 +126,11 @@ const Listing = memo(function Listing({ r, S, showGroup }: { r: Row; S: Setup; s
       <td className="cond" data-l={cols[2]} title={r.shopCondition && r.shopCondition !== r.condition ? r.shopCondition : undefined}>
         {r.condition || null}
       </td>
-      <td className="size" data-l={cols[3]} title={r.dims && r.size ? r.size : undefined}>
-        {r.dims ? S.dims(r.dims) : r.size || T.noSize}
-      </td>
+      {S.showSize ? (
+        <td className="size" data-l={cols[3]} title={r.dims && r.size ? r.size : undefined}>
+          {r.dims ? S.dims(r.dims) : r.size || T.noSize}
+        </td>
+      ) : null}
       <td className="price">
         {r.price === null ? T.noPrice : money.format(r.price)}
         {r.priceNote ? <span className="sub">{r.priceNote}</span> : null}

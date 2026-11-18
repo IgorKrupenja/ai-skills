@@ -41,7 +41,7 @@ export function setup(R: Report) {
 
   // Only columns with at least two different values are worth sorting by
   const sorts = sortsFor(R);
-  const sortKeys = (Object.keys(sorts) as SortKey[]).filter(k => new Set(R.rows.map(sorts[k].value).filter(v => v !== null)).size > 1);
+  const sortKeys = (Object.keys(sorts) as SortKey[]).filter(k => (k !== "size" || R.showSize) && new Set(R.rows.map(sorts[k].value).filter(v => v !== null)).size > 1);
   if (!sortKeys.includes("price")) sortKeys.unshift("price");
 
   // The "or better" shortcuts: each grade on the page with every better one, for the grades in between
@@ -61,6 +61,8 @@ export function setup(R: Report) {
   return {
     T,
     cols,
+    /** Whether the table has its Size column, which bags of one size leave out */
+    showSize: R.showSize,
     money,
     wholeMoney,
     int,
@@ -91,7 +93,7 @@ export function setup(R: Report) {
       shop: new Set(R.rows.map(r => r.shop)).size > 1,
       cond: R.conditionOrder.length > 1,
       auth: R.authOrder.length > 1,
-      size: R.sizeOrder.length > 1,
+      size: R.showSize && R.sizeOrder.length > 1,
       price: distinct(R.rows.map(r => r.price)) > 1,
       newPrice: distinct(R.rows.map(r => r.newPrice)) > 1,
       diff: R.rows.some(r => r.price !== null && r.newPrice !== null),
