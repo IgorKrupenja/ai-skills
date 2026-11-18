@@ -238,7 +238,9 @@ async function carriedOver(runDir: string, search: string, savedKeys: Set<string
   }
   const carried = new Map<string, Listing>();
   const folder = `${runDir.replace(/\/$/, "")}/scan`;
-  for await (const name of new Bun.Glob("*.json").scan({ cwd: folder })) {
+  // Bun's Glob throws on a missing folder, and step 1 builds the page before any scan has run
+  const names = await Array.fromAsync(new Bun.Glob("*.json").scan({ cwd: folder })).catch(() => [] as string[]);
+  for (const name of names) {
     const scan = (await Bun.file(`${folder}/${name}`).json()) as ScanFile;
     for (const c of [...(scan.candidates ?? []), ...(scan.loose ?? [])]) {
       const k = key(c.url);
