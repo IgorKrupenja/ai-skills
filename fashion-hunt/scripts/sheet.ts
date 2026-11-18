@@ -5,7 +5,7 @@
  */
 
 import { parseArgs } from "node:util";
-import { TYPES, fetchPhoto, smaller, viaBrowser } from "./photos.ts";
+import { TYPES, fetchPhoto, photosViaBrowser, smaller } from "./photos.ts";
 import type { Candidate, ScanFile } from "./scan.ts";
 
 const USAGE = `Put the photos of a scan's candidates on numbered contact sheets.
@@ -61,18 +61,13 @@ async function main(): Promise<number> {
     await Bun.write(path, photo.data);
     files.set(c, path);
   }));
-  const origins = new Map<string, Candidate[]>();
-  for (const c of refused) origins.set(new URL(c.url).origin, [...(origins.get(new URL(c.url).origin) ?? []), c]);
-  for (const [origin, group] of origins) {
-    const got = await viaBrowser(origin, "photo", group.map(c => smaller(c.photo!)));
-    for (const c of group) {
-      const photo = got?.[smaller(c.photo!)];
-      if (photo && typeof photo === "object" && TYPES[photo.type]) {
-        const path = `${tmp}/${c.id}.${TYPES[photo.type]}`;
-        await Bun.write(path, Uint8Array.from(atob(photo.b64), ch => ch.charCodeAt(0)));
-        files.set(c, path);
-      }
-    }
+  const got = await photosViaBrowser(refused.map(c => ({ page: c.url, photo: smaller(c.photo!) })));
+  for (const c of refused) {
+    const photo = got.get(smaller(c.photo!));
+    if (!photo) continue;
+    const path = `${tmp}/${c.id}.${TYPES[photo.type]}`;
+    await Bun.write(path, Uint8Array.from(atob(photo.b64), ch => ch.charCodeAt(0)));
+    files.set(c, path);
   }
 
   // Numbered tiles, then sheets of 24

@@ -23,8 +23,9 @@ also to the browser and to its photo server: in November 2026 it took about 7 pr
 row, then about one every 45 seconds, and lifted a block within about 15 minutes (once it lasted
 an hour). So judge what the titles settle, and open the product pages of the rest yourself, about
 45 seconds apart: a second round read 13 pages 8 to 50 seconds apart without a block. Search by
-model name rather than the designer listing, which runs to 20 pages and more. Photos stop at the
-first 429 too, so fetch them again once a block lifts.
+model name rather than the designer listing, which runs to 20 pages and more. Its photo server
+refuses a script on farfetch.com, so `photos.ts` and `sheet.ts` read photos from a tab of the photo
+server's own site; they stop at the first 429 too, so fetch them again once a block lifts.
 
 Prices are in euros with import duties included, and returns are free for 30 days. There's no
 ships-from field: the seller's address is only in the "Seller details" dialog (a Dubai reseller

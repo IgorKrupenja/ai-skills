@@ -152,6 +152,31 @@ export async function viaBrowser(origin: string, kind: "page" | "photo", urls: s
   }
 }
 
+/**
+ * Photos a shop sends only to its own pages: fetched from a tab of the shop's site, then, for those
+ * still missing, from a tab of the photo's own site, since a photo server on a site of its own may
+ * refuse a script on the shop's (Farfetch's cdn-images, November 2026). Keyed by photo URL.
+ */
+export async function photosViaBrowser(items: { page: string; photo: string }[]): Promise<Map<string, { type: string; b64: string }>> {
+  const out = new Map<string, { type: string; b64: string }>();
+  for (const site of ["page", "photo"] as const) {
+    const groups = new Map<string, string[]>();
+    for (const it of items) {
+      if (out.has(it.photo)) continue;
+      const origin = new URL(it[site]).origin;
+      groups.set(origin, [...(groups.get(origin) ?? []), it.photo]);
+    }
+    for (const [origin, urls] of groups) {
+      const got = await viaBrowser(origin, "photo", [...new Set(urls)]);
+      for (const url of urls) {
+        const photo = got?.[url];
+        if (photo && typeof photo === "object" && TYPES[photo.type]) out.set(url, photo);
+      }
+    }
+  }
+  return out;
+}
+
 /** Group listings by the origin of their page, for one browser tab per shop. */
 function byOrigin(listings: Listing[]): Map<string, Listing[]> {
   const groups = new Map<string, Listing[]>();
@@ -230,14 +255,10 @@ async function main(args: string[]): Promise<number> {
     if (photo) photos.set(listing, photo);
     else blocked.push(listing);
   }));
-  for (const [origin, group] of byOrigin(blocked)) {
-    const got = await viaBrowser(origin, "photo", group.map(listing => smaller(photoUrl.get(listing)!)));
-    for (const listing of group) {
-      const photo = got?.[smaller(photoUrl.get(listing)!)];
-      if (photo && typeof photo === "object" && TYPES[photo.type]) {
-        photos.set(listing, { type: photo.type, data: Uint8Array.from(atob(photo.b64), c => c.charCodeAt(0)) });
-      }
-    }
+  const got = await photosViaBrowser(blocked.map(listing => ({ page: listing.url, photo: smaller(photoUrl.get(listing)!) })));
+  for (const listing of blocked) {
+    const photo = got.get(smaller(photoUrl.get(listing)!));
+    if (photo) photos.set(listing, { type: photo.type, data: Uint8Array.from(atob(photo.b64), c => c.charCodeAt(0)) });
   }
 
   for (const [listing, photo] of photos) {
