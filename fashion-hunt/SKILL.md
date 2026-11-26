@@ -343,8 +343,10 @@ Publish the page with the Artifact tool, with `root` set to the run file's folde
 to the list `photos.ts` printed, a one-word icon for the item type (bag, belt, jacket, wallet) and
 a one-sentence description. If `bun scripts/history.ts list` shows a page for this
 search, update that one instead, so its link stays the same: read it with the Artifact tool, then
-publish the new file with its URL. Without an Artifact tool, open the file with `open`. Put the
-page's link in the run file as `page_url` before recording the run.
+publish the new file with its URL. When the read fails or doesn't say you can edit the page (it
+was deleted, or made under another Claude account), publish a new page instead and use its link
+from then on. Without an Artifact tool, open the file with `open`. Put the page's link in the run
+file as `page_url` before recording the run.
 
 While the search runs, `update.ts` builds the page with `--inline`, so each version publishes as
 the one file, from the same path each time. The page shows `page.progress` above the listings:
